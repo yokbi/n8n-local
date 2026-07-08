@@ -1,0 +1,134 @@
+{
+  "name": "02 — Günlük Mail Özeti (08:00)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📬 Günlük e-posta özeti — her sabah 08:00\n\nSon 24 saatte gelen mailleri Gmail'den çeker, gönderene göre\ngruplanmış Türkçe bir HTML özet hazırlar ve size mail atar.\n\n### Kurulum\n1. Her iki Gmail düğümüne de aynı **Gmail OAuth2** credential'ını\n   bağlayın (Google Cloud kurulum adımları: README §4-B).\n2. **Özeti Kendime Gönder** düğümündeki *To* adresini kendi\n   adresinizle değiştirin.\n3. Workflow'u **Active** yapın.\n\n### Uyarlama\n- Saati değiştirmek: **Her Sabah 08:00** düğümü.\n- Hangi maillerin dahil olacağı: **Son 24 Saatin Mailleri**\n  düğümündeki `q` sorgusu. Örnekler:\n  - Yalnızca okunmamışlar: başına `is:unread` ekleyin\n  - Yalnızca birincil sekme: `category:primary` ekleyin\n- `-from:me` parçası, özetin kendisinin ertesi gün özete\n  girmesini engeller — silmeyin.",
+        "width": 460,
+        "height": 540
+      },
+      "id": "5c60a767-42ca-4cdc-b364-468ecafc4b49",
+      "name": "Not ld4mn",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "e171307a-3e0f-447a-8541-1cc4c255ac56",
+      "name": "Her Sabah 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "getAll",
+        "returnAll": true,
+        "simple": true,
+        "filters": {
+          "q": "newer_than:1d -in:spam -in:trash -from:me"
+        }
+      },
+      "id": "87508e77-9165-4edd-ac84-7cb62e55fbcc",
+      "name": "Son 24 Saatin Mailleri",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        270,
+        340
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gmail'den gelen mesajları, gönderene göre gruplanmış Türkçe HTML özete çevirir.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\n\nconst mesajlar = $input.all()\n  .map((i) => i.json)\n  .filter((m) => m && (m.id || m.threadId));\n\nconst bugun = new Date().toLocaleDateString('tr-TR', {\n  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',\n});\n\nif (mesajlar.length === 0) {\n  return [{\n    json: {\n      konu: `[n8n] 📬 Günlük özet — yeni e-posta yok (${bugun})`,\n      html: '<div style=\"font-family:sans-serif\"><h2>📬 Günlük e-posta özeti</h2><p>Son 24 saatte yeni e-posta yok. 🎉</p></div>',\n    },\n  }];\n}\n\n// Gönderene göre grupla — en çok mail gönderen en üstte.\nconst gruplar = new Map();\nfor (const m of mesajlar) {\n  const hamKimden = String(m.From || m.from || 'Bilinmeyen gönderen');\n  const ad = hamKimden.replace(/<[^>]*>/g, '').replace(/\"/g, '').trim() || hamKimden;\n  if (!gruplar.has(ad)) gruplar.set(ad, []);\n  gruplar.get(ad).push({\n    konu: String(m.Subject || m.subject || '(konu yok)'),\n    ozet: String(m.snippet || '').slice(0, 160),\n  });\n}\n\nconst bolumler = [...gruplar.entries()]\n  .sort((a, b) => b[1].length - a[1].length)\n  .map(([ad, liste]) => {\n    const satirlar = liste\n      .map((k) => `<li style=\"margin:2px 0\"><b>${esc(k.konu)}</b>${k.ozet ? ` — <span style=\"color:#555\">${esc(k.ozet)}</span>` : ''}</li>`)\n      .join('');\n    return `<h3 style=\"margin:14px 0 4px\">${esc(ad)} <span style=\"color:#888;font-weight:normal\">(${liste.length})</span></h3><ul style=\"margin:4px 0 10px\">${satirlar}</ul>`;\n  })\n  .join('');\n\nconst html = [\n  '<div style=\"font-family:sans-serif;max-width:640px\">',\n  `<h2 style=\"margin-bottom:4px\">📬 Günlük e-posta özeti — ${bugun}</h2>`,\n  `<p>Son 24 saatte <b>${mesajlar.length}</b> e-posta, <b>${gruplar.size}</b> farklı gönderen.</p>`,\n  bolumler,\n  '<hr style=\"border:none;border-top:1px solid #eee\">',\n  '<p style=\"color:#999;font-size:12px\">Bu özet, bilgisayarınızdaki n8n tarafından yerel olarak hazırlandı.</p>',\n  '</div>',\n].join('');\n\nreturn [{ json: { konu: `[n8n] 📬 Günlük özet: ${mesajlar.length} e-posta (${bugun})`, html } }];"
+      },
+      "id": "76ff0b43-f5ca-4cd4-a359-3bd4f8691444",
+      "name": "Özeti Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "149ae5e4-09f3-46f7-8e5b-41bc8523a4c7",
+      "name": "Özeti Kendime Gönder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        730,
+        340
+      ]
+    }
+  ],
+  "connections": {
+    "Her Sabah 08:00": {
+      "main": [
+        [
+          {
+            "node": "Son 24 Saatin Mailleri",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Son 24 Saatin Mailleri": {
+      "main": [
+        [
+          {
+            "node": "Özeti Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Özeti Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Özeti Kendime Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
