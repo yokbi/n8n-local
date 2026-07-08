@@ -1,0 +1,207 @@
+{
+  "name": "01 — Anlık Önemli Mail Bildirimi",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ⚡ Anlık önemli e-posta bildirimi\n\nGelen kutunuzu IMAP ile canlı dinler; konu veya gövdesinde\n**acil, urgent, önemli, fatura, son ödeme, deadline** geçen\nmailleri size ayrı bir uyarı maili olarak iletir.\n\n### Kurulum\n1. **E-posta Geldiğinde (IMAP)** düğümüne tıklayın → yeni IMAP\n   credential oluşturun: host `imap.gmail.com`, port `993`,\n   SSL açık, kullanıcı = Gmail adresiniz, şifre = Google\n   **uygulama şifresi** (README §4-A).\n2. **Bildirim Gönder (SMTP)** düğümünde SMTP credential\n   oluşturun: host `smtp.gmail.com`, port `465`, SSL açık.\n   Kimden/Kime alanlarındaki adresi kendi adresinizle değiştirin.\n3. Anahtar kelimeleri **Önemli mi?** düğümünden düzenleyin.\n4. Sağ üstten workflow'u **Active** yapın.\n\n### Notlar\n- **Kendi Bildirimimiz mi?** düğümü, konusu `[n8n]` ile başlayan\n  kendi uyarı maillerimizi eleyerek sonsuz döngüyü engeller.\n- Bu tetikleyici mailleri okundu olarak İŞARETLEMEZ. n8n yeniden\n  başlarsa okunmamış eski mailler bir kez daha tetiklenebilir;\n  bunu istemiyorsanız düğümdeki *Action* ayarını\n  *Mark as Read* yapın.",
+        "width": 480,
+        "height": 620
+      },
+      "id": "eac0edbf-e529-4b88-9bf0-52e819125da0",
+      "name": "Not 74spr",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "nothing",
+        "options": {}
+      },
+      "id": "375444ea-31d3-4bdd-8624-c7e41af7d261",
+      "name": "E-posta Geldiğinde (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        40,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ad6cecb3-6677-4f81-8170-cb525c350aaa",
+              "leftValue": "={{ $json.subject || '' }}",
+              "rightValue": "[n8n]",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f13a59f8-62ec-4b9c-8f06-af07fdd4a1e2",
+      "name": "Kendi Bildirimimiz mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        280,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "10215f49-b935-4c19-a79b-36b78ba72fa6",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "acil",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "12786f16-8af4-4dcb-a800-1c13bf251760",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "urgent",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "023067f5-2bfa-4229-8776-c0d63903666b",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "önemli",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "fe138752-66b1-4793-81ca-aae630a2706a",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "fatura",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "dd86f352-b618-4bc3-a2b7-8cd640b208fd",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "son ödeme",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "673fdab6-bda9-42e7-8aaf-71f255dc0fe1",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "deadline",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "4c178a66-87f7-4032-a5b0-28cdd7c74355",
+      "name": "Önemli mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        520,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "=[n8n] ⚠️ Önemli: {{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "=Kimden: {{ $json.from }}\nKonu: {{ $json.subject }}\nTarih: {{ $json.date }}\n\n{{ ($json.textPlain || '').slice(0, 600) }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "0f01362d-966f-4263-8732-c54ff27f6a56",
+      "name": "Bildirim Gönder (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        780,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "E-posta Geldiğinde (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Kendi Bildirimimiz mi?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kendi Bildirimimiz mi?": {
+      "main": [
+        [
+          {
+            "node": "Önemli mi?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Önemli mi?": {
+      "main": [
+        [
+          {
+            "node": "Bildirim Gönder (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
