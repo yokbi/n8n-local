@@ -1,0 +1,116 @@
+{
+  "name": "04 — Yerel AI Özet (Ollama)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🧠 Yerel AI ile özet (Ollama)\n\nMetni **internete göndermeden**, bilgisayarınızda çalışan\nOllama modeliyle özetler. Verileriniz makinenizden çıkmaz.\n\n### Kurulum\n1. Kurulum klasöründe: `docker compose --profile ai up -d`\n2. Model indirin (tek seferlik, ~2 GB):\n   `docker exec -it ollama ollama pull qwen2.5:3b`\n3. Bu workflow'da **Execute workflow** deyin — örnek metnin\n   özeti son düğümde görünür.\n\n### Uyarlama\n- **Örnek Metin** düğümünü kendi verinizle değiştirin; örneğin\n  02 numaralı özet workflow'una bu iki düğümü ekleyerek mail\n  özetini AI'a yazdırabilirsiniz.\n- Model adı HTTP düğümündeki gövdede: `qwen2.5:3b` yerine\n  `llama3.2:3b`, `gemma2:2b` vb. deneyebilirsiniz.",
+        "width": 440,
+        "height": 520
+      },
+      "id": "3802ea5f-3edd-461c-92b7-fc60f8370123",
+      "name": "Not 1l2y3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        60
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "6591b6a7-3b3d-4ddf-8414-aadd484bcc46",
+      "name": "Elle Çalıştır",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        40,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Denemek için örnek metin — kendi veri kaynağınızla değiştirin.\nconst metin = `Yarın saat 14:00'te proje değerlendirme toplantısı var; sunum dosyasını öğlene kadar güncellemem gerekiyor. Elektrik faturasının son ödeme günü cuma. Spor salonu üyeliği bu hafta sona eriyor, yenilemeyi unutma. Annemin doğum günü için pazar gününe pasta siparişi verilecek.`;\nreturn [{ json: { metin } }];"
+      },
+      "id": "046812d6-333e-43cd-8dec-d8e0929d96ac",
+      "name": "Örnek Metin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'qwen2.5:3b', prompt: 'Aşağıdaki metni Türkçe olarak en fazla 3 maddede özetle:\\n\\n' + $json.metin, stream: false }) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "e0afe7d0-db7d-461e-9cb9-1262ba8642ad",
+      "name": "Ollama'ya Sor (Yerel AI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ollama yanıtından özet metnini alır.\nreturn [{ json: { ozet: $input.first().json.response || '(yanıt alınamadı)' } }];"
+      },
+      "id": "639d057d-dc33-46c2-9cfa-06cb52ea92e3",
+      "name": "Özeti Al",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "Elle Çalıştır": {
+      "main": [
+        [
+          {
+            "node": "Örnek Metin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Örnek Metin": {
+      "main": [
+        [
+          {
+            "node": "Ollama'ya Sor (Yerel AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama'ya Sor (Yerel AI)": {
+      "main": [
+        [
+          {
+            "node": "Özeti Al",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
