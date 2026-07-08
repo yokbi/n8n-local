@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Yerel n8n otomasyon kurulumu — tüm veriler bu bilgisayarda kalır.
+#
+# Başlatma:   docker compose up -d          → http://localhost:5678
+# Durdurma:   docker compose down            (veriler volume'da korunur)
+# Yerel AI:   docker compose --profile ai up -d
+#             docker exec -it ollama ollama pull qwen2.5:3b
+#
+# Ayrıntılı kurulum: README.md
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Proje adı sabit: volume adları (n8n_n8n_data vb.) klasörün adından etkilenmez.
+name: n8n
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      # 127.0.0.1 → n8n'e YALNIZCA bu bilgisayardan erişilebilir (gizlilik).
+      # Ev ağındaki diğer cihazlardan (telefon vb.) erişmek için bu satırı
+      # "5678:5678" yapın ve aşağıdaki N8N_SECURE_COOKIE satırını açın.
+      - "127.0.0.1:5678:5678"
+    environment:
+      # Credential'ları (mail şifreleri vb.) diskte şifreleyen anahtar.
+      # .env dosyasından gelir — bu anahtarı KAYBETMEYİN, yedeğini alın.
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      # Zamanlamaların doğru saatte çalışması için saat dilimi.
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Europe/Istanbul}
+      - TZ=${GENERIC_TIMEZONE:-Europe/Istanbul}
+      # Gizlilik: telemetri ve dışarıya veri gönderen özellikler kapalı.
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - N8N_TEMPLATES_ENABLED=false
+      - N8N_HIRING_BANNER_ENABLED=false
+      # Yeni görev çalıştırıcı mimarisi (n8n'in önerdiği ayar).
+      - N8N_RUNNERS_ENABLED=true
+      # LAN'dan http ile (IP adresiyle) erişecekseniz şu satırı açın:
+      # - N8N_SECURE_COOKIE=false
+    volumes:
+      # Tüm n8n verisi: SQLite veritabanı, workflow'lar, şifreli credential'lar.
+      - n8n_data:/home/node/.n8n
+      # Workflow'ların okuyup yazabildiği yerel klasör (görev listesi burada).
+      - ./local-files:/files
+
+  # ── Opsiyonel: tamamen yerel AI (Ollama) ──────────────────────────────────
+  # Mail özetleme gibi AI işlerini internete veri göndermeden yapar.
+  # Yalnızca "--profile ai" ile başlatıldığında çalışır.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    profiles: ["ai"]
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  n8n_data:
+  ollama_data:

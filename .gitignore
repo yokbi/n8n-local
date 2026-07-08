@@ -1,0 +1,6 @@
+# Gerçek ortam değişkenleri (şifreleme anahtarı) asla commit edilmez.
+.env
+
+# Kişisel veriler (görev listesi vb.) repoya girmez — örnek dosya hariç.
+local-files/*
+!local-files/gorevler.ornek.json
