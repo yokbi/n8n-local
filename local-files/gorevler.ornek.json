@@ -1,0 +1,11 @@
+{
+  "gorevler": [
+    {
+      "id": 1,
+      "baslik": "n8n kurulumunu tamamla",
+      "not": "README.md'deki adımları izle",
+      "durum": "acik",
+      "olusturulma": "2026-07-08T09:00:00.000Z"
+    }
+  ]
+}

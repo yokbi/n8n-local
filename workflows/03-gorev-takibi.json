@@ -1,0 +1,463 @@
+{
+  "name": "03 — Görev Takibi (Webhook + Günlük Hatırlatma)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ✅ Görev takibi — verileriniz yerel dosyada\n\nGörevler bilgisayarınızda `n8n/local-files/gorevler.json`\ndosyasında tutulur (konteyner içindeki adı `/files/gorevler.json`).\nÜç bölümden oluşur:\n\n1. **POST /webhook/gorev** → görev ekle / tamamla / sil\n2. **GET /webhook/gorevler** → güncel listeyi döndürür\n3. **Her sabah 08:05** → açık görevleri e-posta ile hatırlatır\n\n### Kurulum\n1. Kurulum klasöründe örnek dosyayı kopyalayın:\n   `cp local-files/gorevler.ornek.json local-files/gorevler.json`\n2. **Hatırlatmayı Gönder (SMTP)** düğümüne SMTP credential\n   bağlayın ve Kimden/Kime adreslerini değiştirin (README §4-A).\n3. Workflow'u **Active** yapın — webhook'lar ancak aktifken çalışır.",
+        "width": 520,
+        "height": 460
+      },
+      "id": "03b23885-4485-4758-8c31-f6fa1cb36206",
+      "name": "Not xu1r4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 📱 Kullanım — istediğiniz uygulamadan\n\nGörev ekle:\n```\ncurl -X POST http://localhost:5678/webhook/gorev \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"baslik\":\"Süt al\",\"not\":\"markete uğra\"}'\n```\nTamamla / sil (id listede görünür):\n```\n{\"islem\":\"tamamla\",\"id\":1}\n{\"islem\":\"sil\",\"id\":1}\n```\nListele:\n```\ncurl http://localhost:5678/webhook/gorevler\n```\n\niPhone Kısayollar, Android Tasker/HTTP Shortcuts veya\nherhangi bir uygulama bu adreslere istek atarak görev\nekleyebilir — ayrıntı ve telefon kurulumu: README §6.",
+        "width": 520,
+        "height": 560
+      },
+      "id": "f976e910-52e3-4cba-82ed-3dd430a78d32",
+      "name": "Not r4zrf",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gorev",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "62edeefc-f18e-4e34-85f9-85f50d616c54",
+      "name": "Görev Webhook (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        40,
+        120
+      ],
+      "webhookId": "6f1da60d-3c0e-4f1b-aded-19b2834054a3"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/gorevler.json",
+        "options": {}
+      },
+      "id": "acebb8a7-33e0-4eca-9ce2-eb233768cc27",
+      "name": "Görev Dosyasını Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        260,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "e21bcebd-d570-46de-a714-659b6b8cfaee",
+      "name": "Dosyadan Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Webhook'tan gelen isteğe göre görev listesini günceller.\n// Desteklenen işlemler: ekle (varsayılan), tamamla, sil.\nconst okunan = $input.first().json;\nconst mevcut = (okunan.data && okunan.data.gorevler) || okunan.gorevler || [];\nconst gorevler = Array.isArray(mevcut) ? [...mevcut] : [];\n\nconst govde = $('Görev Webhook (POST)').first().json.body || {};\nconst islem = String(govde.islem || 'ekle').toLowerCase();\nlet mesaj = '';\n\nif (islem === 'ekle') {\n  const baslik = String(govde.baslik || '').trim();\n  if (!baslik) {\n    mesaj = 'HATA: \"baslik\" alanı zorunlu.';\n  } else {\n    const yeniId = gorevler.reduce((m, g) => Math.max(m, Number(g.id) || 0), 0) + 1;\n    gorevler.push({\n      id: yeniId,\n      baslik,\n      not: String(govde.not || ''),\n      durum: 'acik',\n      olusturulma: new Date().toISOString(),\n    });\n    mesaj = `Görev eklendi (#${yeniId}): ${baslik}`;\n  }\n} else if (islem === 'tamamla' || islem === 'sil') {\n  const id = Number(govde.id);\n  const gorev = gorevler.find((g) => Number(g.id) === id);\n  if (!gorev) {\n    mesaj = `HATA: #${id} numaralı görev bulunamadı.`;\n  } else if (islem === 'tamamla') {\n    gorev.durum = 'tamam';\n    gorev.tamamlanma = new Date().toISOString();\n    mesaj = `Görev tamamlandı (#${id}): ${gorev.baslik}`;\n  } else {\n    gorevler.splice(gorevler.indexOf(gorev), 1);\n    mesaj = `Görev silindi (#${id}): ${gorev.baslik}`;\n  }\n} else {\n  mesaj = `HATA: bilinmeyen işlem \"${islem}\". Geçerli işlemler: ekle, tamamla, sil.`;\n}\n\nconst acikGorevSayisi = gorevler.filter((g) => g.durum !== 'tamam').length;\nreturn [{ json: { gorevler, mesaj, acikGorevSayisi } }];"
+      },
+      "id": "012f1b0c-6e96-4a75-bad2-a6ef122e2db4",
+      "name": "Görev Listesini Güncelle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca görev listesi yazılır; mesaj gibi alanlar dışarıda kalır.\nreturn [{ json: { gorevler: $input.first().json.gorevler } }];"
+      },
+      "id": "98f081bb-c430-4ef6-88db-570a09318d06",
+      "name": "Dosya İçeriğini Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "gorevler.json"
+        }
+      },
+      "id": "8644c274-9ade-4a51-96df-458847afd0ef",
+      "name": "JSON Dosyasına Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1140,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/gorevler.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "3fb2d43b-64a4-4e71-878f-ad89466090c1",
+      "name": "Görev Dosyasını Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, mesaj: $('Görev Listesini Güncelle').first().json.mesaj, acikGorevSayisi: $('Görev Listesini Güncelle').first().json.acikGorevSayisi }) }}",
+        "options": {}
+      },
+      "id": "befab8ad-b117-473e-a2ac-2dc60c1a1bad",
+      "name": "Yanıt Ver",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1580,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "gorevler",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8b9a0d78-2422-4ac3-9606-4e059e75be36",
+      "name": "Liste Webhook (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        40,
+        420
+      ],
+      "webhookId": "919e8950-6df3-495c-87d0-ed4fd7fe66cc"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/gorevler.json",
+        "options": {}
+      },
+      "id": "da2579ea-5b6b-403b-90c5-ec3ca33b9aeb",
+      "name": "Görev Dosyasını Oku (Liste)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        260,
+        420
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "5362c711-641f-4462-9ed8-60d79d5c117a",
+      "name": "Dosyadan Çıkar (Liste)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        420
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify(($json.data && $json.data.gorevler) || $json.gorevler || []) }}",
+        "options": {}
+      },
+      "id": "a164fe11-a9d0-4175-83d7-0d9d41190949",
+      "name": "Listeyi Yanıtla",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 8,
+              "triggerAtMinute": 5
+            }
+          ]
+        }
+      },
+      "id": "0f41b41e-ac1b-4e5d-95ae-8e5a933edc8a",
+      "name": "Her Sabah 08:05",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/gorevler.json",
+        "options": {}
+      },
+      "id": "872c9504-15f4-428f-a995-bcbae01465e1",
+      "name": "Görev Dosyasını Oku (Hatırlatma)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        260,
+        680
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "9881c2c4-877b-4104-85c1-af6083763345",
+      "name": "Dosyadan Çıkar (Hatırlatma)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        680
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Açık görevlerden Türkçe bir HTML hatırlatma maili hazırlar.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\n\nconst okunan = $input.first().json;\nconst ham = (okunan.data && okunan.data.gorevler) || okunan.gorevler || [];\nconst acik = (Array.isArray(ham) ? ham : []).filter((g) => g && g.durum !== 'tamam');\n\nconst bugun = new Date().toLocaleDateString('tr-TR', {\n  weekday: 'long', day: 'numeric', month: 'long',\n});\n\nlet html;\nif (acik.length === 0) {\n  html = '<div style=\"font-family:sans-serif\"><h2>✅ Görevler</h2><p>Bugün için açık görev yok. 🎉</p></div>';\n} else {\n  const satirlar = acik\n    .map((g) => `<li style=\"margin:4px 0\"><b>#${g.id}</b> ${esc(g.baslik)}${g.not ? ` — <span style=\"color:#555\">${esc(g.not)}</span>` : ''}</li>`)\n    .join('');\n  html = [\n    '<div style=\"font-family:sans-serif;max-width:640px\">',\n    `<h2>✅ Bugünün görevleri — ${bugun}</h2>`,\n    `<ol style=\"padding-left:20px\">${satirlar}</ol>`,\n    '<p style=\"color:#999;font-size:12px\">Tamamlamak için: POST http://localhost:5678/webhook/gorev gövde: {\"islem\":\"tamamla\",\"id\":1}</p>',\n    '</div>',\n  ].join('');\n}\n\nreturn [{ json: { konu: `[n8n] ✅ Bugünün görevleri (${acik.length} açık) — ${bugun}`, html } }];"
+      },
+      "id": "76ecb001-604d-4d14-8689-d433938d3a4c",
+      "name": "Hatırlatma Metnini Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "1d6d1ec0-67aa-4a57-9365-c8ed9ca11321",
+      "name": "Hatırlatmayı Gönder (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        920,
+        680
+      ]
+    }
+  ],
+  "connections": {
+    "Görev Webhook (POST)": {
+      "main": [
+        [
+          {
+            "node": "Görev Dosyasını Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görev Dosyasını Oku": {
+      "main": [
+        [
+          {
+            "node": "Dosyadan Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dosyadan Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Görev Listesini Güncelle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görev Listesini Güncelle": {
+      "main": [
+        [
+          {
+            "node": "Dosya İçeriğini Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dosya İçeriğini Hazırla": {
+      "main": [
+        [
+          {
+            "node": "JSON Dosyasına Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON Dosyasına Çevir": {
+      "main": [
+        [
+          {
+            "node": "Görev Dosyasını Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görev Dosyasını Yaz": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Ver",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Liste Webhook (GET)": {
+      "main": [
+        [
+          {
+            "node": "Görev Dosyasını Oku (Liste)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görev Dosyasını Oku (Liste)": {
+      "main": [
+        [
+          {
+            "node": "Dosyadan Çıkar (Liste)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dosyadan Çıkar (Liste)": {
+      "main": [
+        [
+          {
+            "node": "Listeyi Yanıtla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her Sabah 08:05": {
+      "main": [
+        [
+          {
+            "node": "Görev Dosyasını Oku (Hatırlatma)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görev Dosyasını Oku (Hatırlatma)": {
+      "main": [
+        [
+          {
+            "node": "Dosyadan Çıkar (Hatırlatma)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dosyadan Çıkar (Hatırlatma)": {
+      "main": [
+        [
+          {
+            "node": "Hatırlatma Metnini Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hatırlatma Metnini Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Hatırlatmayı Gönder (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
