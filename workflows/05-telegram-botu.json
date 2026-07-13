@@ -1,0 +1,672 @@
+{
+  "name": "05 — Telegram Görev Botu",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🤖 Telegram görev botu — dışa kapalı kurulumla çalışır\n\nTelegram üzerinden görev listenizi yönetirsiniz; görevler yine\nbilgisayarınızdaki `local-files/gorevler.json` dosyasında durur\n(03 numaralı workflow ile aynı liste).\n\n**Komutlar:** düz metin → görev ekler · `/liste` · `/tamamla 3` ·\n`/sil 3` · `/yardim`\n\n### Kurulum\n1. Telegram'da **@BotFather**'a `/newbot` yazın, bot adını verin,\n   size verdiği **token**'ı kopyalayın.\n2. Kurulum klasöründeki `.env` dosyasına yazın:\n   `TELEGRAM_BOT_TOKEN=123456:ABC...`\n3. `docker compose up -d` ile n8n'i yeniden başlatın\n   (yeni ortam değişkeninin yüklenmesi için şart).\n4. Bu workflow'u **Active** yapın ve botunuza `/start` yazın —\n   bot size **sohbet ID**'nizi söyler.\n5. ID'yi `.env` içine `TELEGRAM_CHAT_ID=...` olarak yazıp n8n'i\n   bir kez daha yeniden başlatın. Artık: (a) sabah 08:00 görev\n   özeti Telegram'a gelir, (b) bot yalnızca SİZİN mesajlarınıza\n   yanıt verir (başkası bulursa yok sayılır).",
+        "width": 520,
+        "height": 620
+      },
+      "id": "c7e78b91-e3c7-47fc-aa45-cad7c33ce47c",
+      "name": "Not 8xpbr",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Nasıl çalışıyor? (teknik not)\n\n- n8n'in hazır Telegram Trigger'ı dışarıdan erişilebilir bir\n  HTTPS adresi ister. Bu workflow bunun yerine dakikada bir\n  Telegram'ın `getUpdates` API'sini **yoklar**: içeriye hiçbir\n  bağlantı açılmaz, kurulumunuz dışa kapalı kalır.\n- Yanıt gecikmesi en fazla ~1 dakikadır.\n- İşlenen son mesajın numarası `local-files/telegram-offset.json`\n  dosyasında tutulur; aynı mesaj iki kez işlenmez.\n- Bu workflow'un **başarılı** çalışmaları geçmişe kaydedilmez\n  (dakikada bir çalışıp geçmişi doldurmasın diye). Hata ayıklarken\n  workflow **Settings → Save successful executions**'ı açın.\n- 🔒 Gizlilik: mesaj içerikleri Telegram sunucularından geçer;\n  görev dosyanız ise yalnızca bilgisayarınızda kalır.",
+        "width": 520,
+        "height": 440
+      },
+      "id": "0d60ce36-ebe8-41a8-a3c1-377e4cbce788",
+      "name": "Not p5gja",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "bc462edf-1368-466d-98e5-2372ed059b2f",
+      "name": "Her Dakika",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/telegram-offset.json",
+        "options": {}
+      },
+      "id": "0ba847e2-2f85-48ec-b83b-50641ee9d37e",
+      "name": "Offset Dosyasını Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        240,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "881bab9f-f2d5-4ea3-a0f8-e6cd271e5722",
+      "name": "Offseti Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        440,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/getUpdates?timeout=0&offset=' + (($json.data && $json.data.offset) || 0) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f0308c31-a428-42f9-b96f-6cb95627e200",
+      "name": "Yeni Mesajları Getir",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/gorevler.json",
+        "options": {}
+      },
+      "id": "735ee459-634a-42dc-bb29-a1f65c4d535b",
+      "name": "Görev Dosyasını Oku (Bot)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        840,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "9e958f96-10e4-456e-9f84-4cd7465e3110",
+      "name": "Görevleri Çıkar (Bot)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram'dan gelen yeni mesajları görev komutları olarak işler.\nconst yanitHttp = $('Yeni Mesajları Getir').first().json || {};\nconst okunanGorev = $input.first().json;\nconst g0 = (okunanGorev.data && okunanGorev.data.gorevler) || [];\nconst gorevler = Array.isArray(g0) ? [...g0] : [];\nconst offsetJson = $('Offseti Çıkar').first().json;\nconst eskiOffset = Number((offsetJson.data && offsetJson.data.offset) || 0);\nconst izinliChat = String($env.TELEGRAM_CHAT_ID || '').trim();\n\nconst updates = yanitHttp.ok && Array.isArray(yanitHttp.result) ? yanitHttp.result : [];\nlet yeniOffset = eskiOffset;\nlet degisti = false;\nconst yanitlar = [];\n\nconst acikListe = () => {\n  const acik = gorevler.filter((x) => x.durum !== 'tamam');\n  if (acik.length === 0) return 'Açık görev yok. 🎉';\n  return 'Açık görevler:\\n' + acik.map((x) => '#' + x.id + ' ' + x.baslik + (x.not ? ' — ' + x.not : '')).join('\\n');\n};\n\nfor (const u of updates) {\n  if (typeof u.update_id === 'number' && u.update_id >= yeniOffset) yeniOffset = u.update_id + 1;\n  const m = u.message;\n  if (!m || !m.chat) continue;\n  const chatId = m.chat.id;\n  if (izinliChat && String(chatId) !== izinliChat) continue; // yabancı sohbetleri yok say\n  const metin = String(m.text || '').trim();\n  if (!metin) {\n    yanitlar.push({ chat_id: chatId, text: 'Metin mesajı bekliyorum. Komutlar için /yardim yazın.' });\n    continue;\n  }\n  const kucuk = metin.toLowerCase();\n  const esle = kucuk.match(/^\\/?(tamamla|sil)\\s+#?(\\d+)/);\n  if (kucuk === '/start' || kucuk === '/yardim' || kucuk === 'yardim' || kucuk === 'yardım') {\n    yanitlar.push({\n      chat_id: chatId,\n      text: [\n        'Merhaba! Görev botu komutları:',\n        '• Düz metin yaz → görev olarak eklenir',\n        '• /liste → açık görevleri gösterir',\n        '• /tamamla 3 → #3 numaralı görevi tamamlar',\n        '• /sil 3 → #3 numaralı görevi siler',\n        '',\n        'Sohbet ID: ' + chatId,\n        'Sabah özeti ve güvenlik için .env dosyasına TELEGRAM_CHAT_ID=' + chatId + ' yazıp n8n\\'i yeniden başlatın.',\n      ].join('\\n'),\n    });\n  } else if (kucuk === '/liste' || kucuk === 'liste' || kucuk === '/gorevler') {\n    yanitlar.push({ chat_id: chatId, text: acikListe() });\n  } else if (esle) {\n    const id = Number(esle[2]);\n    const gorev = gorevler.find((x) => Number(x.id) === id);\n    if (!gorev) {\n      yanitlar.push({ chat_id: chatId, text: '#' + id + ' bulunamadı. /liste ile kontrol edin.' });\n    } else if (esle[1] === 'tamamla') {\n      gorev.durum = 'tamam';\n      gorev.tamamlanma = new Date().toISOString();\n      degisti = true;\n      yanitlar.push({ chat_id: chatId, text: '✅ Tamamlandı: #' + id + ' ' + gorev.baslik + '\\n' + acikListe() });\n    } else {\n      gorevler.splice(gorevler.indexOf(gorev), 1);\n      degisti = true;\n      yanitlar.push({ chat_id: chatId, text: '🗑 Silindi: #' + id + ' ' + gorev.baslik });\n    }\n  } else {\n    const yeniId = gorevler.reduce((mx, x) => Math.max(mx, Number(x.id) || 0), 0) + 1;\n    gorevler.push({ id: yeniId, baslik: metin, not: '', durum: 'acik', olusturulma: new Date().toISOString() });\n    degisti = true;\n    yanitlar.push({ chat_id: chatId, text: '➕ Eklendi: #' + yeniId + ' ' + metin });\n  }\n}\n\nreturn [{\n  json: {\n    gorevler,\n    yanitlar,\n    yeniOffset,\n    gorevYazilsin: degisti,\n    offsetYazilsin: yeniOffset !== eskiOffset,\n  },\n}];"
+      },
+      "id": "6b330137-9128-4077-b776-9eb906368503",
+      "name": "Komutları İşle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5dd85d56-c0df-4302-8e0b-27d94e6f1275",
+              "leftValue": "={{ $json.offsetYazilsin }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "70d31a61-a44f-4b0f-978d-c7d1b7425728",
+      "name": "Offset Değişti mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1460,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { offset: $input.first().json.yeniOffset } }];"
+      },
+      "id": "15ca5446-7344-450f-b086-6b056f5e8081",
+      "name": "Offset Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "telegram-offset.json"
+        }
+      },
+      "id": "6be6c764-7086-44a1-a14e-dabd21a18e04",
+      "name": "Offseti Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1880,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/telegram-offset.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "e1425501-99f3-4d91-a68c-da1d6fa03e22",
+      "name": "Offset Dosyasını Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cbf346ca-9bbd-40d5-a6c4-3e738262a615",
+              "leftValue": "={{ $json.gorevYazilsin }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "604471eb-81d0-4fe2-b0d8-3bb112a2e7a6",
+      "name": "Görevler Değişti mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1460,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca görev listesi yazılır.\nreturn [{ json: { gorevler: $input.first().json.gorevler } }];"
+      },
+      "id": "6e72fbfc-edc8-47b2-8c20-d7cc3ddb3725",
+      "name": "Görev Gövdesi (Bot)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "gorevler.json"
+        }
+      },
+      "id": "530f3960-b22e-416a-8eb3-f51af76123b3",
+      "name": "Görevleri Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1880,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/gorevler.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "5fe3d1b3-bcf7-44da-b8ed-24cf349527a4",
+      "name": "Görev Dosyasını Yaz (Bot)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Her Telegram yanıtını ayrı bir öğeye çevirir; yanıt yoksa akış burada durur.\nreturn ($input.first().json.yanitlar || []).map((y) => ({ json: y }));"
+      },
+      "id": "b5aaac71-08ed-496e-a425-fa47c8f16414",
+      "name": "Yanıtları Aç",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "d2b70200-70b9-4b47-8465-9ad28d84ceaa",
+      "name": "Telegram Yanıtı Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "6e2b8ae2-4696-42c3-8f81-6015386f9b28",
+      "name": "Her Sabah 08:00 (Bot)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Token veya sohbet ID .env dosyasında yoksa sabah özeti sessizce atlanır.\nif (!String($env.TELEGRAM_BOT_TOKEN || '').trim() || !String($env.TELEGRAM_CHAT_ID || '').trim()) return [];\nreturn [{ json: {} }];"
+      },
+      "id": "e4f7235d-33e8-432e-a15e-fe05d7241192",
+      "name": "Ayarlar Tamam mı?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/gorevler.json",
+        "options": {}
+      },
+      "id": "a653813e-fadf-400a-8097-125b6e0791f4",
+      "name": "Görev Dosyasını Oku (Özet)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        440,
+        560
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "68a46814-a11c-41e6-9881-029bd3450fca",
+      "name": "Görevleri Çıkar (Özet)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        640,
+        560
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Açık görevlerden sabah özet mesajı hazırlar.\nconst okunan = $input.first().json;\nconst g0 = (okunan.data && okunan.data.gorevler) || [];\nconst gorevler = Array.isArray(g0) ? g0 : [];\nconst acik = gorevler.filter((x) => x && x.durum !== 'tamam');\nconst bugun = new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });\nlet text;\nif (acik.length === 0) {\n  text = '📋 Günaydın! ' + bugun + '\\nAçık görev yok. 🎉';\n} else {\n  text = '📋 Günaydın! ' + bugun + '\\nAçık görevler (' + acik.length + '):\\n' +\n    acik.map((x) => '#' + x.id + ' ' + x.baslik + (x.not ? ' — ' + x.not : '')).join('\\n') +\n    '\\n\\nTamamlamak için: /tamamla <numara>';\n}\nreturn [{ json: { chat_id: String($env.TELEGRAM_CHAT_ID).trim(), text } }];"
+      },
+      "id": "48d7a37d-3b3e-46b8-a418-4f875271892b",
+      "name": "Sabah Özetini Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "e23470aa-d516-43ba-8648-7420eb728de6",
+      "name": "Özeti Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        560
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Her Dakika": {
+      "main": [
+        [
+          {
+            "node": "Offset Dosyasını Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offset Dosyasını Oku": {
+      "main": [
+        [
+          {
+            "node": "Offseti Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offseti Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Yeni Mesajları Getir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yeni Mesajları Getir": {
+      "main": [
+        [
+          {
+            "node": "Görev Dosyasını Oku (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görev Dosyasını Oku (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Görevleri Çıkar (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görevleri Çıkar (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Komutları İşle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Komutları İşle": {
+      "main": [
+        [
+          {
+            "node": "Offset Değişti mi?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Görevler Değişti mi?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Yanıtları Aç",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offset Değişti mi?": {
+      "main": [
+        [
+          {
+            "node": "Offset Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Offset Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Offseti Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Offseti Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Offset Dosyasını Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görevler Değişti mi?": {
+      "main": [
+        [
+          {
+            "node": "Görev Gövdesi (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Görev Gövdesi (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Görevleri Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görevleri Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Görev Dosyasını Yaz (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yanıtları Aç": {
+      "main": [
+        [
+          {
+            "node": "Telegram Yanıtı Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her Sabah 08:00 (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Ayarlar Tamam mı?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ayarlar Tamam mı?": {
+      "main": [
+        [
+          {
+            "node": "Görev Dosyasını Oku (Özet)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görev Dosyasını Oku (Özet)": {
+      "main": [
+        [
+          {
+            "node": "Görevleri Çıkar (Özet)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görevleri Çıkar (Özet)": {
+      "main": [
+        [
+          {
+            "node": "Sabah Özetini Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sabah Özetini Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Özeti Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": true
+  },
+  "pinData": {}
+}
