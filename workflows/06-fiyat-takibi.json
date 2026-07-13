@@ -1,0 +1,424 @@
+{
+  "name": "06 — Fiyat Takibi",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🏷 Fiyat takibi\n\nTakip listesi bilgisayarınızda: `local-files/fiyat-takibi.json`.\nHer gün 09:00'da ürün sayfalarını kontrol eder; fiyat **eşiğin\naltına inince** veya **değişince** e-posta ile haber verir ve son\nfiyatı dosyaya işler.\n\n### Kurulum\n1. `cp local-files/fiyat-takibi.ornek.json local-files/fiyat-takibi.json`\n2. Dosyayı düzenleyin — her ürün için:\n   - `ad`: sizin vereceğiniz isim\n   - `url`: ürün sayfası adresi\n   - `secici`: fiyatın CSS seçicisi (aşağıya bakın)\n   - `esik`: bu fiyata inince haber ver (TL)\n3. **Fiyat Uyarısı Gönder** düğümünde SMTP credential + adresler.\n4. **Elle Test Et** ile deneyin; sonra workflow'u **Active** yapın.\n\n### CSS seçici nasıl bulunur?\nÜrün sayfasında fiyatın üzerine sağ tıklayın → **İncele** →\nvurgulanan öğeye sağ tık → **Copy → Copy selector**.\n\n### Sınırlar\n- Fiyatı sayfa kaynağında olmayan (tarayıcıda sonradan yüklenen)\n  siteler ve bot koruması sert siteler okunamayabilir — dosyadaki\n  `sonHata` alanına ve elle çalıştırma çıktısına bakın.\n- Sık kontrol siteleri rahatsız eder; günde 1-2 yeterli.",
+        "width": 520,
+        "height": 700
+      },
+      "id": "a34fb720-b811-4ba3-aae1-f5090415a29d",
+      "name": "Not 6kg3c",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "8c44988c-8c4d-459b-a535-290ed893fe15",
+      "name": "Her Sabah 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        120
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "6f3a80d9-d40a-4fe6-affe-fa1ec51fe677",
+      "name": "Elle Test Et",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        40,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/fiyat-takibi.json",
+        "options": {}
+      },
+      "id": "9a73107d-8275-4641-8cc9-a48b08230c95",
+      "name": "Ürün Listesini Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        260,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "efe96ddf-606c-4ab8-b542-f741d25332c0",
+      "name": "Ürünleri Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        460,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yapılandırma dosyasındaki her ürünü ayrı bir öğeye çevirir.\nconst okunan = $input.first().json;\nconst u0 = (okunan.data && okunan.data.urunler) || [];\nconst urunler = Array.isArray(u0) ? u0 : [];\nreturn urunler\n  .filter((u) => u && String(u.url || '').startsWith('http'))\n  .map((u, i) => ({\n    json: {\n      ad: String(u.ad || 'Ürün ' + (i + 1)),\n      url: String(u.url),\n      secici: String(u.secici || ''),\n      esik: Number.isFinite(Number(u.esik)) && u.esik !== null && u.esik !== '' ? Number(u.esik) : null,\n      sonFiyat: Number.isFinite(Number(u.sonFiyat)) && u.sonFiyat !== null ? Number(u.sonFiyat) : null,\n    },\n  }));"
+      },
+      "id": "78cf3f33-dded-42e6-8453-8b0e0616934a",
+      "name": "Ürünleri Aç",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "433bc459-9e06-47b6-942f-46ee8f83a262",
+      "name": "Sayfayı İndir",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "sourceData": "json",
+        "dataPropertyName": "data",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "fiyatMetni",
+              "cssSelector": "={{ $('Ürünleri Aç').item.json.secici }}",
+              "returnValue": "text"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3e58574b-3023-4d40-8a58-3089dba60d27",
+      "name": "Fiyat Metnini Çek",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        1060,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// İndirilen sayfadan çekilen metni sayıya çevirir (1.299,90 TL / 1,299.90 vb.).\nconst urun = $('Ürünleri Aç').item.json;\nconst hamDeger = $json.fiyatMetni;\nconst ham = (hamDeger === undefined || hamDeger === null) ? '' : String(hamDeger).trim();\nlet hata = '';\nif ($json.error) hata = 'sayfa indirilemedi: ' + String(($json.error && $json.error.message) || $json.error).slice(0, 120);\nelse if (!ham) hata = 'fiyat metni bulunamadı (CSS seçiciyi kontrol edin)';\n\nlet fiyat = null;\nif (ham) {\n  const m = ham.replace(/\\s+/g, ' ').match(/\\d[\\d.,]*/);\n  if (m) {\n    let s = m[0].replace(/[.,]$/, '');\n    // \"1.250\" / \"1,250\" gibi yalnızca 3'lü gruplardan oluşanlar binlik ayraçtır.\n    if (/^\\d{1,3}(\\.\\d{3})+$/.test(s)) s = s.replace(/\\./g, '');\n    else if (/^\\d{1,3}(,\\d{3})+$/.test(s)) s = s.replace(/,/g, '');\n    else {\n      const sonNokta = s.lastIndexOf('.');\n      const sonVirgul = s.lastIndexOf(',');\n      if (sonVirgul > sonNokta) s = s.replace(/\\./g, '').replace(',', '.');\n      else s = s.replace(/,/g, '');\n    }\n    const n = Number(s);\n    if (Number.isFinite(n)) fiyat = n;\n  }\n  if (fiyat === null && !hata) hata = 'fiyat çözümlenemedi: \"' + ham.slice(0, 60) + '\"';\n}\n\nreturn { json: { ...urun, fiyat, hata } };"
+      },
+      "id": "2f5aa4cc-1785-431c-ba44-055e2f8cae00",
+      "name": "Fiyatı Yorumla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tüm ürün sonuçlarını birleştirir: dosya içeriğini günceller, uyarı metnini kurar.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst sonuclar = $input.all().map((i) => i.json);\nconst simdi = new Date().toISOString();\nconst tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) + ' TL';\n\nconst urunler = sonuclar.map((s) => ({\n  ad: s.ad,\n  url: s.url,\n  secici: s.secici,\n  esik: s.esik,\n  sonFiyat: s.fiyat !== null && s.fiyat !== undefined ? s.fiyat : (s.sonFiyat ?? null),\n  sonKontrol: simdi,\n  sonHata: s.hata || '',\n}));\n\nconst dusenler = sonuclar.filter((s) => s.fiyat !== null && s.esik !== null && s.fiyat <= s.esik);\nconst degisenler = sonuclar.filter((s) => s.fiyat !== null && s.sonFiyat !== null && s.fiyat !== s.sonFiyat && !dusenler.includes(s));\nconst hatalilar = sonuclar.filter((s) => s.hata);\n\nlet html = '';\nif (dusenler.length) {\n  html += '<h3>🎯 Hedef fiyatın altında</h3><ul>' + dusenler\n    .map((s) => '<li><a href=\"' + esc(s.url) + '\">' + esc(s.ad) + '</a>: <b>' + tl(s.fiyat) + '</b> (hedef: ' + tl(s.esik) + ')</li>')\n    .join('') + '</ul>';\n}\nif (degisenler.length) {\n  html += '<h3>↕️ Fiyatı değişenler</h3><ul>' + degisenler\n    .map((s) => '<li><a href=\"' + esc(s.url) + '\">' + esc(s.ad) + '</a>: ' + tl(s.sonFiyat) + ' → <b>' + tl(s.fiyat) + '</b></li>')\n    .join('') + '</ul>';\n}\nif (html && hatalilar.length) {\n  html += '<p style=\"color:#999;font-size:12px\">Kontrol edilemedi: ' + esc(hatalilar.map((s) => s.ad).join(', ')) + '</p>';\n}\n\nconst bildirimVar = dusenler.length > 0 || degisenler.length > 0;\nconst konu = dusenler.length\n  ? '[n8n] 🎯 ' + dusenler.length + ' ürün hedef fiyatın altında!'\n  : '[n8n] 🏷 Fiyat değişikliği: ' + degisenler.map((s) => s.ad).join(', ').slice(0, 80);\n\nreturn [{ json: { urunler, bildirimVar, konu, html: html ? '<div style=\"font-family:sans-serif;max-width:640px\">' + html + '</div>' : '' } }];"
+      },
+      "id": "28f4ce55-d816-499e-9d14-0dda703f7b83",
+      "name": "Sonucu Değerlendir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca ürün listesi yazılır.\nreturn [{ json: { urunler: $input.first().json.urunler } }];"
+      },
+      "id": "967789ff-f07f-40f9-ad2d-31f786bad32c",
+      "name": "Dosya Gövdesi (Fiyat)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "fiyat-takibi.json"
+        }
+      },
+      "id": "f9946dce-ce89-4f11-934b-efdf207858f4",
+      "name": "Fiyat Dosyasına Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1880,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/fiyat-takibi.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "19f84a91-a490-4bbb-b3f3-20e85d48c0d7",
+      "name": "Ürün Listesini Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3398c46e-510d-4e1f-bf99-13c548e7e0c8",
+              "leftValue": "={{ $json.bildirimVar }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3690bd1a-ac77-4bd7-969f-868ad8b6651b",
+      "name": "Bildirim Var mı?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1680,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "0bf55327-914e-41bc-85a4-f5e722852296",
+      "name": "Fiyat Uyarısı Gönder (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1900,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "Her Sabah 09:00": {
+      "main": [
+        [
+          {
+            "node": "Ürün Listesini Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et": {
+      "main": [
+        [
+          {
+            "node": "Ürün Listesini Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ürün Listesini Oku": {
+      "main": [
+        [
+          {
+            "node": "Ürünleri Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ürünleri Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Ürünleri Aç",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ürünleri Aç": {
+      "main": [
+        [
+          {
+            "node": "Sayfayı İndir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sayfayı İndir": {
+      "main": [
+        [
+          {
+            "node": "Fiyat Metnini Çek",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fiyat Metnini Çek": {
+      "main": [
+        [
+          {
+            "node": "Fiyatı Yorumla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fiyatı Yorumla": {
+      "main": [
+        [
+          {
+            "node": "Sonucu Değerlendir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sonucu Değerlendir": {
+      "main": [
+        [
+          {
+            "node": "Dosya Gövdesi (Fiyat)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Bildirim Var mı?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dosya Gövdesi (Fiyat)": {
+      "main": [
+        [
+          {
+            "node": "Fiyat Dosyasına Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fiyat Dosyasına Çevir": {
+      "main": [
+        [
+          {
+            "node": "Ürün Listesini Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bildirim Var mı?": {
+      "main": [
+        [
+          {
+            "node": "Fiyat Uyarısı Gönder (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
