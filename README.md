@@ -1,8 +1,9 @@
 # 🏠 Yerel n8n Otomasyon Kurulumu
 
 Kendi bilgisayarınızda çalışan, **verileri dışarı göndermeyen** kişisel otomasyon
-merkezi: günlük e-posta özeti, önemli mail uyarıları, telefonunuzdan bile
-kullanabileceğiniz yerel bir görev listesi ve isterseniz tamamen yerel AI (Ollama).
+merkezi: günlük e-posta özeti, önemli mail uyarıları, Telegram'dan yönetilen
+yerel görev listesi, fiyat takibi, fatura/harcama kaydı ve isterseniz tamamen
+yerel AI (Ollama).
 
 > Bu repo tek başına çalışır: klonlayın, `.env` oluşturun, `docker compose up -d` deyin.
 
@@ -21,11 +22,12 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 4. [E-posta kimlik bilgileri](#4-e-posta-kimlik-bilgileri)
 5. [Workflow'ları içe aktarma](#5-workflowları-içe-aktarma)
 6. [Görev API'sini başka uygulamalardan kullanma](#6-görev-apisini-başka-uygulamalardan-kullanma)
-7. [Opsiyonel: Yerel AI (Ollama)](#7-opsiyonel-yerel-ai-ollama)
-8. [Verileriniz nerede? Yedekleme](#8-verileriniz-nerede-yedekleme)
-9. [Başka uygulamalar bağlamak](#9-başka-uygulamalar-bağlamak)
-10. [Sorun giderme](#10-sorun-giderme)
-11. [Güncelleme](#11-güncelleme)
+7. [Telegram botu, fiyat takibi ve harcama kaydı](#7-telegram-botu-fiyat-takibi-ve-harcama-kaydı)
+8. [Opsiyonel: Yerel AI (Ollama)](#8-opsiyonel-yerel-ai-ollama)
+9. [Verileriniz nerede? Yedekleme](#9-verileriniz-nerede-yedekleme)
+10. [Başka uygulamalar bağlamak](#10-başka-uygulamalar-bağlamak)
+11. [Sorun giderme](#11-sorun-giderme)
+12. [Güncelleme](#12-güncelleme)
 
 ---
 
@@ -39,10 +41,13 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 │  │ 02 Günlük mail özeti — 08:00 (Gmail) │ ───▶ │ qwen2.5:3b vb.  │   │
 │  │ 03 Görev listesi + hatırlatma        │      └─────────────────┘   │
 │  │ 04 Yerel AI özet örneği              │                            │
+│  │ 05 Telegram görev botu               │                            │
+│  │ 06 Fiyat takibi (web)                │                            │
+│  │ 07 Fatura/harcama kaydı              │                            │
 │  └──────┬──────────────────┬────────────┘                            │
 │         │                  │                                         │
-│   n8n_data volume    local-files/gorevler.json                       │
-│   (DB + şifreli      (görevleriniz, düz JSON)                        │
+│   n8n_data volume    local-files/*.json (görev, fiyat, harcama)      │
+│   (DB + şifreli      (düz JSON dosyaları)                            │
 │    credential'lar)                                                   │
 └──────────────────────────────────────────────────────────────────────┘
           ▲ IMAP/SMTP/Gmail API — yalnızca SİZİN posta kutunuzla konuşur
@@ -54,6 +59,9 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 | `02-gunluk-mail-ozeti` | Her sabah 08:00'de son 24 saatin maillerini gönderene göre gruplayıp özet mail atar | Gmail OAuth2 (§4-B) |
 | `03-gorev-takibi` | Webhook ile görev ekle/tamamla/sil + her sabah 08:05'te açık görevleri hatırlatır; veriler yerel JSON dosyasında | SMTP (§4-A) |
 | `04-yerel-ai-ozet-ollama` | Metni internete göndermeden yerel AI ile özetler (örnek/başlangıç noktası) | — |
+| `05-telegram-botu` | Telegram'dan görev ekle/tamamla/listele + her sabah 08:00 görev özeti telefona; dışa açık URL gerektirmez | — (.env'e bot token, §7.1) |
+| `06-fiyat-takibi` | Her gün 09:00'da ürün sayfalarını kontrol eder; eşiğin altına inince / fiyat değişince mail atar | SMTP (§4-A) |
+| `07-fatura-harcama-cikarma` | Fatura maillerinden tutarı ayıklayıp yerel dosyaya kaydeder; ayın 1'inde önceki ayın dökümünü mail atar | IMAP + SMTP (§4-A) |
 
 Her workflow'un tuvalinde, kurulum adımlarını anlatan Türkçe **sarı not kutuları** vardır.
 
@@ -75,8 +83,10 @@ cd n8n-local
 cp .env.example .env
 openssl rand -hex 32   # çıktıyı .env içindeki N8N_ENCRYPTION_KEY= satırına yapıştırın
 
-# 2) Görev listesinin başlangıç dosyasını oluşturun
+# 2) Yerel veri dosyalarının başlangıç kopyalarını oluşturun
 cp local-files/gorevler.ornek.json local-files/gorevler.json
+cp local-files/fiyat-takibi.ornek.json local-files/fiyat-takibi.json
+cp local-files/harcamalar.ornek.json local-files/harcamalar.json
 
 # 3) n8n'i başlatın
 docker compose up -d
@@ -133,7 +143,8 @@ Resmî anlatım: <https://docs.n8n.io/integrations/builtin/credentials/google/oa
 
 1. n8n panelinde sol üstten **Workflows** → sağ üstteki **⋯** menüsü →
    **Import from File…**
-2. `workflows/` klasöründeki 4 dosyayı sırayla içe aktarın.
+2. `workflows/` klasöründeki dosyaları sırayla içe aktarın (hepsini kurmak
+   zorunda değilsiniz — işinize yarayanları seçin).
 3. Her workflow'u açın, tuvaldeki **sarı not** ne diyorsa yapın
    (credential seçin, `sizin-adresiniz@gmail.com` yazan yerleri değiştirin).
 4. Sağ üstteki anahtarla workflow'u **Active** yapın.
@@ -181,7 +192,62 @@ programla açıp okuyabilirsiniz.
 > kullanmayın; isterseniz Webhook node'una *Authentication → Header Auth*
 > ekleyip kısayola da aynı başlığı koyarak uçları şifreleyebilirsiniz.
 
-## 7. Opsiyonel: Yerel AI (Ollama)
+## 7. Telegram botu, fiyat takibi ve harcama kaydı
+
+### 7.1 Telegram görev botu (workflow 05)
+
+Görev listenizi telefonunuzdan yönetin: bota düz metin yazınca görev eklenir;
+`/liste`, `/tamamla 3`, `/sil 3`, `/yardim` komutları çalışır; her sabah
+08:00'de açık görevler Telegram'dan gelir. Liste, workflow 03 ile aynı yerel
+dosyadır — webhook'tan eklediğiniz görevleri botta da görürsünüz.
+
+1. Telegram'da **@BotFather**'a `/newbot` yazın; verdiği token'ı `.env`
+   dosyasına `TELEGRAM_BOT_TOKEN=...` olarak ekleyin.
+2. `docker compose up -d` deyin (yeni ortam değişkeninin yüklenmesi için
+   yeniden başlatma şarttır).
+3. Workflow 05'i içe aktarıp **Active** yapın ve botunuza `/start` yazın —
+   bot size sohbet ID'nizi söyler (yanıt ~1 dakika içinde gelir).
+4. ID'yi `.env` içine `TELEGRAM_CHAT_ID=...` olarak yazın ve bir kez daha
+   `docker compose up -d` deyin. Bundan sonra bot **yalnızca sizi** dinler ve
+   sabah özeti Telegram'a gelir.
+
+> Teknik not: bu bot, n8n'in hazır Telegram Trigger'ı yerine dakikada bir
+> `getUpdates` yoklaması kullanır — böylece dışarıya port veya tünel açmanız
+> gerekmez, kurulum dışa kapalı kalır. Bedeli, yanıtların en fazla ~1 dakika
+> gecikmesidir. Mesaj içerikleri doğal olarak Telegram sunucularından geçer;
+> görev dosyanız ise makinenizde kalır.
+
+### 7.2 Fiyat takibi (workflow 06)
+
+Takip listesi `local-files/fiyat-takibi.json` dosyasındadır; her ürün için
+şunları girersiniz:
+
+```json
+{ "ad": "Kulaklık", "url": "https://...", "secici": ".product-price", "esik": 1500 }
+```
+
+Her gün 09:00'da kontrol edilir; fiyat eşiğin altına inince veya değişince
+mail gelir, son fiyat ve varsa hata (`sonHata`) dosyaya işlenir.
+
+- **CSS seçici bulmak:** ürün sayfasında fiyata sağ tıklayın → *İncele* →
+  vurgulanan öğeye sağ tık → *Copy → Copy selector*.
+- Fiyatı tarayıcıda sonradan yüklenen (JavaScript) siteler bu yöntemle
+  okunamayabilir — **Elle Test Et** tetikleyicisiyle deneyip `sonHata`
+  alanına bakın.
+
+### 7.3 Fatura ve harcama kaydı (workflow 07)
+
+Konu veya gövdesinde *fatura, ekstre, dekont, ödeme, tahsilat, abonelik*
+geçen maillerden TL tutarı ayıklanır ("toplam/tutar/ödenecek" yakınındaki
+değer tercih edilir) ve `local-files/harcamalar.json` dosyasına eklenir.
+Her ayın 1'inde 08:10'da önceki ayın gönderene göre dökümü mail olarak gelir.
+
+- Anahtar kelimeleri workflow'daki **Fatura mı?** düğümünden düzenleyin.
+- Aynı fatura (aynı gün + aynı konu) iki kez kaydedilmez.
+- Dosya düz JSON'dur: yanlış okunan tutarı elle düzeltebilir, veriyi başka
+  bir bütçe uygulamasına kaynak olarak kullanabilirsiniz.
+
+## 8. Opsiyonel: Yerel AI (Ollama)
 
 Mail özetini "insan gibi" yazsın ama veriler makineden çıkmasın istiyorsanız:
 
@@ -196,13 +262,13 @@ workflow'daki nota bakın (örn. 02'nin özetini Ollama'ya yazdırmak).
 Türkçesi daha iyi/kötü modeller için `llama3.2:3b`, `gemma2:2b` gibi
 alternatifleri deneyebilirsiniz.
 
-## 8. Verileriniz nerede? Yedekleme
+## 9. Verileriniz nerede? Yedekleme
 
 | Veri | Yer |
 |---|---|
 | Workflow'lar, çalıştırma geçmişi, hesap | Docker volume `n8n_data` içindeki SQLite DB |
 | Mail şifreleri / OAuth token'ları | Aynı DB'de, `N8N_ENCRYPTION_KEY` ile **şifreli** |
-| Görev listesi | `local-files/gorevler.json` (düz dosya, sizde) |
+| Görevler, fiyat listesi, harcamalar | `local-files/*.json` (düz dosyalar, sizde) |
 | AI modelleri | Docker volume `ollama_data` |
 
 Yedek almak için:
@@ -220,14 +286,15 @@ yedeğe koyun. Geri yükleme aynı komutun `tar xzf` hâlidir.
 `docker compose down` veriyi **silmez**; volume'lar durur. Veriyi bilerek
 silmek isterseniz: `docker compose down -v` (geri dönüşü yoktur).
 
-## 9. Başka uygulamalar bağlamak
+## 10. Başka uygulamalar bağlamak
 
 n8n'de yüzlerce hazır node var — Telegram, Google Takvim, Notion, Todoist,
 Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
 
-- **Hazır node'lar**: örn. günlük özeti mail yerine Telegram'dan almak için
-  02'deki son düğümü Telegram node'u ile değiştirin (BotFather'dan bot açıp
-  token'ı credential olarak girersiniz).
+- **Hazır node'lar**: örn. günlük mail özetini (02) Telegram'dan almak için
+  son düğümü, workflow 05'teki **Özeti Telegrama Gönder** HTTP düğümünün bir
+  kopyasıyla değiştirmeniz yeterli (credential bile gerekmez, token .env'den
+  gelir).
 - **Webhook'lar**: workflow 03'teki gibi kendi HTTP uçlarınızı açın; HTTP
   isteği atabilen her uygulama (kısayollar, betikler, diğer programlar)
   n8n'inizi tetikleyebilir.
@@ -235,7 +302,7 @@ Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
 Hangi servisi bağlarsanız bağlayın, kimlik bilgileri yine yalnızca sizin
 makinenizde (şifreli) durur.
 
-## 10. Sorun giderme
+## 11. Sorun giderme
 
 | Belirti | Çözüm |
 |---|---|
@@ -248,8 +315,10 @@ makinenizde (şifreli) durur.
 | Webhook 404 dönüyor | Workflow **Active** değil, ya da test modundayken üretim URL'sini çağırdınız (tersi de olur). |
 | Görev API'si "dosya bulunamadı" hatası | `cp local-files/gorevler.ornek.json local-files/gorevler.json` adımı atlanmış. |
 | Ollama isteği zaman aşımı | Model henüz iniyor olabilir: `docker logs -f ollama`. İlk yanıt model yüklenirken yavaştır. |
+| Telegram botu yanıt vermiyor | `.env`'e token yazdıktan sonra `docker compose up -d` yaptınız mı? Workflow 05 **Active** mi? Bot dakikada bir bakar — 1 dk bekleyin. `TELEGRAM_CHAT_ID` doluysa yalnızca o sohbete yanıt verilir. |
+| Fiyat okunamıyor / `sonHata` dolu | CSS seçiciyi kontrol edin; sayfayı tarayıcıda *kaynağı görüntüle* ile açın — fiyat kaynakta yoksa (JS ile geliyorsa) bu yöntem çalışmaz. |
 
-## 11. Güncelleme
+## 12. Güncelleme
 
 ```bash
 docker compose pull
