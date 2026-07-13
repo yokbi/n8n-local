@@ -1,0 +1,11 @@
+{
+  "urunler": [
+    {
+      "ad": "Örnek Ürün — beni kendi ürününüzle değiştirin",
+      "url": "https://www.example.com/urun/123",
+      "secici": ".product-price",
+      "esik": 1000,
+      "sonFiyat": null
+    }
+  ]
+}

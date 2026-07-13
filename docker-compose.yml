@@ -37,6 +37,10 @@ services:
       - N8N_HIRING_BANNER_ENABLED=false
       # Yeni görev çalıştırıcı mimarisi (n8n'in önerdiği ayar).
       - N8N_RUNNERS_ENABLED=true
+      # Telegram görev botu (workflow 05) — isteğe bağlı, .env'den gelir.
+      # Boş bırakılırsa bot dalları sessizce devre dışı kalır.
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       # LAN'dan http ile (IP adresiyle) erişecekseniz şu satırı açın:
       # - N8N_SECURE_COOKIE=false
     volumes:
