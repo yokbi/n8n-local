@@ -1,0 +1,507 @@
+{
+  "name": "07 — Fatura ve Harcama Kaydı",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 💳 Fatura ve harcama kaydı\n\nGelen kutunuza fatura/ödeme maili düştüğünde tutarı otomatik\nayıklar ve bilgisayarınızdaki `local-files/harcamalar.json`\ndosyasına ekler. Her ayın 1'inde önceki ayın dökümünü mail atar.\n\n### Kurulum\n1. `cp local-files/harcamalar.ornek.json local-files/harcamalar.json`\n2. **Fatura Maili Geldiğinde** düğümüne IMAP credential bağlayın\n   (workflow 01 ile aynısı kullanılabilir, README §4-A).\n3. **Aylık Özeti Gönder (SMTP)** düğümünde SMTP credential +\n   Kimden/Kime adresleri.\n4. Workflow'u **Active** yapın.\n\n### Bilmeniz gerekenler\n- Hangi maillerin fatura sayılacağı **Fatura mı?** düğümündeki\n  anahtar kelimelerle belirlenir (fatura, ekstre, dekont, ödeme,\n  tahsilat, abonelik) — kendinize göre düzenleyin.\n- Tutar ayıklama sezgiseldir: \"toplam/tutar/ödenecek\" yakınındaki\n  TL değeri tercih edilir; bulunamazsa kayıt `tutar: null` ile\n  eklenir. Dosya düz JSON — elle düzeltebilirsiniz.\n- Aynı fatura (aynı gün + aynı konu) ikinci kez eklenmez; n8n\n  yeniden başlayınca okunmamış mailler tekrar taransa bile\n  mükerrer kayıt oluşmaz.\n- 💡 `harcamalar.json`'ı başka uygulamalarla da okuyabilirsiniz\n  (ör. bir bütçe uygulamasına veri kaynağı olarak).",
+        "width": 540,
+        "height": 700
+      },
+      "id": "3d538b9a-ba8c-44f1-a842-6a92df9ea5f0",
+      "name": "Not hg7gu",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "nothing",
+        "options": {}
+      },
+      "id": "326a83f9-ca65-446d-bfbc-9f61c4143b93",
+      "name": "Fatura Maili Geldiğinde",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        40,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9186285a-bb8c-45c6-b0e4-b15c3149ae1a",
+              "leftValue": "={{ $json.subject || '' }}",
+              "rightValue": "[n8n]",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5de24a50-10b0-4e4d-b197-1faf660d7bc1",
+      "name": "Kendi Bildirimimiz mi? (Fatura)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "294d3356-11b2-4947-8559-26f1ad4a2737",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "fatura",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "34547b20-0455-42ba-8300-0dbc6c9b718b",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "ekstre",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "7a78f54f-7d59-4d57-b877-0d3ba227b340",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "dekont",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "5a3a66d9-95c2-4e58-8c1d-a8b018f72e07",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "ödeme",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "df75c53c-fa01-42e6-a2da-9185ca0de559",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "tahsilat",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "fd9e5212-0a84-4b35-a658-b65cc146f83f",
+              "leftValue": "={{ ($json.subject || '') + ' ' + ($json.textPlain || '') }}",
+              "rightValue": "abonelik",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "7524c1dd-ab2d-496c-a379-92906f165d75",
+      "name": "Fatura mı?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/harcamalar.json",
+        "options": {}
+      },
+      "id": "8b88859b-866d-4351-92f5-565b1ca7372b",
+      "name": "Harcamaları Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        700,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "fcee2a59-8590-4505-8d16-d8b46554c964",
+      "name": "Harcamaları Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        900,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fatura mailinden tutarı ayıklar ve harcama listesine ekler.\nconst okunan = $input.first().json;\nconst h0 = (okunan.data && okunan.data.harcamalar) || [];\nconst harcamalar = Array.isArray(h0) ? [...h0] : [];\n\nconst mail = $('Fatura Maili Geldiğinde').first().json;\nconst konu = String(mail.subject || '(konu yok)');\nconst kimdenHam = String(mail.from || '');\nconst kimden = kimdenHam.replace(/<[^>]*>/g, '').replace(/\"/g, '').trim() || kimdenHam || 'Bilinmeyen';\nconst tarihObj = mail.date ? new Date(mail.date) : new Date();\nconst tarih = isNaN(tarihObj.getTime()) ? new Date().toISOString() : tarihObj.toISOString();\n\n// Mükerrer koruması: aynı gün + aynı konu bir kez kaydedilir.\nconst anahtar = (tarih.slice(0, 10) + '|' + konu).slice(0, 200);\nif (harcamalar.some((h) => h.anahtar === anahtar)) {\n  return [{ json: { harcamalar, yazilsin: false } }];\n}\n\nconst metin = konu + '\\n' + String(mail.textPlain || '');\n// 1.234,56 TL · 249,90 TL · 1,299.90 TRY · ₺89 gibi biçimleri yakalar.\nconst tutarRegex = /(?:tl|try|₺)?\\s*(\\d{1,3}(?:\\.\\d{3})+,\\d{2}|\\d+,\\d{2}|\\d{1,3}(?:,\\d{3})+\\.\\d{2}|\\d+\\.\\d{2}|\\d+)\\s*(?:tl|try|₺)/gi;\nconst cevir = (s) => {\n  let t = s;\n  const sonNokta = t.lastIndexOf('.');\n  const sonVirgul = t.lastIndexOf(',');\n  if (sonVirgul > sonNokta) t = t.replace(/\\./g, '').replace(',', '.');\n  else t = t.replace(/,/g, '');\n  const n = Number(t);\n  return Number.isFinite(n) ? n : null;\n};\n\nconst adaylar = [];\nlet m;\nwhile ((m = tutarRegex.exec(metin)) !== null) {\n  const deger = cevir(m[1]);\n  if (deger === null || deger <= 0) continue;\n  const oncesi = metin.slice(Math.max(0, m.index - 60), m.index).toLowerCase();\n  const oncelikli = /toplam|tutar|borç|borc|ödenecek|odenecek|genel/.test(oncesi);\n  adaylar.push({ deger, oncelikli });\n}\nlet tutar = null;\nconst oncelikliler = adaylar.filter((a) => a.oncelikli);\nif (oncelikliler.length) tutar = Math.max(...oncelikliler.map((a) => a.deger));\nelse if (adaylar.length) tutar = Math.max(...adaylar.map((a) => a.deger));\n\nharcamalar.push({\n  anahtar,\n  tarih,\n  kimden,\n  konu,\n  tutar,\n  paraBirimi: tutar === null ? null : 'TL',\n  eklenme: new Date().toISOString(),\n});\n\nreturn [{ json: { harcamalar, yazilsin: true } }];"
+      },
+      "id": "6b34439d-b3be-47ca-a621-7ed1fd0221c3",
+      "name": "Tutarı Ayıkla ve Ekle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4fe182a4-5b0f-41f5-8ab2-675b801ce38e",
+              "leftValue": "={{ $json.yazilsin }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "53ea888e-bf51-422d-90c1-936724dc619f",
+      "name": "Kayıt Yazılsın mı?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca harcama listesi yazılır.\nreturn [{ json: { harcamalar: $input.first().json.harcamalar } }];"
+      },
+      "id": "0d0d1b4f-cd12-44af-bb98-b0c10e2a08da",
+      "name": "Dosya Gövdesi (Harcama)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "harcamalar.json"
+        }
+      },
+      "id": "3f5d9d45-a7a9-4d44-935e-c838a63487c0",
+      "name": "Harcama Dosyasına Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1740,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/harcamalar.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "a35df723-40f7-4531-8ee2-ad4bab2e3b6b",
+      "name": "Harcamaları Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1940,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "monthsInterval": 1,
+              "triggerAtDayOfMonth": 1,
+              "triggerAtHour": 8,
+              "triggerAtMinute": 10
+            }
+          ]
+        }
+      },
+      "id": "c36a57f0-514c-4a8c-bcc0-e01fbefb54ae",
+      "name": "Her Ayın 1i 08:10",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/harcamalar.json",
+        "options": {}
+      },
+      "id": "f424cc47-98e2-422b-8730-8d3f7b406ba8",
+      "name": "Harcamaları Oku (Özet)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        260,
+        440
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "519480f0-bb42-47ca-92b4-97d1355e34f1",
+      "name": "Harcamaları Çıkar (Özet)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        460,
+        440
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Önceki ayın harcamalarını gönderene göre gruplayıp HTML özet hazırlar.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst okunan = $input.first().json;\nconst h0 = (okunan.data && okunan.data.harcamalar) || [];\nconst harcamalar = Array.isArray(h0) ? h0 : [];\n\nconst simdi = new Date();\nconst gecenAy = new Date(simdi.getFullYear(), simdi.getMonth() - 1, 1);\nconst ayAnahtar = gecenAy.getFullYear() + '-' + String(gecenAy.getMonth() + 1).padStart(2, '0');\nconst adAy = gecenAy.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });\nconst tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) + ' TL';\n\nconst aylik = harcamalar.filter((x) => String(x.tarih || '').startsWith(ayAnahtar));\nconst tutarlilar = aylik.filter((x) => typeof x.tutar === 'number');\nconst tutarsizlar = aylik.length - tutarlilar.length;\nconst toplam = tutarlilar.reduce((t, x) => t + x.tutar, 0);\n\nlet html;\nif (aylik.length === 0) {\n  html = '<div style=\"font-family:sans-serif\"><h2>💳 ' + adAy + '</h2><p>Bu ay için kayıtlı fatura yok.</p></div>';\n} else {\n  const gruplar = new Map();\n  for (const x of tutarlilar) {\n    if (!gruplar.has(x.kimden)) gruplar.set(x.kimden, { toplam: 0, adet: 0 });\n    const g = gruplar.get(x.kimden);\n    g.toplam += x.tutar;\n    g.adet += 1;\n  }\n  const satirlar = [...gruplar.entries()]\n    .sort((a, b) => b[1].toplam - a[1].toplam)\n    .map(([ad, g]) => '<tr><td style=\"padding:4px 12px 4px 0\">' + esc(ad) + '</td><td style=\"padding:4px 12px 4px 0\">' + g.adet + '</td><td style=\"padding:4px 0;text-align:right\"><b>' + tl(g.toplam) + '</b></td></tr>')\n    .join('');\n  html = [\n    '<div style=\"font-family:sans-serif;max-width:640px\">',\n    '<h2>💳 ' + adAy + ' harcama özeti</h2>',\n    '<p>Toplam: <b>' + tl(toplam) + '</b> (' + tutarlilar.length + ' fatura' + (tutarsizlar ? ' + tutarı okunamayan ' + tutarsizlar + ' kayıt' : '') + ')</p>',\n    '<table style=\"border-collapse:collapse\"><tr><th style=\"text-align:left;padding-right:12px\">Gönderen</th><th style=\"text-align:left;padding-right:12px\">Adet</th><th style=\"text-align:right\">Toplam</th></tr>' + satirlar + '</table>',\n    tutarsizlar ? '<p style=\"color:#999;font-size:12px\">Tutarı okunamayan kayıtları local-files/harcamalar.json içinde elle düzeltebilirsiniz.</p>' : '',\n    '</div>',\n  ].join('');\n}\n\nreturn [{ json: { konu: '[n8n] 💳 ' + adAy + ' harcama özeti: ' + tl(toplam) + ' (' + aylik.length + ' kayıt)', html } }];"
+      },
+      "id": "fccf8200-b9ea-4b0b-9ede-f79ad3c93941",
+      "name": "Aylık Özeti Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "cc30accf-b67f-47c1-9c18-0b535905bea5",
+      "name": "Aylık Özeti Gönder (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        440
+      ]
+    }
+  ],
+  "connections": {
+    "Fatura Maili Geldiğinde": {
+      "main": [
+        [
+          {
+            "node": "Kendi Bildirimimiz mi? (Fatura)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kendi Bildirimimiz mi? (Fatura)": {
+      "main": [
+        [
+          {
+            "node": "Fatura mı?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Fatura mı?": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Harcamaları Oku": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Tutarı Ayıkla ve Ekle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tutarı Ayıkla ve Ekle": {
+      "main": [
+        [
+          {
+            "node": "Kayıt Yazılsın mı?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kayıt Yazılsın mı?": {
+      "main": [
+        [
+          {
+            "node": "Dosya Gövdesi (Harcama)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Dosya Gövdesi (Harcama)": {
+      "main": [
+        [
+          {
+            "node": "Harcama Dosyasına Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcama Dosyasına Çevir": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her Ayın 1i 08:10": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Oku (Özet)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Oku (Özet)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Çıkar (Özet)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Çıkar (Özet)": {
+      "main": [
+        [
+          {
+            "node": "Aylık Özeti Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aylık Özeti Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Aylık Özeti Gönder (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
