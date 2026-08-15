@@ -234,6 +234,8 @@ mail gelir, son fiyat ve varsa hata (`sonHata`) dosyaya işlenir.
 - Fiyatı tarayıcıda sonradan yüklenen (JavaScript) siteler bu yöntemle
   okunamayabilir — **Elle Test Et** tetikleyicisiyle deneyip `sonHata`
   alanına bakın.
+- Bazı siteler otomatik istekleri engeller; `sonHata` alanında `403`
+  görürseniz o ürün bu yöntemle takip edilemez.
 
 ### 7.3 Fatura ve harcama kaydı (workflow 07)
 
@@ -286,6 +288,14 @@ yedeğe koyun. Geri yükleme aynı komutun `tar xzf` hâlidir.
 `docker compose down` veriyi **silmez**; volume'lar durur. Veriyi bilerek
 silmek isterseniz: `docker compose down -v` (geri dönüşü yoktur).
 
+> **`local-files/*.json` dosyaları hakkında iki not.** Görev listesini hem
+> webhook (03) hem Telegram botu (05) yazdığı için compose'ta
+> `N8N_CONCURRENCY_PRODUCTION_LIMIT=1` ayarlıdır: çalıştırmalar sıraya girer,
+> böylece iki güncelleme birbirinin üzerine yazmaz. Yazma sırasında bilgisayar
+> kapanırsa dosya yine de yarım kalabilir; bu durumda workflow'lar hata verip
+> **durur** (boş liste yazmaz), siz de dosyayı düzeltir veya yedekten
+> dönersiniz. Bu yüzden `local-files/` klasörünü yedeğe dâhil edin.
+
 ## 10. Başka uygulamalar bağlamak
 
 n8n'de yüzlerce hazır node var — Telegram, Google Takvim, Notion, Todoist,
@@ -317,12 +327,27 @@ makinenizde (şifreli) durur.
 | Ollama isteği zaman aşımı | Model henüz iniyor olabilir: `docker logs -f ollama`. İlk yanıt model yüklenirken yavaştır. |
 | Telegram botu yanıt vermiyor | `.env`'e token yazdıktan sonra `docker compose up -d` yaptınız mı? Workflow 05 **Active** mi? Bot dakikada bir bakar — 1 dk bekleyin. `TELEGRAM_CHAT_ID` doluysa yalnızca o sohbete yanıt verilir. |
 | Fiyat okunamıyor / `sonHata` dolu | CSS seçiciyi kontrol edin; sayfayı tarayıcıda *kaynağı görüntüle* ile açın — fiyat kaynakta yoksa (JS ile geliyorsa) bu yöntem çalışmaz. |
+| `sonHata` alanında `403` / `Forbidden` | Site otomatik istekleri engelliyor. Bu siteler bu yöntemle takip edilemez; listeden çıkarın. |
+| Telegram `409 Conflict` hatası | Aynı bot token'ında bir webhook kurulu (başka bir uygulama/örnek kullanıyor). `curl https://api.telegram.org/bot<TOKEN>/deleteWebhook` ile silin — bir token'ı yalnızca tek kurulum kullanabilir. |
+| `EACCES: permission denied` (dosya yazılamıyor) | Yalnızca Linux'ta olur: konteyner `uid 1000` ile çalışır, klasör başka bir kullanıcıya ait. Çözüm: `sudo chown -R 1000:1000 local-files`. Mac/Windows'ta bu sorun çıkmaz. |
+| `... okunamadı; veri kaybını önlemek için durduruldu` | JSON dosyası bozulmuş (ör. yazma sırasında bilgisayar kapanmış). Workflow **bilerek** durur: aksi hâlde listeyi boş sanıp üzerine yazardı. Dosyayı bir metin düzenleyicide açıp düzeltin, ya da yedeğinizden / `.ornek.json`'dan geri kopyalayın. |
 
 ## 12. Güncelleme
 
+`docker-compose.yml` içinde n8n sürümü **sabittir** (`n8n:2.35.3`) — böylece
+büyük sürüm atlamaları kurulumunuzu bir sabah habersiz bozamaz. Güncellemek
+için sürüm numarasını elle yükseltin:
+
 ```bash
+# 1) docker-compose.yml → image: docker.n8n.io/n8nio/n8n:<yeni-sürüm>
+# 2) sonra:
 docker compose pull
 docker compose up -d
 ```
 
-Workflow'larınız ve credential'larınız volume'da olduğu için güncellemeden etkilenmez.
+Yeni sürümler ve varsa geriye dönük uyumsuzluklar:
+<https://github.com/n8n-io/n8n/releases>
+
+Workflow'larınız ve credential'larınız volume'da olduğu için güncellemeden
+etkilenmez. Yine de büyük sürüm (ör. 2.x → 3.x) geçişinden önce §9'daki
+yedeklemeyi yapın.
