@@ -1,0 +1,657 @@
+{
+  "name": "09 — Not ve Hatırlatma",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📝 Not ve hatırlatma — tamamen yerel\n\nHızlı notlarınız ve hatırlatmalarınız bilgisayarınızdaki\n`local-files/notlar.json` dosyasında durur. Üç bölüm:\n\n**1) Not ekle (webhook)** — `POST /webhook/not`\n```\ncurl -X POST http://localhost:5678/webhook/not \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"metin\":\"Süt al\",\"hatirlat\":\"18:30\"}'\n```\n`hatirlat` biçimleri: `18:30` · `yarın 09:00` · `30dk` · `2saat` ·\n`25.08 14:00` · ISO tarih. Boş bırakırsanız düz not olur.\nSilmek için: `{\"islem\":\"sil\",\"id\":3}`\n\n**2) Listele** — `GET /webhook/notlar`\n\n**3) Zamanı gelince bildir** — 5 dakikada bir bakar;\nzamanı gelen hatırlatmayı **Telegram'a** yollar\n(`.env` içinde `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` doluysa),\nyoksa **SMTP mail** olarak gönderir. Gönderilen kayıt\n`durum: \"gonderildi\"` olarak işaretlenir, tekrar gönderilmez.\n\n### Kurulum\n1. `cp local-files/notlar.ornek.json local-files/notlar.json`\n2. Mail yolunu kullanacaksanız **Hatırlatmayı Mail At (SMTP)**\n   düğümünde credential'ı seçin ve `sizin-adresiniz@gmail.com`\n   yazan iki alanı kendi adresinizle değiştirin.\n3. Workflow'u **Active** yapın.\n\n💡 Telegram botundan (workflow 05) `/hatirlat 18:30 çamaşırı as`\nyazarak da hatırlatma kurabilirsiniz — aynı dosyayı kullanır.",
+        "width": 540,
+        "height": 760
+      },
+      "id": "58aa4a79-8a51-43b8-b457-e61b8daf8f6a",
+      "name": "Not c597e",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- Bu workflow'un **başarılı** çalışmaları geçmişe kaydedilmez\n  (5 dakikada bir çalışıp geçmişi doldurmasın diye). Hata ayıklarken\n  workflow **Settings → Save successful executions**'ı açın.\n- Hatırlatma en fazla ~5 dakika gecikmeyle gelir; daha hassas\n  isterseniz **Her 5 Dakikada** düğümünde aralığı 1 dakika yapın.\n- Notlar düz JSON'dur: dosyayı elle düzenleyebilir, başka\n  programlarla okuyabilirsiniz.\n- 🔒 Telegram'a gönderiyorsanız mesaj metni Telegram sunucularından\n  geçer; dosyanın kendisi makinenizde kalır.",
+        "width": 540,
+        "height": 320
+      },
+      "id": "29580636-2f39-45ba-a357-884dbb591c0e",
+      "name": "Not a508d",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "not",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "84dc944c-4b25-4d56-b24a-ba794b96baa2",
+      "name": "Not Webhook (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        -40
+      ],
+      "webhookId": "8fb30901-d7c9-4378-985b-a5a29b234894"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/notlar.json",
+        "options": {}
+      },
+      "id": "3029e6d3-8ada-4cb0-8434-fa0102d24f21",
+      "name": "Notları Oku (Ekle)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        140,
+        -40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "e389ddca-850d-439e-922a-e63fb0577a02",
+      "name": "Notları Çıkar (Ekle)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        340,
+        -40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Webhook'tan gelen notu listeye ekler; istenirse hatırlatma zamanı kurar.\nconst okunan = $input.first().json;\nconst mevcut = (okunan.data && okunan.data.notlar) || okunan.notlar || [];\nconst notlar = Array.isArray(mevcut) ? [...mevcut] : [];\n\nconst govde = $('Not Webhook (POST)').first().json.body || {};\nconst islem = String(govde.islem || 'ekle').toLowerCase();\n\n// \"2026-08-25T18:30:00\" · \"18:30\" · \"yarın 09:00\" · \"30dk\" · \"2saat\" · \"25.08 14:00\"\nconst zamanCoz = (ham) => {\n  const s = String(ham || '').trim();\n  if (!s) return null;\n  const k = s.toLowerCase();\n  let m;\n  if ((m = k.match(/^(\\d+)\\s*(dk|dakika)\\b/))) return new Date(Date.now() + Number(m[1]) * 60000);\n  if ((m = k.match(/^(\\d+)\\s*(sa|saat)\\b/))) return new Date(Date.now() + Number(m[1]) * 3600000);\n  if ((m = k.match(/^(\\d{1,2})[.\\/](\\d{1,2})(?:[.\\/](\\d{2,4}))?\\s+(\\d{1,2})[:.](\\d{2})$/))) {\n    const yil = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : new Date().getFullYear();\n    return new Date(yil, Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5]), 0, 0);\n  }\n  if ((m = k.match(/^(yarın|yarin)(?:\\s+(\\d{1,2})[:.](\\d{2}))?$/))) {\n    const d = new Date();\n    d.setDate(d.getDate() + 1);\n    d.setHours(m[2] ? Number(m[2]) : 9, m[3] ? Number(m[3]) : 0, 0, 0);\n    return d;\n  }\n  if ((m = k.match(/^(\\d{1,2})[:.](\\d{2})$/))) {\n    const d = new Date();\n    d.setHours(Number(m[1]), Number(m[2]), 0, 0);\n    if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);\n    return d;\n  }\n  const d = new Date(s); // ISO biçimi\n  return isNaN(d.getTime()) ? null : d;\n};\n\nlet mesaj = '';\nif (islem === 'ekle') {\n  const metin = String(govde.metin || govde.not || '').trim();\n  if (!metin) {\n    mesaj = 'HATA: \"metin\" alanı zorunlu.';\n  } else {\n    const zaman = zamanCoz(govde.hatirlat);\n    if (govde.hatirlat && !zaman) {\n      mesaj = 'HATA: \"hatirlat\" alanı anlaşılamadı (örn. \"18:30\", \"yarın 09:00\", \"30dk\" veya ISO tarih).';\n    } else {\n      const yeniId = notlar.reduce((mx, n) => Math.max(mx, Number(n.id) || 0), 0) + 1;\n      notlar.push({\n        id: yeniId,\n        metin,\n        hatirlat: zaman ? zaman.toISOString() : null,\n        durum: 'acik',\n        olusturulma: new Date().toISOString(),\n      });\n      mesaj = zaman\n        ? `Hatırlatma kuruldu (#${yeniId}): ${metin} — ${zaman.toLocaleString('tr-TR')}`\n        : `Not eklendi (#${yeniId}): ${metin}`;\n    }\n  }\n} else if (islem === 'sil') {\n  const id = Number(govde.id);\n  const not = notlar.find((n) => Number(n.id) === id);\n  if (!not) {\n    mesaj = `HATA: #${id} numaralı not bulunamadı.`;\n  } else {\n    notlar.splice(notlar.indexOf(not), 1);\n    mesaj = `Not silindi (#${id}): ${not.metin}`;\n  }\n} else {\n  mesaj = `HATA: bilinmeyen işlem \"${islem}\". Geçerli işlemler: ekle, sil.`;\n}\n\nconst bekleyen = notlar.filter((n) => n.hatirlat && n.durum !== 'gonderildi').length;\nreturn [{ json: { notlar, mesaj, hata: mesaj.startsWith('HATA'), bekleyenHatirlatma: bekleyen } }];"
+      },
+      "id": "4283c45d-ff6f-4595-a7d7-2f6a1773fe46",
+      "name": "Notu Ekle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca not listesi yazılır.\nreturn [{ json: { notlar: $input.first().json.notlar } }];"
+      },
+      "id": "d5501d2b-7344-4274-8174-35b794023d94",
+      "name": "Not Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "notlar.json"
+        }
+      },
+      "id": "625a3404-a20c-4ba7-b743-bea92a9a54e8",
+      "name": "Notlara Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        940,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/notlar.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "a03a4381-8f55-4626-9476-d992766f48c4",
+      "name": "Notları Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: !$('Notu Ekle').first().json.hata, mesaj: $('Notu Ekle').first().json.mesaj, bekleyenHatirlatma: $('Notu Ekle').first().json.bekleyenHatirlatma }) }}",
+        "options": {}
+      },
+      "id": "ab3b0899-9f66-49e2-b170-569195b0b6d1",
+      "name": "Yanıt Ver (Not)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1340,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "notlar",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e943d43a-e4e6-44c0-85da-13a73ddfda24",
+      "name": "Not Listesi Webhook (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        180
+      ],
+      "webhookId": "bd6adb7d-65ac-4af6-bc6e-a3c237c7f136"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/notlar.json",
+        "options": {}
+      },
+      "id": "96340f0c-8b8d-477c-a39a-203749cbd798",
+      "name": "Notları Oku (Liste)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        140,
+        180
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "300f8603-1e08-4db1-ba1e-3d7a3cc2b29d",
+      "name": "Notları Çıkar (Liste)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        340,
+        180
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify(($json.data && $json.data.notlar) || $json.notlar || []) }}",
+        "options": {}
+      },
+      "id": "eabcf31f-01f1-421a-920d-86c7aa2dacd9",
+      "name": "Listeyi Yanıtla (Not)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        540,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "e35331d2-9dea-4caf-8072-ff1f6c8f291f",
+      "name": "Her 5 Dakikada",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -60,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/notlar.json",
+        "options": {}
+      },
+      "id": "beb9fbc1-c8bc-4b17-9240-4a7998633050",
+      "name": "Notları Oku (Hatırlatma)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        140,
+        480
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "e5fd6a8e-995e-4cf3-9976-0bf3c92c8dc5",
+      "name": "Notları Çıkar (Hatırlatma)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        340,
+        480
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Zamanı gelmiş hatırlatmaları bulur, 'gonderildi' işaretler ve mesaj metnini kurar.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst okunan = $input.first().json;\nconst ham = (okunan.data && okunan.data.notlar) || okunan.notlar || [];\nconst notlar = (Array.isArray(ham) ? ham : []).map((n) => ({ ...n }));\n\nconst simdi = Date.now();\nconst zamani = notlar.filter((n) => {\n  if (!n || !n.hatirlat || n.durum === 'gonderildi') return false;\n  const t = new Date(n.hatirlat).getTime();\n  return Number.isFinite(t) && t <= simdi;\n});\n\nfor (const n of zamani) {\n  n.durum = 'gonderildi';\n  n.gonderilme = new Date().toISOString();\n}\n\nconst saat = (n) => new Date(n.hatirlat).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });\nconst text = zamani.length\n  ? '⏰ Hatırlatma:\\n' + zamani.map((n) => '• ' + n.metin + ' (' + saat(n) + ')').join('\\n')\n  : '';\nconst html = zamani.length\n  ? '<div style=\"font-family:sans-serif;max-width:640px\"><h2>⏰ Hatırlatma</h2><ul>' +\n    zamani.map((n) => '<li style=\"margin:4px 0\">' + esc(n.metin) + ' <span style=\"color:#999\">(' + saat(n) + ')</span></li>').join('') +\n    '</ul></div>'\n  : '';\nconst konu = zamani.length\n  ? '[n8n] ⏰ ' + (zamani.length === 1 ? zamani[0].metin.slice(0, 60) : zamani.length + ' hatırlatma')\n  : '';\n\nreturn [{ json: { notlar, adet: zamani.length, gonderilecek: zamani.length > 0, text, html, konu } }];"
+      },
+      "id": "45bb2613-6bc3-4bce-a297-48c89f56e7a1",
+      "name": "Zamanı Gelenleri Bul",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "30e008c1-3f6b-466d-bd54-bef29819ecb6",
+              "leftValue": "={{ $json.gonderilecek }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9ddce6b0-1a19-43e6-be96-64e472dab10b",
+      "name": "Zamanı Gelen Var mı?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        740,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa hatırlatma oraya gider; değilse bu dal boş döner.\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: $input.first().json.text.slice(0, 3900) } }];"
+      },
+      "id": "5e8fd7a4-74b3-4ba5-9b84-88717ce7d647",
+      "name": "Telegram Kurulu mu?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "7451e6ff-2572-4ea1-8281-60dc5cdddb8e",
+      "name": "Hatırlatmayı Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        320
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE hatırlatma mail olarak gider (çift bildirim olmasın).\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nconst j = $input.first().json;\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "7128b8b3-c953-4629-96cb-6a5b75cea26f",
+      "name": "Telegram Yoksa Mail",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "0794e63c-bec4-4cf7-9b80-0581104071cd",
+      "name": "Hatırlatmayı Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1160,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gönderilenler 'gonderildi' işaretiyle dosyaya geri yazılır.\nreturn [{ json: { notlar: $input.first().json.notlar } }];"
+      },
+      "id": "85fd0d98-3d63-425c-8bec-888aa58bcefe",
+      "name": "Not Gövdesi (Hatırlatma)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "notlar.json"
+        }
+      },
+      "id": "e706a919-125e-4b52-8587-eca0f9f454e6",
+      "name": "Notlara Çevir (Hatırlatma)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/notlar.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "84265f9c-156d-4be9-bad3-969fb066d699",
+      "name": "Notları Yaz (Hatırlatma)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        680
+      ]
+    }
+  ],
+  "connections": {
+    "Not Webhook (POST)": {
+      "main": [
+        [
+          {
+            "node": "Notları Oku (Ekle)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Oku (Ekle)": {
+      "main": [
+        [
+          {
+            "node": "Notları Çıkar (Ekle)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Çıkar (Ekle)": {
+      "main": [
+        [
+          {
+            "node": "Notu Ekle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notu Ekle": {
+      "main": [
+        [
+          {
+            "node": "Not Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Notlara Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notlara Çevir": {
+      "main": [
+        [
+          {
+            "node": "Notları Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Yaz": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Ver (Not)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Listesi Webhook (GET)": {
+      "main": [
+        [
+          {
+            "node": "Notları Oku (Liste)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Oku (Liste)": {
+      "main": [
+        [
+          {
+            "node": "Notları Çıkar (Liste)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Çıkar (Liste)": {
+      "main": [
+        [
+          {
+            "node": "Listeyi Yanıtla (Not)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her 5 Dakikada": {
+      "main": [
+        [
+          {
+            "node": "Notları Oku (Hatırlatma)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Oku (Hatırlatma)": {
+      "main": [
+        [
+          {
+            "node": "Notları Çıkar (Hatırlatma)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Çıkar (Hatırlatma)": {
+      "main": [
+        [
+          {
+            "node": "Zamanı Gelenleri Bul",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zamanı Gelenleri Bul": {
+      "main": [
+        [
+          {
+            "node": "Zamanı Gelen Var mı?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zamanı Gelen Var mı?": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Not Gövdesi (Hatırlatma)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Telegram Kurulu mu?": {
+      "main": [
+        [
+          {
+            "node": "Hatırlatmayı Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail": {
+      "main": [
+        [
+          {
+            "node": "Hatırlatmayı Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Gövdesi (Hatırlatma)": {
+      "main": [
+        [
+          {
+            "node": "Notlara Çevir (Hatırlatma)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notlara Çevir (Hatırlatma)": {
+      "main": [
+        [
+          {
+            "node": "Notları Yaz (Hatırlatma)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": true
+  },
+  "pinData": {}
+}

@@ -1,0 +1,11 @@
+{
+  "notlar": [
+    {
+      "id": 1,
+      "metin": "Örnek not — /notsil 1 ile silebilirsiniz",
+      "hatirlat": null,
+      "durum": "acik",
+      "olusturulma": "2026-07-08T09:00:00.000Z"
+    }
+  ]
+}
