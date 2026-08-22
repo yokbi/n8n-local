@@ -1,0 +1,252 @@
+{
+  "name": "08 — Günlük Takvim Özeti (07:45)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📅 Günlük takvim özeti\n\nHer sabah **07:45**'te Google Takvim'inizdeki **bugüne ait**\netkinlikleri toplar ve tek mesajda gönderir:\n\n- `.env` içinde `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` doluysa\n  → **Telegram'a**,\n- değilse → **SMTP mail** olarak.\n\nTakvimde bugün etkinlik yoksa mesaj gönderilmez. **Elle Test Et**\ndüğümüyle istediğiniz an deneyebilirsiniz (etkinlik yoksa son\ndüğümlerde çıktı görünmez; hazırlanan metni **Takvim Özetini\nHazırla** düğümünde görürsünüz).\n\n### Kurulum — Google Takvim credential'ı (~10 dk, tek seferlik)\n1. <https://console.cloud.google.com> → proje oluşturun.\n2. **APIs & Services → Library** → \"Google Calendar API\" → **Enable**.\n3. **OAuth consent screen** → External → **Test users**'a kendi\n   Google adresinizi ekleyin.\n4. **Credentials → Create credentials → OAuth client ID → Web\n   application**.\n5. n8n'de **Credentials → Add credential → Google Calendar OAuth2 API**;\n   gösterilen **OAuth Redirect URL**'yi\n   (`http://localhost:5678/rest/oauth2-credential/callback`) Google'daki\n   **Authorized redirect URIs** alanına yapıştırın.\n6. Client ID / Secret'ı girip **Sign in with Google** deyin.\n7. **Bugünün Etkinlikleri** düğümünde credential'ı seçin ve\n   **Calendar** alanından kendi takviminizi seçin (varsayılan: `primary`).\n8. Mail yolunu kullanacaksanız **Takvim Özetini Mail At (SMTP)**\n   düğümünde `sizin-adresiniz@gmail.com` yazan iki alanı değiştirin.\n\n🔒 Takvim verisi yalnızca Google ile n8n'iniz arasında gider;\nözet başka hiçbir yere gönderilmez.",
+        "width": 540,
+        "height": 860
+      },
+      "id": "a3f82756-4f06-4fa0-a849-1ac546cfa9a4",
+      "name": "Not 3c86e",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 💡 İpuçları\n\n- **Saati değiştirmek:** *Her Sabah 07:45* düğümündeki saat/dakika\n  alanlarını düzenleyin. Saat dilimi `.env` içindeki\n  `GENERIC_TIMEZONE` değerinden gelir.\n- **Yarını görmek** için *Bugünün Etkinlikleri* düğümündeki\n  `timeMin` / `timeMax` ifadelerinde `$now` yerine\n  `$now.plus({ days: 1 })` yazın.\n- **Görev özetiyle birleştirmek:** workflow 05'teki sabah özeti\n  08:00'de gelir; bu özet 07:45'te. İki mesajı tek mesaj yapmak\n  isterseniz bu workflow'un metnini 05'teki **Sabah Özetini\n  Hazırla** düğümüne taşıyabilirsiniz.\n- Yinelenen (haftalık vb.) etkinlikler tek tek listelenir.",
+        "width": 540,
+        "height": 320
+      },
+      "id": "7d1c0bae-9bdb-4a61-b5e0-1b254be8dd36",
+      "name": "Not 9eac6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 7,
+              "triggerAtMinute": 45
+            }
+          ]
+        }
+      },
+      "id": "95c85890-2b19-4742-9941-cbb25aa61919",
+      "name": "Her Sabah 07:45",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -60,
+        80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "e90f612f-8062-43d6-b79f-4b0b8f9b315e",
+      "name": "Elle Test Et",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "options": {
+          "timeMin": "={{ $now.startOf('day').toISO() }}",
+          "timeMax": "={{ $now.endOf('day').toISO() }}",
+          "recurringEventHandling": "expand",
+          "singleEvents": true,
+          "orderBy": "startTime"
+        }
+      },
+      "id": "95b62f3f-8b22-44b7-b078-a21faf45c622",
+      "name": "Bugünün Etkinlikleri",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        160
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bugünün takvim etkinliklerinden Telegram metni ve HTML mail gövdesi hazırlar.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\n\nconst etkinlikler = $input\n  .all()\n  .map((x) => x.json)\n  .filter((e) => e && e.start && (e.start.dateTime || e.start.date) && e.status !== 'cancelled')\n  .sort((a, b) => new Date(a.start.dateTime || a.start.date) - new Date(b.start.dateTime || b.start.date));\n\nconst bugun = new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });\nconst ss = (d) => d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });\nconst saatAraligi = (e) => {\n  if (e.start.date) return 'Tüm gün';\n  const bas = new Date(e.start.dateTime);\n  const bit = e.end && e.end.dateTime ? new Date(e.end.dateTime) : null;\n  return ss(bas) + (bit ? '–' + ss(bit) : '');\n};\nconst yer = (e) => String(e.location || '').split('\\n')[0].trim();\n\nconst text = etkinlikler.length\n  ? '📅 ' + bugun + ' — ' + etkinlikler.length + ' etkinlik\\n\\n' +\n    etkinlikler\n      .map((e) => {\n        const yeri = yer(e);\n        const gorusme = e.hangoutLink ? '\\n  🎥 ' + e.hangoutLink : '';\n        return '• ' + saatAraligi(e) + '  ' + (e.summary || '(başlıksız)') + (yeri ? '\\n  📍 ' + yeri : '') + gorusme;\n      })\n      .join('\\n')\n  : '📅 ' + bugun + '\\nBugün takviminizde etkinlik yok. 🎉';\n\nconst html = etkinlikler.length\n  ? [\n      '<div style=\"font-family:sans-serif;max-width:640px\">',\n      '<h2>📅 ' + esc(bugun) + '</h2>',\n      '<ul style=\"padding-left:20px\">',\n      etkinlikler\n        .map((e) => {\n          const yeri = yer(e);\n          const baslik = e.htmlLink\n            ? '<a href=\"' + esc(e.htmlLink) + '\">' + esc(e.summary || '(başlıksız)') + '</a>'\n            : esc(e.summary || '(başlıksız)');\n          return '<li style=\"margin:6px 0\"><b>' + esc(saatAraligi(e)) + '</b> — ' + baslik +\n            (yeri ? ' <span style=\"color:#555\">· ' + esc(yeri) + '</span>' : '') +\n            (e.hangoutLink ? ' <a href=\"' + esc(e.hangoutLink) + '\">🎥</a>' : '') + '</li>';\n        })\n        .join(''),\n      '</ul></div>',\n    ].join('')\n  : '';\n\nreturn [{\n  json: {\n    adet: etkinlikler.length,\n    gonderilecek: etkinlikler.length > 0,\n    konu: '[n8n] 📅 ' + bugun + ': ' + etkinlikler.length + ' etkinlik',\n    text,\n    html,\n  },\n}];"
+      },
+      "id": "a9d4e7b3-f70c-4e0a-bcc4-be4c67876fef",
+      "name": "Takvim Özetini Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa özet oraya gider; etkinlik yoksa hiç mesaj gönderilmez.\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "b98ede43-3b5d-49cc-8334-8a838680eaec",
+      "name": "Telegram Kurulu mu? (Takvim)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "51f063f6-fa62-4042-a94c-6cf26e81c755",
+      "name": "Özeti Telegrama Gönder (Takvim)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        60
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE özet mail olarak gider (çift bildirim olmasın).\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "25c8f410-0309-4d1f-ae51-60467381944e",
+      "name": "Telegram Yoksa Mail (Takvim)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f2e7dc8a-c5f5-4e59-b7e7-1c2d53612b25",
+      "name": "Takvim Özetini Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Her Sabah 07:45": {
+      "main": [
+        [
+          {
+            "node": "Bugünün Etkinlikleri",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et": {
+      "main": [
+        [
+          {
+            "node": "Bugünün Etkinlikleri",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bugünün Etkinlikleri": {
+      "main": [
+        [
+          {
+            "node": "Takvim Özetini Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Takvim Özetini Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (Takvim)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Takvim)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Kurulu mu? (Takvim)": {
+      "main": [
+        [
+          {
+            "node": "Özeti Telegrama Gönder (Takvim)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Takvim)": {
+      "main": [
+        [
+          {
+            "node": "Takvim Özetini Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

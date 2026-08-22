@@ -3,9 +3,9 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## 🤖 Telegram görev botu — dışa kapalı kurulumla çalışır\n\nTelegram üzerinden görev listenizi yönetirsiniz; görevler yine\nbilgisayarınızdaki `local-files/gorevler.json` dosyasında durur\n(03 numaralı workflow ile aynı liste).\n\n**Komutlar:** düz metin → görev ekler · `/liste` · `/tamamla 3` ·\n`/sil 3` · `/yardim`\n\n### Kurulum\n1. Telegram'da **@BotFather**'a `/newbot` yazın, bot adını verin,\n   size verdiği **token**'ı kopyalayın.\n2. Kurulum klasöründeki `.env` dosyasına yazın:\n   `TELEGRAM_BOT_TOKEN=123456:ABC...`\n3. `docker compose up -d` ile n8n'i yeniden başlatın\n   (yeni ortam değişkeninin yüklenmesi için şart).\n4. Bu workflow'u **Active** yapın ve botunuza `/start` yazın —\n   bot size **sohbet ID**'nizi söyler.\n5. ID'yi `.env` içine `TELEGRAM_CHAT_ID=...` olarak yazıp n8n'i\n   bir kez daha yeniden başlatın. Artık: (a) sabah 08:00 görev\n   özeti Telegram'a gelir, (b) bot yalnızca SİZİN mesajlarınıza\n   yanıt verir (başkası bulursa yok sayılır).",
+        "content": "## 🤖 Telegram botu — dışa kapalı kurulumla çalışır\n\nGörev listenizi, harcamalarınızı ve notlarınızı Telegram'dan yönetirsiniz;\nveriler yine bilgisayarınızdaki `local-files/*.json` dosyalarında durur\n(03, 06, 07 ve 09 numaralı workflow'larla aynı dosyalar).\n\n**Komutlar**\n· Düz metin → görev ekler · `/liste` · `/tamamla 3` · `/sil 3`\n· `/harcama 149,90 market` · `/harcamalar`\n· `/fiyat` · `/not ...` · `/hatirlat 18:30 ...` · `/notlar` · `/notsil 3`\n· `/bugun` · `/yardim`\n\n⏰ Hatırlatmaların zamanı gelince gönderilmesi için **workflow 09**\n(Not ve Hatırlatma) da Active olmalıdır.\n\n### Kurulum\n1. Telegram'da **@BotFather**'a `/newbot` yazın, bot adını verin,\n   size verdiği **token**'ı kopyalayın.\n2. Kurulum klasöründeki `.env` dosyasına yazın:\n   `TELEGRAM_BOT_TOKEN=123456:ABC...`\n3. `docker compose up -d` ile n8n'i yeniden başlatın\n   (yeni ortam değişkeninin yüklenmesi için şart).\n4. Bu workflow'u **Active** yapın ve botunuza `/start` yazın —\n   bot size **sohbet ID**'nizi söyler.\n5. ID'yi `.env` içine `TELEGRAM_CHAT_ID=...` olarak yazıp n8n'i\n   bir kez daha yeniden başlatın. Artık: (a) sabah 08:00 görev\n   özeti Telegram'a gelir, (b) bot yalnızca SİZİN mesajlarınıza\n   yanıt verir (başkası bulursa yok sayılır).",
         "width": 520,
-        "height": 620
+        "height": 700
       },
       "id": "c7e78b91-e3c7-47fc-aa45-cad7c33ce47c",
       "name": "Not 8xpbr",
@@ -136,14 +136,14 @@
     },
     {
       "parameters": {
-        "jsCode": "// Telegram'dan gelen yeni mesajları görev komutları olarak işler.\nconst yanitHttp = $('Yeni Mesajları Getir').first().json || {};\nconst okunanGorev = $input.first().json;\nconst g0 = (okunanGorev.data && okunanGorev.data.gorevler) || [];\nconst gorevler = Array.isArray(g0) ? [...g0] : [];\nconst offsetJson = $('Offseti Çıkar').first().json;\nconst eskiOffset = Number((offsetJson.data && offsetJson.data.offset) || 0);\nconst izinliChat = String($env.TELEGRAM_CHAT_ID || '').trim();\n\nconst updates = yanitHttp.ok && Array.isArray(yanitHttp.result) ? yanitHttp.result : [];\nlet yeniOffset = eskiOffset;\nlet degisti = false;\nconst yanitlar = [];\n\nconst acikListe = () => {\n  const acik = gorevler.filter((x) => x.durum !== 'tamam');\n  if (acik.length === 0) return 'Açık görev yok. 🎉';\n  return 'Açık görevler:\\n' + acik.map((x) => '#' + x.id + ' ' + x.baslik + (x.not ? ' — ' + x.not : '')).join('\\n');\n};\n\nfor (const u of updates) {\n  if (typeof u.update_id === 'number' && u.update_id >= yeniOffset) yeniOffset = u.update_id + 1;\n  const m = u.message;\n  if (!m || !m.chat) continue;\n  const chatId = m.chat.id;\n  if (izinliChat && String(chatId) !== izinliChat) continue; // yabancı sohbetleri yok say\n  const metin = String(m.text || '').trim();\n  if (!metin) {\n    yanitlar.push({ chat_id: chatId, text: 'Metin mesajı bekliyorum. Komutlar için /yardim yazın.' });\n    continue;\n  }\n  const kucuk = metin.toLowerCase();\n  const esle = kucuk.match(/^\\/?(tamamla|sil)\\s+#?(\\d+)/);\n  if (kucuk === '/start' || kucuk === '/yardim' || kucuk === 'yardim' || kucuk === 'yardım') {\n    yanitlar.push({\n      chat_id: chatId,\n      text: [\n        'Merhaba! Görev botu komutları:',\n        '• Düz metin yaz → görev olarak eklenir',\n        '• /liste → açık görevleri gösterir',\n        '• /tamamla 3 → #3 numaralı görevi tamamlar',\n        '• /sil 3 → #3 numaralı görevi siler',\n        '',\n        'Sohbet ID: ' + chatId,\n        'Sabah özeti ve güvenlik için .env dosyasına TELEGRAM_CHAT_ID=' + chatId + ' yazıp n8n\\'i yeniden başlatın.',\n      ].join('\\n'),\n    });\n  } else if (kucuk === '/liste' || kucuk === 'liste' || kucuk === '/gorevler') {\n    yanitlar.push({ chat_id: chatId, text: acikListe() });\n  } else if (esle) {\n    const id = Number(esle[2]);\n    const gorev = gorevler.find((x) => Number(x.id) === id);\n    if (!gorev) {\n      yanitlar.push({ chat_id: chatId, text: '#' + id + ' bulunamadı. /liste ile kontrol edin.' });\n    } else if (esle[1] === 'tamamla') {\n      gorev.durum = 'tamam';\n      gorev.tamamlanma = new Date().toISOString();\n      degisti = true;\n      yanitlar.push({ chat_id: chatId, text: '✅ Tamamlandı: #' + id + ' ' + gorev.baslik + '\\n' + acikListe() });\n    } else {\n      gorevler.splice(gorevler.indexOf(gorev), 1);\n      degisti = true;\n      yanitlar.push({ chat_id: chatId, text: '🗑 Silindi: #' + id + ' ' + gorev.baslik });\n    }\n  } else {\n    const yeniId = gorevler.reduce((mx, x) => Math.max(mx, Number(x.id) || 0), 0) + 1;\n    gorevler.push({ id: yeniId, baslik: metin, not: '', durum: 'acik', olusturulma: new Date().toISOString() });\n    degisti = true;\n    yanitlar.push({ chat_id: chatId, text: '➕ Eklendi: #' + yeniId + ' ' + metin });\n  }\n}\n\nreturn [{\n  json: {\n    gorevler,\n    yanitlar,\n    yeniOffset,\n    gorevYazilsin: degisti,\n    offsetYazilsin: yeniOffset !== eskiOffset,\n  },\n}];"
+        "jsCode": "// Telegram'dan gelen yeni mesajları komut olarak işler.\n// Görev / harcama / not / fiyat listeleri önceki düğümlerde okundu; burada\n// yalnızca bellekte güncellenir, dosyaya yazmayı sonraki dallar yapar.\nconst yanitHttp = $('Yeni Mesajları Getir').first().json || {};\nconst listeOku = (dugum, alan) => {\n  const j = $(dugum).first().json || {};\n  const d = (j.data && j.data[alan]) || [];\n  return Array.isArray(d) ? d.map((x) => ({ ...x })) : [];\n};\nconst gorevler = listeOku('Görevleri Çıkar (Bot)', 'gorevler');\nconst harcamalar = listeOku('Harcamaları Çıkar (Bot)', 'harcamalar');\nconst notlar = listeOku('Notları Çıkar (Bot)', 'notlar');\nconst urunler = listeOku('Fiyatları Çıkar (Bot)', 'urunler');\nconst offsetJson = $('Offseti Çıkar').first().json || {};\nconst eskiOffset = Number((offsetJson.data && offsetJson.data.offset) || 0);\nconst izinliChat = String($env.TELEGRAM_CHAT_ID || '').trim();\n\nconst updates = yanitHttp.ok && Array.isArray(yanitHttp.result) ? yanitHttp.result : [];\nlet yeniOffset = eskiOffset;\nlet gorevDegisti = false;\nlet harcamaDegisti = false;\nlet notDegisti = false;\nconst yanitlar = [];\n\nconst tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) + ' TL';\nconst simdiIso = () => new Date().toISOString();\nconst siradakiId = (liste) => liste.reduce((mx, x) => Math.max(mx, Number(x.id) || 0), 0) + 1;\nconst gunSaat = (d) => d.toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });\nconst ayAnahtari = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');\n\nconst acikListe = () => {\n  const acik = gorevler.filter((x) => x.durum !== 'tamam');\n  if (acik.length === 0) return 'Açık görev yok. 🎉';\n  return 'Açık görevler:\\n' + acik.map((x) => '#' + x.id + ' ' + x.baslik + (x.not ? ' — ' + x.not : '')).join('\\n');\n};\n\nconst notListesi = () => {\n  const acik = notlar.filter((n) => n && n.durum !== 'gonderildi');\n  if (acik.length === 0) return 'Not ve bekleyen hatırlatma yok.';\n  return '📝 Notlar:\\n' + acik\n    .map((n) => '#' + n.id + ' ' + n.metin + (n.hatirlat ? ' ⏰ ' + gunSaat(new Date(n.hatirlat)) : ''))\n    .join('\\n') + '\\n\\nSilmek için: /notsil <numara>';\n};\n\n// \"149,90\" · \"1.250\" · \"1.234,56\" · \"89.5\" → sayı\nconst sayiyaCevir = (ham) => {\n  let t = String(ham).trim();\n  const sonNokta = t.lastIndexOf('.');\n  const sonVirgul = t.lastIndexOf(',');\n  if (sonVirgul > sonNokta) t = t.replace(/\\./g, '').replace(',', '.');\n  else if (sonVirgul === -1 && /^\\d{1,3}(\\.\\d{3})+$/.test(t)) t = t.replace(/\\./g, '');\n  else t = t.replace(/,/g, '');\n  const n = Number(t);\n  return Number.isFinite(n) ? n : null;\n};\n\n// \"18:30\" · \"yarın 09:00\" · \"25.08 18:30\" · \"25.08.2026 18:30\" · \"30dk\" · \"2saat\"\nconst zamanCoz = (ham) => {\n  const s = String(ham).trim();\n  const k = s.toLowerCase();\n  let m;\n  if ((m = k.match(/^(\\d+)\\s*(dk|dakika)\\b\\s*/))) {\n    return { ne: new Date(Date.now() + Number(m[1]) * 60000), kalan: s.slice(m[0].length).trim() };\n  }\n  if ((m = k.match(/^(\\d+)\\s*(sa|saat)\\b\\s*/))) {\n    return { ne: new Date(Date.now() + Number(m[1]) * 3600000), kalan: s.slice(m[0].length).trim() };\n  }\n  if ((m = k.match(/^(\\d{1,2})[.\\/](\\d{1,2})(?:[.\\/](\\d{2,4}))?\\s+(\\d{1,2})[:.](\\d{2})\\s*/))) {\n    const yil = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : new Date().getFullYear();\n    return { ne: new Date(yil, Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5]), 0, 0), kalan: s.slice(m[0].length).trim() };\n  }\n  if ((m = k.match(/^(yarın|yarin)\\s*(?:(\\d{1,2})[:.](\\d{2}))?\\s*/))) {\n    const d = new Date();\n    d.setDate(d.getDate() + 1);\n    d.setHours(m[2] ? Number(m[2]) : 9, m[3] ? Number(m[3]) : 0, 0, 0);\n    return { ne: d, kalan: s.slice(m[0].length).trim() };\n  }\n  if ((m = k.match(/^(\\d{1,2})[:.](\\d{2})\\s*/))) {\n    const d = new Date();\n    d.setHours(Number(m[1]), Number(m[2]), 0, 0);\n    if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1); // saat geçtiyse yarın\n    return { ne: d, kalan: s.slice(m[0].length).trim() };\n  }\n  return null;\n};\n\nconst yardimMetni = (chatId) => [\n  'Merhaba! Komutlar:',\n  '',\n  '📋 Görev',\n  '• Düz metin yaz → görev olarak eklenir',\n  '• /liste · /tamamla 3 · /sil 3',\n  '',\n  '💸 Harcama',\n  '• /harcama 149,90 market → kaydeder',\n  '• /harcamalar → bu ayın dökümü',\n  '',\n  '🏷 Fiyat',\n  '• /fiyat → takip listesi ve son fiyatlar',\n  '',\n  '📝 Not ve hatırlatma (workflow 09 aktif olmalı)',\n  '• /not Kitap önerisi: ...',\n  '• /hatirlat 18:30 çamaşırı as',\n  '• /hatirlat 2saat ilacı al · /hatirlat yarın 09:00 ara',\n  '• /notlar · /notsil 3',\n  '',\n  '📌 /bugun → görev + hatırlatma + harcama özeti',\n  '',\n  'Sohbet ID: ' + chatId,\n  'Sabah özeti ve güvenlik için .env dosyasına TELEGRAM_CHAT_ID=' + chatId + ' yazıp n8n\\'i yeniden başlatın.',\n].join('\\n');\n\nfor (const u of updates) {\n  if (typeof u.update_id === 'number' && u.update_id >= yeniOffset) yeniOffset = u.update_id + 1;\n  const m = u.message;\n  if (!m || !m.chat) continue;\n  const chatId = m.chat.id;\n  if (izinliChat && String(chatId) !== izinliChat) continue; // yabancı sohbetleri yok say\n  const metin = String(m.text || '').trim();\n  if (!metin) {\n    yanitlar.push({ chat_id: chatId, text: 'Metin mesajı bekliyorum. Komutlar için /yardim yazın.' });\n    continue;\n  }\n  const ilkKelime = metin.split(/\\s+/)[0];\n  const arg = metin.slice(ilkKelime.length).trim();\n  const komut = ilkKelime.toLowerCase().replace(/^\\//, '').replace(/@\\w+$/, '');\n  const komutMu = ilkKelime.startsWith('/');\n  let text = '';\n\n  if (komut === 'start' || komut === 'yardim' || komut === 'yardım') {\n    text = yardimMetni(chatId);\n  } else if (komut === 'liste' || komut === 'gorevler' || komut === 'görevler') {\n    text = acikListe();\n  } else if ((komut === 'tamamla' || komut === 'sil') && /^#?\\d+/.test(arg)) {\n    const id = Number(arg.match(/^#?(\\d+)/)[1]);\n    const gorev = gorevler.find((x) => Number(x.id) === id);\n    if (!gorev) {\n      text = '#' + id + ' bulunamadı. /liste ile kontrol edin.';\n    } else if (komut === 'tamamla') {\n      gorev.durum = 'tamam';\n      gorev.tamamlanma = simdiIso();\n      gorevDegisti = true;\n      text = '✅ Tamamlandı: #' + id + ' ' + gorev.baslik + '\\n' + acikListe();\n    } else {\n      gorevler.splice(gorevler.indexOf(gorev), 1);\n      gorevDegisti = true;\n      text = '🗑 Silindi: #' + id + ' ' + gorev.baslik;\n    }\n  } else if (komut === 'harcama') {\n    const h = arg.match(/^([0-9.,]+)\\s*(?:tl|₺|try)?\\s*(.*)$/i);\n    const tutar = h ? sayiyaCevir(h[1]) : null;\n    if (!tutar || tutar <= 0) {\n      text = 'Kullanım: /harcama 149,90 market\\n(önce tutar, sonra açıklama)';\n    } else {\n      const aciklama = (h[2] || '').trim() || 'Açıklama yok';\n      const simdi = simdiIso();\n      harcamalar.push({\n        anahtar: 'telegram|' + simdi,\n        tarih: simdi,\n        kimden: 'Elle (Telegram)',\n        konu: aciklama,\n        tutar,\n        paraBirimi: 'TL',\n        eklenme: simdi,\n      });\n      harcamaDegisti = true;\n      const ay = ayAnahtari(new Date());\n      const ayToplam = harcamalar\n        .filter((x) => String(x.tarih || '').startsWith(ay) && typeof x.tutar === 'number')\n        .reduce((t, x) => t + x.tutar, 0);\n      text = '💸 Kaydedildi: ' + tl(tutar) + ' — ' + aciklama + '\\nBu ay toplam: ' + tl(ayToplam);\n    }\n  } else if (komut === 'harcamalar') {\n    const simdi = new Date();\n    const ay = ayAnahtari(simdi);\n    const adAy = simdi.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });\n    const ayinkiler = harcamalar.filter((x) => String(x.tarih || '').startsWith(ay));\n    const tutarlilar = ayinkiler.filter((x) => typeof x.tutar === 'number');\n    if (ayinkiler.length === 0) {\n      text = '💳 ' + adAy + ': kayıt yok.';\n    } else {\n      const gruplar = new Map();\n      for (const x of tutarlilar) {\n        const k = x.kimden || 'Bilinmeyen';\n        gruplar.set(k, (gruplar.get(k) || 0) + x.tutar);\n      }\n      const satirlar = [...gruplar.entries()]\n        .sort((a, b) => b[1] - a[1])\n        .slice(0, 8)\n        .map(([k, v]) => '• ' + k + ': ' + tl(v));\n      const toplam = tutarlilar.reduce((t, x) => t + x.tutar, 0);\n      text = '💳 ' + adAy + '\\nToplam: ' + tl(toplam) + ' (' + ayinkiler.length + ' kayıt)\\n' + satirlar.join('\\n');\n    }\n  } else if (komut === 'fiyat' || komut === 'fiyatlar') {\n    if (urunler.length === 0) {\n      text = 'Takip listesi boş. local-files/fiyat-takibi.json dosyasına ürün ekleyin.';\n    } else {\n      text = '🏷 Fiyat takibi:\\n' + urunler\n        .map((u2) => {\n          const fiyat = typeof u2.sonFiyat === 'number' ? tl(u2.sonFiyat) : 'okunamadı';\n          const hedef = typeof u2.esik === 'number' ? ' (hedef ' + tl(u2.esik) + ')' : '';\n          const isaret = typeof u2.sonFiyat === 'number' && typeof u2.esik === 'number' && u2.sonFiyat <= u2.esik ? '🎯 ' : '• ';\n          return isaret + (u2.ad || 'Ürün') + ': ' + fiyat + hedef + (u2.sonHata ? ' ⚠️' : '');\n        })\n        .join('\\n');\n    }\n  } else if (komut === 'not') {\n    if (!arg) {\n      text = 'Kullanım: /not markete uğramayı unutma';\n    } else {\n      const id = siradakiId(notlar);\n      notlar.push({ id, metin: arg, hatirlat: null, durum: 'acik', olusturulma: simdiIso() });\n      notDegisti = true;\n      text = '📝 Not eklendi: #' + id + ' ' + arg;\n    }\n  } else if (komut === 'hatirlat' || komut === 'hatırlat') {\n    const c = zamanCoz(arg);\n    if (!c || isNaN(c.ne.getTime()) || !c.kalan) {\n      text = [\n        'Kullanım: /hatirlat <zaman> <ne>',\n        '• /hatirlat 18:30 çamaşırı as',\n        '• /hatirlat 30dk çayı demle',\n        '• /hatirlat 2saat ilacı al',\n        '• /hatirlat yarın 09:00 doktoru ara',\n        '• /hatirlat 25.08 14:00 fatura öde',\n      ].join('\\n');\n    } else {\n      const id = siradakiId(notlar);\n      notlar.push({ id, metin: c.kalan, hatirlat: c.ne.toISOString(), durum: 'acik', olusturulma: simdiIso() });\n      notDegisti = true;\n      text = '⏰ Hatırlatma kuruldu: #' + id + ' ' + c.kalan + '\\n' + gunSaat(c.ne) + ' geldiğinde yazacağım.';\n    }\n  } else if (komut === 'notlar') {\n    text = notListesi();\n  } else if (komut === 'notsil' && /^#?\\d+/.test(arg)) {\n    const id = Number(arg.match(/^#?(\\d+)/)[1]);\n    const n2 = notlar.find((x) => Number(x.id) === id);\n    if (!n2) {\n      text = '#' + id + ' bulunamadı. /notlar ile kontrol edin.';\n    } else {\n      notlar.splice(notlar.indexOf(n2), 1);\n      notDegisti = true;\n      text = '🗑 Not silindi: #' + id + ' ' + n2.metin;\n    }\n  } else if (komut === 'bugun' || komut === 'bugün') {\n    const bas = new Date();\n    bas.setHours(0, 0, 0, 0);\n    const bit = new Date(bas);\n    bit.setDate(bit.getDate() + 1);\n    const zaman = (s) => new Date(s).getTime();\n    const acik = gorevler.filter((x) => x.durum !== 'tamam');\n    const bugunkuNotlar = notlar.filter((n2) => n2.hatirlat && zaman(n2.hatirlat) >= bas.getTime() && zaman(n2.hatirlat) < bit.getTime());\n    const bugunkuHarcama = harcamalar.filter((x) => typeof x.tutar === 'number' && zaman(x.tarih) >= bas.getTime());\n    const bolumler = ['📌 ' + bas.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })];\n    bolumler.push(acik.length\n      ? '\\n📋 Açık görev (' + acik.length + '):\\n' + acik.slice(0, 8).map((x) => '#' + x.id + ' ' + x.baslik).join('\\n')\n      : '\\n📋 Açık görev yok. 🎉');\n    if (bugunkuNotlar.length) {\n      bolumler.push('\\n⏰ Bugünün hatırlatmaları:\\n' + bugunkuNotlar\n        .sort((a, b) => zaman(a.hatirlat) - zaman(b.hatirlat))\n        .map((n2) => new Date(n2.hatirlat).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) + ' ' + n2.metin + (n2.durum === 'gonderildi' ? ' ✓' : ''))\n        .join('\\n'));\n    }\n    if (bugunkuHarcama.length) {\n      const toplam = bugunkuHarcama.reduce((t, x) => t + x.tutar, 0);\n      bolumler.push('\\n💸 Bugünkü harcama: ' + tl(toplam) + ' (' + bugunkuHarcama.length + ' kayıt)');\n    }\n    text = bolumler.join('\\n');\n  } else if (komutMu) {\n    text = 'Bilinmeyen komut: ' + ilkKelime + '\\nKomutlar için /yardim yazın.';\n  } else {\n    const id = siradakiId(gorevler);\n    gorevler.push({ id, baslik: metin, not: '', durum: 'acik', olusturulma: simdiIso() });\n    gorevDegisti = true;\n    text = '➕ Eklendi: #' + id + ' ' + metin;\n  }\n\n  yanitlar.push({ chat_id: chatId, text: text.slice(0, 3900) });\n}\n\nreturn [{\n  json: {\n    gorevler,\n    harcamalar,\n    notlar,\n    yanitlar,\n    yeniOffset,\n    gorevYazilsin: gorevDegisti,\n    harcamaYazilsin: harcamaDegisti,\n    notYazilsin: notDegisti,\n    offsetYazilsin: yeniOffset !== eskiOffset,\n  },\n}];"
       },
       "id": "6b330137-9128-4077-b776-9eb906368503",
       "name": "Komutları İşle",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1240,
+        2440,
         120
       ]
     },
@@ -176,7 +176,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1460,
+        2660,
         -60
       ]
     },
@@ -189,7 +189,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
+        2880,
         -60
       ]
     },
@@ -207,7 +207,7 @@
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
       "position": [
-        1880,
+        3100,
         -60
       ]
     },
@@ -223,7 +223,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        2080,
+        3320,
         -60
       ]
     },
@@ -256,7 +256,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1460,
+        2660,
         120
       ]
     },
@@ -269,7 +269,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
+        2880,
         120
       ]
     },
@@ -287,7 +287,7 @@
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
       "position": [
-        1880,
+        3100,
         120
       ]
     },
@@ -303,7 +303,7 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        2080,
+        3320,
         120
       ]
     },
@@ -316,7 +316,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1460,
+        2660,
         300
       ]
     },
@@ -336,7 +336,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1680,
+        2880,
         300
       ],
       "onError": "continueRegularOutput"
@@ -438,6 +438,256 @@
         560
       ],
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/harcamalar.json",
+        "options": {}
+      },
+      "id": "a9ea98a5-efb1-4b71-bc45-f921078d12b5",
+      "name": "Harcamaları Oku (Bot)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "4de9cf73-a27a-4859-8f6f-9d33e4880b00",
+      "name": "Harcamaları Çıkar (Bot)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/notlar.json",
+        "options": {}
+      },
+      "id": "4de63d56-7816-4c81-bb24-69c9d5e423ae",
+      "name": "Notları Oku (Bot)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "524aa79b-ed4c-4445-9e18-a80ed6f40129",
+      "name": "Notları Çıkar (Bot)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/fiyat-takibi.json",
+        "options": {}
+      },
+      "id": "5be7e22f-c480-40c1-8cb0-430b0c0d5681",
+      "name": "Fiyat Listesini Oku (Bot)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2040,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "0d7e6f97-5a2a-45ae-953f-d3ca49e80eee",
+      "name": "Fiyatları Çıkar (Bot)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1f5aa730-6dcd-4fca-913c-ea35525f96b5",
+              "leftValue": "={{ $json.harcamaYazilsin }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e7489df3-7493-443d-8c45-0860b7ee3b61",
+      "name": "Harcama Değişti mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2660,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca ilgili liste yazılır.\nreturn [{ json: { harcamalar: $input.first().json.harcamalar } }];"
+      },
+      "id": "7fc8591e-c1c9-4135-b187-155dfacd8575",
+      "name": "Harcama Gövdesi (Bot)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "harcamalar.json"
+        }
+      },
+      "id": "87f4182f-b4bc-4b60-ab3d-2b87aeb3c15e",
+      "name": "Harcamaları Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        3100,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/harcamalar.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "2cc3bb34-258d-4909-a813-6b5c7757b18b",
+      "name": "Harcamaları Yaz (Bot)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        3320,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fcd181d4-3a19-43a6-96e1-09d01a784eed",
+              "leftValue": "={{ $json.notYazilsin }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "13212729-d2af-41bf-bccb-3c5e69a8a78b",
+      "name": "Notlar Değişti mi?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2660,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca ilgili liste yazılır.\nreturn [{ json: { notlar: $input.first().json.notlar } }];"
+      },
+      "id": "b9cfa00a-93f8-4a93-b0fe-974513824e3f",
+      "name": "Not Gövdesi (Bot)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "notlar.json"
+        }
+      },
+      "id": "c5e5ac98-d1f3-412c-980d-08c7ef1cc323",
+      "name": "Notları Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        3100,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/notlar.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "801939b7-d68d-43a3-8150-ae1b461d74fb",
+      "name": "Notları Yaz (Bot)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        3320,
+        660
+      ]
     }
   ],
   "connections": {
@@ -500,7 +750,7 @@
       "main": [
         [
           {
-            "node": "Komutları İşle",
+            "node": "Harcamaları Oku (Bot)",
             "type": "main",
             "index": 0
           }
@@ -522,6 +772,16 @@
           },
           {
             "node": "Yanıtları Aç",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Harcama Değişti mi?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notlar Değişti mi?",
             "type": "main",
             "index": 0
           }
@@ -656,6 +916,140 @@
         [
           {
             "node": "Özeti Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Oku (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Çıkar (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Çıkar (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Notları Oku (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Oku (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Notları Çıkar (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Çıkar (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Fiyat Listesini Oku (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fiyat Listesini Oku (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Fiyatları Çıkar (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fiyatları Çıkar (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Komutları İşle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcama Değişti mi?": {
+      "main": [
+        [
+          {
+            "node": "Harcama Gövdesi (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Harcama Gövdesi (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Yaz (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notlar Değişti mi?": {
+      "main": [
+        [
+          {
+            "node": "Not Gövdesi (Bot)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Not Gövdesi (Bot)": {
+      "main": [
+        [
+          {
+            "node": "Notları Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Notları Yaz (Bot)",
             "type": "main",
             "index": 0
           }
