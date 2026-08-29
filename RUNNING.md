@@ -8,7 +8,9 @@ dosyasına bakın — burada yalnızca kurulum ve çalıştırma adımları var.
 
 1. [Gereksinim: Docker Desktop](#1-gereksinim-docker-desktop)
 2. [Windows'ta çalıştırma](#2-windowsta-çalıştırma)
-3. [Intel Mac'te çalıştırma](#3-intel-macte-çalıştırma)
+3. [Mac'te çalıştırma](#3-macte-çalıştırma)
+   - [3a. Intel Mac](#3a-intel-mac)
+   - [3b. Apple Silicon Mac](#3b-apple-silicon-mac)
 4. [n8n'i tarayıcıda açma](#4-n8ni-tarayıcıda-açma)
 5. [Doldurmanız gereken ortam değişkenleri (.env)](#5-doldurmanız-gereken-ortam-değişkenleri-env)
 6. [Durdurma](#6-durdurma)
@@ -25,10 +27,22 @@ her şey Docker container'ı içinde izole çalışır.
   indirin ve kurun. Kurulum sihirbazı WSL 2 gerektiğini söylerse önerdiği
   adımları uygulayın. Kurulumdan sonra **Docker Desktop'ı bir kez açın** ve
   sol alttaki simgenin "Docker Desktop is running" diyene kadar bekleyin.
-- **Mac (Intel):** [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
-  sayfasından **Intel Chip** sürümünü indirin (Apple Silicon değil), kurun,
-  bir kez açın ve menü çubuğundaki balina simgesinin çalışır duruma
-  gelmesini bekleyin.
+- **Intel Mac:** [Docker Desktop indirme sayfasından](https://www.docker.com/products/docker-desktop/)
+  **"Mac with Intel chip"** (Intel Chip) düğmesini indirin, kurun, bir kez
+  açın ve menü çubuğundaki balina simgesinin çalışır duruma gelmesini
+  bekleyin.
+- **Apple Silicon Mac (M1/M2/M3/M4):** [Docker Desktop indirme sayfasından](https://www.docker.com/products/docker-desktop/)
+  **"Mac with Apple chip"** (Apple Chip) düğmesini indirin, kurun, bir kez
+  açın ve menü çubuğundaki balina simgesinin çalışır duruma gelmesini
+  bekleyin.
+
+  > Docker'ın indirme sayfası genelde ziyaret ettiğiniz Mac'in çipini otomatik
+  > algılayıp doğru düğmeyi öne çıkarır; emin değilseniz sayfadaki iki ayrı
+  > "Mac with Intel chip" / "Mac with Apple chip" düğmesinden kendi Mac'inize
+  > uyanı seçin. Hangi çipe sahip olduğunuzu öğrenmek için: **Apple menü →
+  > "Bu Mac Hakkında"** penceresindeki **"Çip"** (Chip) satırına bakın —
+  > "Apple M1/M2/M3/M4 ..." yazıyorsa Apple Silicon, "Intel ..." yazıyorsa
+  > Intel Mac'siniz.
 
 Docker Desktop açık ve çalışır durumda değilse aşağıdaki betikler size net
 bir hata mesajı ve indirme bağlantısı gösterip duracaktır.
@@ -53,7 +67,14 @@ Yerel AI (Ollama) ile birlikte başlatmak isterseniz:
 run-windows.bat --ai
 ```
 
-## 3. Intel Mac'te çalıştırma
+## 3. Mac'te çalıştırma
+
+Mac'te iki ayrı başlatma betiği vardır — Mac'inizin çip tipine göre
+doğru olanı seçin. Emin değilseniz **Apple menü → "Bu Mac Hakkında" →
+"Çip"** satırına bakın: "Apple M1/M2/M3/M4 ..." = Apple Silicon Mac,
+"Intel ..." = Intel Mac.
+
+### 3a. Intel Mac
 
 1. Bu repoyu indirin (`git clone https://github.com/yokbi/n8n-local.git` ya
    da ZIP olarak indirip çıkarın) ve klasöre girin.
@@ -61,8 +82,8 @@ run-windows.bat --ai
 
    ```bash
    cd n8n-local
-   chmod +x run-mac.sh
-   ./run-mac.sh
+   chmod +x run-mac-intel.sh
+   ./run-mac-intel.sh
    ```
 
 3. Betik Windows'takiyle aynı adımları uygular: Docker kontrolü → `.env`
@@ -72,13 +93,48 @@ run-windows.bat --ai
 Yerel AI (Ollama) ile birlikte başlatmak isterseniz:
 
 ```bash
-./run-mac.sh --ai
+./run-mac-intel.sh --ai
 docker exec -it ollama ollama pull qwen2.5:3b   # tek seferlik, ~2 GB indirir
 ```
 
-> **Not:** Betikler *Intel* Mac (x86_64) için yazılmıştır. Apple Silicon
-> (M1/M2/M3/M4) bir Mac'te de Docker Desktop bunu Rosetta üzerinden sorunsuz
-> çalıştırır; ekstra bir şey yapmanız gerekmez.
+Docker Desktop kurulumu için indirme sayfasından **"Mac with Intel chip"**
+düğmesini kullanın (bkz. [§1](#1-gereksinim-docker-desktop)).
+
+### 3b. Apple Silicon Mac
+
+Apple Silicon (M1/M2/M3/M4, arm64) Mac'ler için ayrı bir betik vardır —
+`run-mac-apple-silicon.sh`. İşlevsel adımlar Intel betiğiyle birebir
+aynıdır (Docker kontrolü, `.env` oluşturma, örnek veri kopyalama,
+`docker compose up -d`); betik yalnızca doğru betiğin çalıştığından emin
+olmak için Mac'inizin mimarisini (`arm64`) kontrol eder.
+
+1. Bu repoyu indirin (`git clone https://github.com/yokbi/n8n-local.git` ya
+   da ZIP olarak indirip çıkarın) ve klasöre girin.
+2. Terminal açıp betiği çalıştırılabilir yapın ve çalıştırın:
+
+   ```bash
+   cd n8n-local
+   chmod +x run-mac-apple-silicon.sh
+   ./run-mac-apple-silicon.sh
+   ```
+
+3. Betik aynı adımları uygular: Docker kontrolü → `.env` oluşturma (ve
+   mümkünse şifreleme anahtarını otomatik üretme) → örnek veri dosyalarını
+   kopyalama → `docker compose up -d` → açılacak adresi yazdırma.
+
+Yerel AI (Ollama) ile birlikte başlatmak isterseniz:
+
+```bash
+./run-mac-apple-silicon.sh --ai
+docker exec -it ollama ollama pull qwen2.5:3b   # tek seferlik, ~2 GB indirir
+```
+
+Docker Desktop kurulumu için indirme sayfasından **"Mac with Apple chip"**
+düğmesini kullanın (bkz. [§1](#1-gereksinim-docker-desktop)).
+
+> **Not:** Intel Mac'te yanlışlıkla `run-mac-apple-silicon.sh` çalıştırırsanız
+> betik mimarinizi algılayıp `run-mac-intel.sh` kullanmanız gerektiğini
+> söyleyen bir hatayla durur.
 
 ## 4. n8n'i tarayıcıda açma
 
@@ -125,9 +181,11 @@ openssl rand -hex 32
 n8n'i durdurmak (verileriniz Docker volume'unda korunur, silinmez):
 
 ```bash
-# Mac
-./run-mac.sh --stop
-# veya doğrudan:
+# Mac (Intel)
+./run-mac-intel.sh --stop
+# Mac (Apple Silicon)
+./run-mac-apple-silicon.sh --stop
+# veya doğrudan (her iki mimaride de):
 docker compose down
 ```
 
@@ -150,7 +208,7 @@ veri dosyaları zaten var olduğu için betik onlara dokunmaz, sadece
 | Betik "Docker kurulu ama çalışmıyor" diyor | Docker Desktop uygulamasını açın, balina/simge "running" durumuna gelene kadar bekleyin. |
 | `localhost:5678` tarayıcıda açılmıyor | `docker compose ps` ve `docker compose logs n8n` ile container'ın ayakta olduğunu kontrol edin. |
 | "port is already allocated" hatası | 5678 portu başka bir uygulama tarafından kullanılıyordur; `docker-compose.yml` içinde `"127.0.0.1:5679:5678"` yapıp `localhost:5679` adresini kullanabilirsiniz. |
-| Mac'te `chmod +x` sonrası "Permission denied" | Betiği doğrudan `bash run-mac.sh` ile çalıştırmayı deneyin. |
+| Mac'te `chmod +x` sonrası "Permission denied" | Betiği doğrudan `bash run-mac-intel.sh` (veya `bash run-mac-apple-silicon.sh`) ile çalıştırmayı deneyin. |
 | Windows'ta betik pencereyi hemen kapatıyor | Çift tıklamak yerine bir komut satırı (cmd) açıp içinden `run-windows.bat` yazarak çalıştırın; hata mesajını görürsünüz. |
 
 Daha fazla sorun giderme maddesi (IMAP/SMTP, Gmail OAuth, Telegram botu vb.)

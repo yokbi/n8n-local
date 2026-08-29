@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# n8n-local — macOS (Intel) başlatma betiği
+# n8n-local — macOS (Apple Silicon) başlatma betiği
+#
+# Bu betik yalnızca Apple Silicon Mac (M1/M2/M3/M4, arm64) içindir. Intel Mac
+# (x86_64) kullanıyorsanız bunun yerine run-mac-intel.sh kullanın:
+#   ./run-mac-intel.sh
 #
 # Kullanım:
-#   ./run-mac.sh              → n8n'i başlatır (http://localhost:5678)
-#   ./run-mac.sh --ai         → n8n + yerel AI (Ollama) profilini başlatır
-#   ./run-mac.sh --stop       → n8n'i durdurur (veriler korunur)
+#   ./run-mac-apple-silicon.sh        → n8n'i başlatır (http://localhost:5678)
+#   ./run-mac-apple-silicon.sh --ai   → n8n + yerel AI (Ollama) profilini başlatır
+#   ./run-mac-apple-silicon.sh --stop → n8n'i durdurur (veriler korunur)
 #
 # Ayrıntılı kurulum ve Türkçe rehber: RUNNING.md
 # ─────────────────────────────────────────────────────────────────────────────
@@ -27,15 +31,31 @@ if [[ "${1:-}" == "--stop" ]]; then
   exit 0
 fi
 
+# ── 0.5) Mimari kontrolü ──────────────────────────────────────────────────
+ARCH="$(uname -m)"
+if [[ "${ARCH}" != "arm64" ]]; then
+  err "Bu Mac Apple Silicon (arm64) değil, algılanan mimari: ${ARCH}."
+  echo ""
+  echo "  Intel Mac (x86_64) kullanıyorsanız bunun yerine run-mac-intel.sh"
+  echo "  betiğini çalıştırın:"
+  echo ""
+  echo "    ./run-mac-intel.sh"
+  exit 1
+fi
+
 # ── 1) Docker kurulu mu? ──────────────────────────────────────────────────
 if ! command -v docker >/dev/null 2>&1; then
   err "Docker bulunamadı."
   echo ""
-  echo "  Docker Desktop for Mac (Intel) buradan indirilir:"
+  echo "  Docker Desktop indirme sayfasına gidin:"
   echo "  ${DOCKER_INSTALL_URL}"
+  echo "  ve \"Mac with Apple chip\" (Apple Chip) düğmesini indirin."
+  echo ""
+  echo "  Intel Mac (x86_64) kullanıyorsanız bu betik değil, run-mac-intel.sh"
+  echo "  betiğini kullanın."
   echo ""
   echo "  Kurduktan sonra Docker Desktop uygulamasını bir kez açın, sonra bu"
-  echo "  betiği tekrar çalıştırın: ./run-mac.sh"
+  echo "  betiği tekrar çalıştırın: ./run-mac-apple-silicon.sh"
   exit 1
 fi
 
@@ -45,7 +65,7 @@ if ! docker info >/dev/null 2>&1; then
   echo ""
   echo "  Docker Desktop uygulamasını (Launchpad / Applications) açın, balina"
   echo "  simgesi menü çubuğunda 'Docker Desktop is running' deyince bu"
-  echo "  betiği tekrar çalıştırın: ./run-mac.sh"
+  echo "  betiği tekrar çalıştırın: ./run-mac-apple-silicon.sh"
   exit 1
 fi
 ok "Docker çalışıyor."
@@ -98,5 +118,5 @@ ok "n8n çalışıyor."
 echo ""
 echo "  Tarayıcıda açın: http://localhost:5678"
 echo ""
-echo "  Durdurmak için:  ./run-mac.sh --stop   (veya: docker compose down)"
+echo "  Durdurmak için:  ./run-mac-apple-silicon.sh --stop   (veya: docker compose down)"
 echo "  Ayrıntılı rehber: RUNNING.md"
