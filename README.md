@@ -6,6 +6,11 @@ yerel görev listesi, fiyat takibi, fatura/harcama kaydı, günlük takvim özet
 not/hatırlatma ve isterseniz tamamen yerel AI (Ollama).
 
 > Bu repo tek başına çalışır: klonlayın, `.env` oluşturun, `docker compose up -d` deyin.
+>
+> 🚀 **Hızlı başlangıç:** Windows'ta `run-windows.bat`, Intel Mac'te
+> `./run-mac.sh` dosyasını çalıştırın — Docker kontrolü, `.env` oluşturma ve
+> `docker compose up -d` adımlarını sizin yerinize yapar. Adım adım rehber:
+> [`RUNNING.md`](RUNNING.md).
 
 **Neden yerel?** n8n'in kendisi, veritabanı (SQLite), mail şifreleriniz
 (şifrelenmiş) ve görev listeniz — hepsi sizin makinenizde durur. Telemetri ve
