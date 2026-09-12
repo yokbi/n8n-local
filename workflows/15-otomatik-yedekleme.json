@@ -1,0 +1,298 @@
+{
+  "name": "15 — Otomatik Yedekleme (03:00)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 💾 Otomatik yedekleme — her gece 03:00\n\n`local-files/` klasöründeki **bütün `.json` dosyalarını** tarihli bir\nklasöre kopyalar:\n\n```\nlocal-files/yedek/2026-09-12-gorevler.json\nlocal-files/yedek/2026-09-12-notlar.json\nlocal-files/yedek/2026-09-12-…\n```\n\nYedekler `local-files/yedek/` klasöründe, dosya adının başında tarihle\ndurur. (Klasör depoyla birlikte gelir; n8n'in yazma düğümü olmayan bir\nklasörü kendiliğinden oluşturmaz.)\n\nGörev listeniz, notlarınız, harcamalarınız, okuma listeniz, fiyat\ngeçmişiniz — hepsi. Bir dosya bozulursa dünkü hâline dönebilirsiniz.\n\n> **Bu bir dış yedek değildir.** Aynı diskte duruyor. Disk giderse\n> yedek de gider — `local-files/` klasörünü ayrıca harici bir diske\n> ya da bulut yedeğinize dâhil edin.",
+        "width": 520,
+        "height": 380
+      },
+      "id": "ad4a1714-8f15-40fe-bb7f-016ad35d500b",
+      "name": "Not 08811",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ İsteğe bağlı: workflow'ları da yedekle\n\nWorkflow'larınızın kendisi n8n'in veritabanında durur, `local-files`\niçinde değil. Onları da yedeklemek için:\n\n1. Panelde sağ üst **profil → Settings → n8n API**\n2. **Create an API key** → anahtarı kopyalayın\n3. `.env` dosyasına ekleyin:\n   ```\n   N8N_API_KEY=n8n_api_...\n   ```\n4. `docker compose up -d`\n\nArtık her gece `yedek/<tarih>-workflows.json` da oluşur. Anahtar boş\nbırakılırsa bu dal **sessizce atlanır**, dosya yedeği yine alınır.\n\n### Eski yedekleri temizleme\nYedekler birikir (küçük dosyalar, ama sonsuza dek durur). Ayda bir:\n```bash\n# 30 günden eski yedekleri sil\nfind local-files/yedek -type f -name '*.json' -mtime +30 -delete\n```\n\n**Geri yükleme:** ilgili dosyayı `yedek/` içinden `local-files/` köküne\ntarihsiz adıyla kopyalayın, ör.\n`cp local-files/yedek/2026-09-12-gorevler.json local-files/gorevler.json`",
+        "width": 520,
+        "height": 460
+      },
+      "id": "933d9bbb-bc41-4e28-87c8-9c11dfa0f085",
+      "name": "Not 4c4f5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -660,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 3,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "b945ab30-e036-423b-baea-b75612f5c9f6",
+      "name": "Her Gece 03:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -40,
+        60
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "03518c3e-fd88-433c-bd74-e9a34c4d2501",
+      "name": "Elle Test Et (Yedek)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/*.json",
+        "options": {}
+      },
+      "id": "0f1d4dee-baa8-4642-881f-f145f050e978",
+      "name": "Yedeklenecek Dosyaları Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        200,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Okunan her dosya için hedef yolu hesaplar: /files/yedek/YYYY-AA-GG-<ad>\n// Binary veri olduğu gibi taşınır — dosya içeriğine dokunulmaz.\n//\n// Tarih neden klasör değil de dosya adının başında? n8n'in dosya yazma düğümü\n// var olmayan bir klasörü kendiliğinden oluşturmaz; her gece yeni bir klasör\n// açmaya çalışmak ilk gece hata verirdi. `local-files/yedek/` klasörü depoyla\n// birlikte geldiği için bu yol her zaman çalışır.\nconst ilk = $input.first().json || {};\nif (ilk.error) {\n  const m = String(ilk.error.message || ilk.error);\n  if (/ENOENT|no such file|not found/i.test(m)) {\n    throw new Error('local-files klasöründe yedeklenecek .json dosyası bulunamadı. README §3\\'teki kopyalama adımını tamamladınız mı?');\n  }\n  throw new Error('Yedeklenecek dosyalar okunamadı → ' + m);\n}\n\nconst d = new Date();\nconst gun = d.getFullYear() + '-' +\n  String(d.getMonth() + 1).padStart(2, '0') + '-' +\n  String(d.getDate()).padStart(2, '0');\n\nreturn $input.all().map((item) => {\n  const bin = (item.binary && item.binary.data) || {};\n  const ad = String(bin.fileName || 'bilinmeyen.json').split('/').pop();\n  return {\n    json: { hedef: '/files/yedek/' + gun + '-' + ad, kaynakAd: ad, gun },\n    binary: item.binary,\n  };\n});\n"
+      },
+      "id": "d1e3dc71-dac3-476f-b258-3449511137fc",
+      "name": "Hedef Yolu Hesapla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.hedef }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "c961812f-5d71-492c-8efd-8ba3396968a1",
+      "name": "Yedeği Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        600,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n workflow'larını da yedeklemek isteğe bağlıdır: .env içinde N8N_API_KEY\n// doluysa panel API'sinden hepsi çekilir. Boşsa bu dal sessizce atlanır.\nconst anahtar = String($env.N8N_API_KEY || '').trim();\nif (!anahtar) return [];\nconst gun = $input.first().json.gun;\nreturn [{ json: { gun } }];"
+      },
+      "id": "1a93def3-35bf-41dc-8080-991247064b45",
+      "name": "API Anahtarı Var mı?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/api/v1/workflows?limit=250",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "={{ $env.N8N_API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b2bae48d-d5ea-4027-87e8-0041b483a670",
+      "name": "Workflow'ları Çek (n8n API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        300
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// API yanıtını yedeklenecek tek bir JSON'a dönüştürür.\nconst yanit = $input.first().json || {};\nif (yanit.error) {\n  const ham = String(yanit.error.message || yanit.error);\n  throw new Error('n8n API\\'sinden workflow listesi alınamadı (N8N_API_KEY doğru mu?) → ' + ham.slice(0, 200));\n}\nconst liste = Array.isArray(yanit.data) ? yanit.data : [];\nreturn [{ json: { alindi: new Date().toISOString(), adet: liste.length, workflows: liste } }];\n"
+      },
+      "id": "5a237afe-aea9-4c93-b952-cd49ffa8113a",
+      "name": "Workflow Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "workflows.json"
+        }
+      },
+      "id": "6bea1979-26bd-4040-9566-cab5216cc8e5",
+      "name": "Workflow'ları Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ '/files/yedek/' + $('API Anahtarı Var mı?').first().json.gun + '-workflows.json' }}",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "2e790435-a9a4-4d05-8d9a-10e9783a04e8",
+      "name": "Workflow Yedeğini Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Her Gece 03:00": {
+      "main": [
+        [
+          {
+            "node": "Yedeklenecek Dosyaları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (Yedek)": {
+      "main": [
+        [
+          {
+            "node": "Yedeklenecek Dosyaları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yedeklenecek Dosyaları Oku": {
+      "main": [
+        [
+          {
+            "node": "Hedef Yolu Hesapla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hedef Yolu Hesapla": {
+      "main": [
+        [
+          {
+            "node": "Yedeği Yaz",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "API Anahtarı Var mı?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Anahtarı Var mı?": {
+      "main": [
+        [
+          {
+            "node": "Workflow'ları Çek (n8n API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow'ları Çek (n8n API)": {
+      "main": [
+        [
+          {
+            "node": "Workflow Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Workflow'ları Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow'ları Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Workflow Yedeğini Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

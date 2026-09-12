@@ -1,0 +1,12 @@
+{
+  "kaynaklar": [
+    {
+      "ad": "BBC News Türkçe",
+      "url": "https://feeds.bbci.co.uk/turkce/rss.xml"
+    },
+    {
+      "ad": "NASA Breaking News",
+      "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss"
+    }
+  ]
+}

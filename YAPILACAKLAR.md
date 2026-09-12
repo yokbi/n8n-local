@@ -3,87 +3,44 @@
 Öncelik: 🔴 kritik · 🟡 orta · 🟢 düşük
 
 Bu depo iyi durumda: dokümantasyon doğru, çalıştırma betikleri üç platform için
-mevcut, 9 workflow hazır. Aşağıdaki maddeler **dayanıklılık** ve **doğrulama**
-ile ilgili.
+mevcut, 16 workflow hazır ve dayanıklılık düzeltmeleri birleştirildi. Kalan
+maddeler ağırlıklı olarak **doğrulama** ve **tek seferlik panel ayarları** ile
+ilgili.
 
 ---
 
-## N1 🔴 Dayanıklılık dalını birleştirin
+## N1 ✅ Dayanıklılık dalını birleştirin — TAMAMLANDI (2026-09-12)
 
-**Sorun.** `claude/bu-repo-nedr-fy2s7i` dalında 1 commit / 6 dosya
-birleştirilmemiş duruyor ve içindekiler **gerçek veri kaybı senaryolarını
-kapatıyor.**
+`claude/bu-repo-nedr-fy2s7i` dalı birleştirildi. Artık `main` hattında:
 
-```
-1ec494f  Dayanıklılık: sürüm sabitleme, yazma çakışması ve bozuk dosya koruması
-```
+- n8n sürümü **sabit** (`n8n:2.35.3`) — `latest` bir sabah sessizce büyük sürüm
+  atlayıp kurulumu bozamaz.
+- `N8N_CONCURRENCY_PRODUCTION_LIMIT=1` — aynı dosyayı yazan workflow'lar sıraya
+  girer, "oku-değiştir-yaz" yarışı olmaz.
+- Bozuk JSON koruması **03, 05, 06, 07 ve 09**'da. (09, dal yazıldıktan sonra
+  eklendiği için eksikti; birleştirmeyle birlikte o da kapatıldı.)
 
-### a) n8n sürümü `latest` — kurulum bir sabah kendiliğinden bozulabilir
-
-`main`'de:
-```yaml
-image: docker.n8n.io/n8nio/n8n:latest
-```
-Dalda:
-```yaml
-image: docker.n8n.io/n8nio/n8n:2.35.3
-```
-
-`docker compose pull` yaptığınız gün n8n büyük sürüm atlamışsa, çalışan
-workflow'larınız uyumsuz hâle gelebilir. **Kendi makinenizde çalışan bir
-otomasyon merkezi için sürüm sabitlemesi şart** — kırıldığında haberiniz olmaz,
-sadece sabah özeti gelmez.
-
-### b) İki workflow aynı dosyayı yazıyor — görev kaybı riski
-
-Görev listesini **hem webhook (03) hem Telegram botu (05)** yazıyor. İkisi
-aynı anda çalışırsa klasik **oku-değiştir-yaz yarışı** oluşur: biri dosyayı
-okur, diğeri okur, biri yazar, diğeri üstüne yazar — **arada eklenen görev
-sessizce kaybolur.**
-
-Dalın çözümü:
-```yaml
-- N8N_CONCURRENCY_PRODUCTION_LIMIT=1
-```
-Çalıştırmalar sıraya girer. (Ayrıca dal, artık gereksiz olan
-`N8N_RUNNERS_ENABLED` satırını da açıklamasıyla birlikte kaldırıyor —
-n8n 2.0'dan itibaren varsayılan olarak açık.)
-
-### c) Bozuk JSON dosyası → workflow eskiden veriyi SİLİYORDU
-
-Dört workflow JSON'unda (03, 05, 06, 07) koruma eklenmiş. Eskiden: dosya
-bozuksa (yazma sırasında bilgisayar kapandı vb.) workflow listeyi **boş sanıp
-üzerine yazıyordu**. Şimdi: hata verip **duruyor**, siz dosyayı düzeltiyorsunuz.
-
-Bu, sessiz veri kaybını gürültülü bir hataya çeviriyor — doğru davranış.
-
-### d) Sorun giderme tablosuna 4 yeni satır
-`403 Forbidden` (fiyat takibi), Telegram `409 Conflict` (aynı token'da webhook),
-Linux `EACCES` (uid 1000 sahiplik), bozuk JSON mesajı.
-
-**Yapılacak — GitHub üzerinden:**
-`claude/bu-repo-nedr-fy2s7i` → `main` için PR açıp birleştirin.
-
-**Yapılacak — komut satırından:**
-```bash
-git clone https://github.com/yokbi/n8n-local && cd n8n-local
-git merge --no-ff origin/claude/bu-repo-nedr-fy2s7i \
-  -m "fix: sürüm sabitleme, yazma çakışması ve bozuk dosya koruması"
-git push origin main
-```
-
-**Birleştirdikten sonra**, workflow'ları n8n'e **yeniden içe aktarın** — JSON
-dosyaları değiştiği için paneldeki eski kopyalar güncellenmez.
-
-> **Yarın kurulum yapmadan önce bunu yapın.** Aksi hâlde `latest` imajı
-> çekilir ve hangi n8n sürümüne denk geleceğiniz belirsiz olur.
+**Yapmanız gereken tek şey:** workflow'ları n8n paneline **yeniden içe
+aktarmak**. JSON dosyaları değişti, paneldeki eski kopyalar kendiliğinden
+güncellenmez.
 
 ---
 
-## N2 🟡 Hiçbir workflow çalıştırılarak doğrulanmadı
+## N2 🟡 Hiçbir workflow uçtan uca çalıştırılarak doğrulanmadı
 
-**Durum.** Bu denetimde Docker çalışmadığı için n8n hiç başlatılmadı. 9
-workflow'un JSON'u okundu, ama **hiçbiri çalıştırılmadı.**
+**Durum.** Docker bu ortamda çalışmadığı için n8n hiç başlatılmadı. 16
+workflow'un JSON'u ayrıştırıldı ve Code düğümlerinin mantığı 42 testle
+denendi (`node testler/kod-testleri.js` — hepsi geçiyor), ama **hiçbir
+workflow gerçekten çalıştırılmadı**: e-posta gönderilmedi, Telegram'a mesaj
+düşmedi, hiçbir sayfa indirilmedi.
+
+Testlerin kapsadığı şeyler: bozuk dosyada durma, dosya yokken boş listeyle
+devam etme, Ollama kapalıyken veri kaybetmeme, aynı haberi iki kez
+göndermeme, ilk çalıştırmada sessiz kalma, `/ai` ve `/oku` komutlarının
+mevcut görev davranışını bozmaması.
+
+Testlerin **kapsamadığı** şeyler: gerçek HTTP istekleri, IMAP/SMTP, Telegram
+API'si, zamanlayıcılar, n8n'in kendi düğüm davranışları.
 
 **Yarın denenecekler (öncelik sırasıyla):**
 
@@ -99,6 +56,19 @@ workflow'un JSON'u okundu, ama **hiçbiri çalıştırılmadı.**
       JavaScript ile fiyat yükleyen siteler çalışmaz (README uyarıyor)
 - [ ] **Workflow 08 (takvim özeti)** — Google Takvim bağlantısı gerekir
 - [ ] **Workflow 04 (Ollama)** — `docker compose --profile ai up -d`
+- [ ] **Workflow 10 (günaydın brifingi)** — dış servis gerektirmez; *Elle Test
+      Et* düğümüyle hemen denenir. Hava ve kur için internet erişimi yeterli.
+- [ ] **Workflow 11 (hata nöbetçisi)** — bir workflow'a geçici
+      `throw new Error('deneme')` koyup çalıştırın. **Sonra her workflow'un
+      Settings → Error Workflow alanına 11'i tanıtmayı unutmayın** (README §9.2)
+- [ ] **Workflow 12 (yerel AI sohbet)** — önce Ollama profili, sonra
+      `curl -X POST localhost:5678/webhook/ai -d '{"soru":"merhaba"}'`
+- [ ] **Workflow 13 (link özetleyici)** — `/webhook/oku` ile bir adres gönderin
+- [ ] **Workflow 14 (RSS)** — ilk tur bilerek sessizdir, **iki kez** çalıştırın
+- [ ] **Workflow 15 (yedekleme)** — *Elle Test Et*; `local-files/yedek/<tarih>/`
+      klasörü oluşmalı
+- [ ] **Workflow 16 (sayfa takibi)** — ilk tur sessiz; sayfayı değiştirip (ya da
+      `sayfa-takibi.json` içindeki `sonIz` alanını silip) ikinci turu deneyin
 
 Her birinin sonucunu bu dosyaya not edin; hangisinin gerçekten çalıştığı
 şu anda **hiçbir yerde yazılı değil.**
@@ -129,8 +99,13 @@ tutmanız şart.
 Görev listesi, notlar, fiyat geçmişi — hepsi `local-files/` altındaki JSON
 dosyalarında. Docker volume'unda değil, **doğrudan depo klasöründe**.
 
-**Yapılacak:** Bu klasörü düzenli yedeğe dâhil edin. N1'in getirdiği bozuk-dosya
-koruması sayesinde bozulma artık sessiz kalmıyor, ama **yedek yerine geçmez**.
+**Kısmen çözüldü:** workflow 15 her gece `local-files/` klasörünü
+`local-files/yedek/<tarih>/` altına kopyalıyor. Ama bu **aynı diskte** duruyor —
+disk giderse yedek de gider.
+
+**Yapılacak:** `local-files/` klasörünü (yedek alt klasörüyle birlikte) harici
+bir diske ya da bulut yedeğinize dâhil edin. N1'in getirdiği bozuk-dosya
+koruması bozulmayı sessiz olmaktan çıkarıyor, ama **dış yedek yerine geçmez**.
 
 `.gitignore` kontrol edilmeli: gerçek veri dosyaları depoya girmemeli,
 `.ornek.json` şablonları girmeli.
@@ -162,18 +137,50 @@ ekleyin:
 
 | Workflow | Denendi mi | Tarih | Not |
 |---|---|---|---|
-| 03 Görev takibi | ✅ | | |
-| 05 Telegram | ⬜ | | |
-| … | | | |
+| 01 Anlık mail uyarısı | ⬜ | | |
+| 02 Günlük mail özeti | ⬜ | | |
+| 03 Görev takibi | ⬜ | | |
+| 04 Yerel AI özet | ⬜ | | |
+| 05 Telegram botu | ⬜ | | |
+| 06 Fiyat takibi | ⬜ | | |
+| 07 Fatura/harcama | ⬜ | | |
+| 08 Takvim özeti | ⬜ | | |
+| 09 Not ve hatırlatma | ⬜ | | |
+| 10 Günaydın brifingi | ⬜ | | |
+| 11 Hata nöbetçisi | ⬜ | | |
+| 12 Yerel AI sohbet | ⬜ | | |
+| 13 Link özetleyici | ⬜ | | |
+| 14 RSS haber özeti | ⬜ | | |
+| 15 Otomatik yedekleme | ⬜ | | |
+| 16 Sayfa takibi | ⬜ | | |
 
 Altı ay sonra "bu çalışıyor muydu?" diye düşünmemek için.
 
 ---
 
+## N7 🟡 Yeni workflow'ların tek seferlik ayarları
+
+16 workflow'un üçü, içe aktarmanın ötesinde panelde birer ayar ister.
+Atlanırsa **sessizce** çalışmazlar:
+
+- [ ] **Workflow 11 (hata nöbetçisi)** — kullandığınız her workflow'da
+      **⋮ → Settings → Error Workflow** alanından 11'i seçin. Sadece Active
+      yapmak yetmez (README §9.2).
+- [ ] **Workflow 05 → 12/13 bağlantısı** — `/ai` ve `/oku` komutlarının
+      çalışması için workflow 05'teki *AI Workflow'una İlet* ve
+      *Link Workflow'una İlet* düğümlerinde hedef workflow'u seçin
+      (README §12.3). Seçilmezse yalnızca bu iki komut çalışmaz.
+- [ ] **Workflow 15 (yedekleme)** — workflow'ların kendisini de yedeklemek
+      isterseniz panelden bir API anahtarı üretip `.env` içine
+      `N8N_API_KEY=...` yazın (README §10.2). İsteğe bağlıdır.
+
+---
+
 ## Öncelik sırası önerisi
 
-1. **N1** — dayanıklılık dalını birleştir *(kurulumdan ÖNCE)*
+1. ~~**N1** — dayanıklılık dalını birleştir~~ ✅ tamamlandı
 2. **N3** — şifreleme anahtarını üret ve yedekle *(kurulumun ilk 5 dakikası)*
-3. **N2** — workflow'ları tek tek dene, sonuçları not et
-4. **N6** — hangisinin çalıştığını tabloya yaz
-5. **N4, N5** — yedekleme ve AI profili notları
+3. **N7** — yeni workflow'ların panel ayarlarını yap
+4. **N2** — workflow'ları tek tek dene, sonuçları not et
+5. **N6** — hangisinin çalıştığını tabloya yaz
+6. **N4, N5** — dış yedekleme ve AI profili notları

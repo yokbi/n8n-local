@@ -1,0 +1,447 @@
+{
+  "name": "16 — Sayfa Değişiklik Takibi",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🔍 Sayfa değişiklik takibi\n\nTakip listenizdeki sayfaları **6 saatte bir** kontrol eder; içerik\ndeğiştiyse haber verir. Fiyat takibinin (workflow 06) genel hâli:\nsayı değil, **metin** izler.\n\nNe için kullanılır: bir kurumun duyuru sayfası, iş ilanı listesi,\nkontenjan/başvuru sayfası, bir ürünün \"stokta yok\" yazısı, üniversite\nsınav takvimi…\n\n### Sayfa eklemek\n`local-files/sayfa-takibi.json`:\n```json\n{ \"sayfalar\": [\n  { \"ad\": \"Duyurular\",\n    \"url\": \"https://ornek.com/duyurular\",\n    \"secici\": \".duyuru-listesi\" }\n] }\n```\n`secici` **isteğe bağlıdır** — yazılmazsa sayfanın tamamı (`body`)\nizlenir.\n\n> **İlk kontrol sessizdir:** başlangıç durumu kaydedilir, bildirim\n> ikinci turdan itibaren gelir.",
+        "width": 540,
+        "height": 480
+      },
+      "id": "79481e77-0e9e-48e7-af89-ee88acd8eed0",
+      "name": "Not adfe6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Doğru seçiciyi bulmak önemli\n\nTüm sayfayı (`body`) izlerseniz reklam, tarih, ziyaretçi sayacı gibi\n**her yüklemede değişen** parçalar yüzünden sürekli \"değişti\"\nuyarısı alırsınız.\n\n**Seçici nasıl bulunur:** sayfayı tarayıcıda açın → ilgilendiğiniz\nbölüme sağ tık → **İncele** → işaretli satırda sağ tık →\n**Copy → Copy selector**.\n\n**Aynı sınırlama workflow 06'daki gibi:** içerik JavaScript ile\nyükleniyorsa kaynak HTML'de yoktur, bu yöntemle izlenemez. Bu durumda\n\"seçici hiçbir metin döndürmedi\" uyarısı gelir ve\n`sayfa-takibi.json` içindeki `sonHata` alanına yazılır.\n\n**Sıklık:** *6 Saatte Bir* düğümünden değiştirin. Siteleri gereğinden\nsık yoklamayın — bazıları `403` ile engeller.\n\n**Bir sayfa hata verirse** önceki parmak izi korunur; sayfa düzelince\nkarşılaştırma kaldığı yerden devam eder.",
+        "width": 540,
+        "height": 420
+      },
+      "id": "59a1f49b-f086-4eec-9bb4-f228fa5c44cf",
+      "name": "Not 93324",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "3c645d45-6dd3-4e13-8bc5-942d4f40ee07",
+      "name": "6 Saatte Bir",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -100,
+        60
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "2444951f-72f0-4f7e-ba26-7a0dffd6b0b0",
+      "name": "Elle Test Et (Sayfa)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/sayfa-takibi.json",
+        "options": {}
+      },
+      "id": "dee18a83-8798-454d-b9d2-f88754e1fca5",
+      "name": "Sayfaları Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        120,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "6c30391c-460d-4c63-aa9f-ac42389d18ee",
+      "name": "Sayfaları Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        300,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Okuma zinciri hata verdiyse: dosya gerçekten YOKSA boş listeyle devam edilir,\n// ama dosya bozuk/erişilemez ise çalışma durdurulur — aksi hâlde liste boş\n// sanılıp üzerine yazılır ve veriler kaybolur.\nconst _dosyaKontrol = (okuNode, cikarNode, dosya) => {\n  const okuHata = $(okuNode).first().json.error;\n  const okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\n  if (/ENOENT|no such file|not found/i.test(okuMesaj)) return; // dosya henüz oluşmamış\n  const cikarHata = $(cikarNode).first().json.error;\n  if (okuHata || cikarHata) {\n    const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n    throw new Error(dosya + ' okunamadı; takip geçmişi korunsun diye durduruldu → ' + m);\n  }\n};\n_dosyaKontrol('Sayfaları Oku', 'Sayfaları Çıkar', 'sayfa-takibi.json');\n\n\n// Takip listesindeki her sayfa için bir çıktı üretir.\nconst j = $('Sayfaları Çıkar').first().json || {};\nconst d = (j.data && j.data.sayfalar) || [];\nconst sayfalar = (Array.isArray(d) ? d : []).filter(\n  (s) => s && typeof s.url === 'string' && /^https?:\\/\\//i.test(s.url));\n\nif (sayfalar.length === 0) {\n  throw new Error('sayfa-takibi.json içinde geçerli sayfa yok. Örnek için local-files/sayfa-takibi.ornek.json dosyasına bakın.');\n}\n\nreturn sayfalar.map((s) => ({ json: {\n  ...s,\n  ad: String(s.ad || s.url),\n  // Seçici verilmezse sayfanın gövdesi izlenir.\n  secici: String(s.secici || 'body').trim() || 'body',\n} }));\n"
+      },
+      "id": "3e77cb42-0089-4a48-a0a4-3ce59183a448",
+      "name": "Sayfaları Aç",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "af47dd25-a3ea-4a61-a9a4-9884df282ee5",
+      "name": "Sayfayı İndir",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "sourceData": "json",
+        "dataPropertyName": "data",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "icerik",
+              "cssSelector": "={{ $('Sayfaları Aç').item.json.secici }}",
+              "returnValue": "text"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "62b0a100-028f-4013-9326-517110995e60",
+      "name": "İçeriği Çek",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        840,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Her sayfanın içeriğini önceki turla karşılaştırır.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\n\n// Kısa ve hızlı bir metin parmak izi (FNV-1a). Şifreleme değil, yalnızca\n// \"değişti mi?\" sorusunu ucuza cevaplamak için.\nconst parmakIzi = (metin) => {\n  let h = 0x811c9dc5;\n  for (let i = 0; i < metin.length; i++) {\n    h ^= metin.charCodeAt(i);\n    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;\n  }\n  return h.toString(16).padStart(8, '0') + ':' + metin.length;\n};\n\nconst sayfalar = $('Sayfaları Aç').all().map((x) => ({ ...x.json }));\nconst sonuclar = $input.all();\nconst simdi = new Date().toISOString();\n\nconst degisenler = [];\nconst hatalar = [];\nconst yeniListe = [];\n\nsayfalar.forEach((s, i) => {\n  const cikti = (sonuclar[i] && sonuclar[i].json) || {}; // sıra korunur\n  const indirme = $('Sayfayı İndir').all()[i];\n  const indirmeHata = indirme && indirme.json && indirme.json.error;\n\n  const temiz = { ...s };\n  delete temiz.sonHata;\n  temiz.sonKontrol = simdi;\n\n  if (indirmeHata || cikti.error) {\n    const ham = String(\n      (indirmeHata && (indirmeHata.message || indirmeHata)) ||\n      (cikti.error && (cikti.error.message || cikti.error)) || 'bilinmeyen hata');\n    temiz.sonHata = ham.slice(0, 200);\n    hatalar.push(s.ad + ': ' + temiz.sonHata);\n    yeniListe.push(temiz); // önceki parmak izi korunur, veri kaybolmaz\n    return;\n  }\n\n  const metin = String(cikti.icerik || '').replace(/\\s+/g, ' ').trim();\n  if (!metin) {\n    temiz.sonHata = 'Seçici (' + s.secici + ') hiçbir metin döndürmedi.';\n    hatalar.push(s.ad + ': ' + temiz.sonHata);\n    yeniListe.push(temiz);\n    return;\n  }\n\n  const iz = parmakIzi(metin);\n  const onceki = s.sonIz || '';\n  temiz.sonIz = iz;\n  temiz.sonOzet = metin.slice(0, 300);\n\n  if (!onceki) {\n    // İlk kontrol: yalnızca başlangıç durumu kaydedilir, bildirim gitmez.\n    temiz.ilkKayit = simdi;\n  } else if (onceki !== iz) {\n    temiz.sonDegisim = simdi;\n    const eskiUzunluk = Number(String(onceki).split(':')[1] || 0);\n    const fark = metin.length - eskiUzunluk;\n    degisenler.push({\n      ad: s.ad, url: s.url,\n      fark: fark > 0 ? '+' + fark : String(fark),\n      ozet: metin.slice(0, 300),\n    });\n  }\n  yeniListe.push(temiz);\n});\n\nconst gonderilecek = degisenler.length > 0;\nlet text = '';\nlet html = '';\nconst gun = new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });\n\nif (gonderilecek) {\n  const satirlar = ['🔍 Sayfa değişti (' + degisenler.length + ') — ' + gun];\n  const parcalar = [];\n  for (const d of degisenler) {\n    satirlar.push('', '• ' + d.ad + ' (' + d.fark + ' karakter)', d.url, '  ' + d.ozet.slice(0, 200) + '…');\n    parcalar.push('<h3>' + esc(d.ad) + ' <small>(' + esc(d.fark) + ' karakter)</small></h3>' +\n      '<p><a href=\"' + esc(d.url) + '\">' + esc(d.url) + '</a></p>' +\n      '<blockquote style=\"color:#555\">' + esc(d.ozet) + '…</blockquote>');\n  }\n  if (hatalar.length) satirlar.push('', '⚠️ ' + hatalar.join('\\n⚠️ '));\n  text = satirlar.join('\\n');\n  html = '<div style=\"font-family:system-ui,sans-serif;line-height:1.5\"><h2>🔍 Sayfa değişti</h2>' +\n    parcalar.join('') +\n    (hatalar.length ? '<p style=\"color:#b00\">⚠️ ' + esc(hatalar.join(' | ')) + '</p>' : '') + '</div>';\n}\n\nreturn [{ json: {\n  gonderilecek, yazilsin: true, sayfalar: yeniListe,\n  konu: '🔍 Takip ettiğiniz sayfa değişti (' + degisenler.length + ')',\n  text, html,\n  bilgi: gonderilecek ? degisenler.length + ' sayfa değişti.' : 'Değişiklik yok.' +\n         (hatalar.length ? ' Sorunlu: ' + hatalar.join(' | ') : ''),\n} }];\n"
+      },
+      "id": "222fec67-36ac-4a0d-a86a-81084479a1a5",
+      "name": "Değişenleri Bul",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        150
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa değişiklik uyarısı oraya gider.\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "7616fa56-2418-4423-9b05-53bae260e44a",
+      "name": "Telegram Kurulu mu? (Sayfa)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "16ec00b8-f977-4371-ac8c-8ceaab9539c8",
+      "name": "Değişikliği Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        20
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE uyarı mail olarak gider (çift bildirim olmasın).\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "90c466c0-2a4a-4f9f-978c-25df2b2472c1",
+      "name": "Telegram Yoksa Mail (Sayfa)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ddb4ea7c-de26-4f32-b116-3069edc3eaa2",
+      "name": "Değişikliği Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1420,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca sayfa listesi (güncel parmak izleriyle) yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { sayfalar: j.sayfalar } }];"
+      },
+      "id": "fdc3ee0f-2fce-492a-9466-ebe0ac869a04",
+      "name": "Sayfa Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "sayfa-takibi.json"
+        }
+      },
+      "id": "ba4bac69-d428-477a-a712-11a6ba62e483",
+      "name": "Sayfaları Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1420,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/sayfa-takibi.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "2d18ed02-5cda-43c6-8722-ffc0b5cc2314",
+      "name": "Sayfaları Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Sayfaları Oku": {
+      "main": [
+        [
+          {
+            "node": "Sayfaları Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sayfaları Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Sayfaları Aç",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sayfaları Aç": {
+      "main": [
+        [
+          {
+            "node": "Sayfayı İndir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sayfayı İndir": {
+      "main": [
+        [
+          {
+            "node": "İçeriği Çek",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İçeriği Çek": {
+      "main": [
+        [
+          {
+            "node": "Değişenleri Bul",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6 Saatte Bir": {
+      "main": [
+        [
+          {
+            "node": "Sayfaları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (Sayfa)": {
+      "main": [
+        [
+          {
+            "node": "Sayfaları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Değişenleri Bul": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (Sayfa)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Sayfa)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sayfa Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Kurulu mu? (Sayfa)": {
+      "main": [
+        [
+          {
+            "node": "Değişikliği Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Sayfa)": {
+      "main": [
+        [
+          {
+            "node": "Değişikliği Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sayfa Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Sayfaları Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sayfaları Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Sayfaları Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

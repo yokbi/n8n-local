@@ -1,0 +1,575 @@
+{
+  "name": "14 — RSS Haber Özeti (08:15)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📰 RSS haber özeti — yalnızca yeni olanlar\n\n`local-files/rss-kaynaklar.json` içindeki beslemeleri her sabah\n**08:15**'te tarar ve **daha önce göstermediklerini** bildirir.\nGörülen bağlantılar `local-files/rss-durum.json` içinde tutulur, bu\nyüzden aynı haber iki kez gelmez.\n\nRSS ve Atom beslemelerinin ikisi de okunur. Kimlik bilgisi, API\nanahtarı, hesap gerekmez.\n\n### Kaynak eklemek\n`local-files/rss-kaynaklar.json`:\n```json\n{ \"kaynaklar\": [\n  { \"ad\": \"BBC Türkçe\", \"url\": \"https://feeds.bbci.co.uk/turkce/rss.xml\" }\n] }\n```\nÇoğu sitenin besleme adresi `/rss`, `/feed` ya da `/rss.xml` ile biter.\n\n> **İlk çalıştırma sessizdir:** mevcut haberler \"görüldü\" diye\n> işaretlenir, yüzlerce eski haber gönderilmez. Bildirimler ikinci\n> turdan itibaren başlar.",
+        "width": 540,
+        "height": 460
+      },
+      "id": "1d65dff4-414a-4ab2-b684-e24a8c31b75e",
+      "name": "Not 38fe1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ İsteğe bağlı: yerel AI özeti\n\n`.env` dosyasına\n```\nRSS_AI_OZET=1\n```\nyazarsanız başlıklar Ollama'ya gönderilir ve mesajın başına\n**\"🧠 Günün özeti\"** eklenir. Ollama kapalıysa özet atlanır, haber\nlistesi yine gelir.\n\n**Saat:** *Her Sabah 08:15* düğümünden değiştirin.\n\n**Sık kontrol** isterseniz tetikleyiciyi saatlik yapabilirsiniz —\n\"yalnızca yeni olanlar\" mantığı sayesinde tekrar gelmez.\n\n**Bir kaynak okunamazsa** mesajın sonunda ⚠️ ile belirtilir; diğer\nkaynaklar yine işlenir. Okunamayan beslemenin haberleri \"görüldü\"\nsayılmaz — kaynak düzelince o haberler normal şekilde gelir.",
+        "width": 540,
+        "height": 380
+      },
+      "id": "022bf552-21a6-45e8-9921-1c202df2bace",
+      "name": "Not b3cf9",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 8,
+              "triggerAtMinute": 15
+            }
+          ]
+        }
+      },
+      "id": "7d7f3133-0d3e-4b20-bb49-e6eb69966509",
+      "name": "Her Sabah 08:15",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -100,
+        60
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "6bc85d79-c198-4227-9b66-c4310ac9dc30",
+      "name": "Elle Test Et (RSS)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/rss-kaynaklar.json",
+        "options": {}
+      },
+      "id": "9ae4ffc6-9963-4d28-ac6e-227b60eab433",
+      "name": "Kaynakları Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        120,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "fb41d150-d18f-4100-b49f-70730aa2857e",
+      "name": "Kaynakları Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        300,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/rss-durum.json",
+        "options": {}
+      },
+      "id": "d355639f-ffc5-47a9-9959-0772ecc6e855",
+      "name": "Durumu Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "a51d80c9-6e4d-46e9-8b5b-3e57d5103ddb",
+      "name": "Durumu Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        660,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Okuma zinciri hata verdiyse: dosya gerçekten YOKSA boş listeyle devam edilir,\n// ama dosya bozuk/erişilemez ise çalışma durdurulur — aksi hâlde liste boş\n// sanılıp üzerine yazılır ve veriler kaybolur.\nconst _dosyaKontrol = (okuNode, cikarNode, dosya) => {\n  const okuHata = $(okuNode).first().json.error;\n  const okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\n  if (/ENOENT|no such file|not found/i.test(okuMesaj)) return; // dosya henüz oluşmamış\n  const cikarHata = $(cikarNode).first().json.error;\n  if (okuHata || cikarHata) {\n    const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n    throw new Error(dosya + ' okunamadı; okunmuş haber listesi korunsun diye durduruldu → ' + m);\n  }\n};\n_dosyaKontrol('Kaynakları Oku', 'Kaynakları Çıkar', 'rss-kaynaklar.json');\n_dosyaKontrol('Durumu Oku', 'Durumu Çıkar', 'rss-durum.json');\n\n\n// Takip listesindeki her besleme için bir çıktı üretir (HTTP düğümü her biri\n// için bir kez çalışır).\nconst j = $('Kaynakları Çıkar').first().json || {};\nconst d = (j.data && j.data.kaynaklar) || [];\nconst kaynaklar = (Array.isArray(d) ? d : [])\n  .filter((k) => k && typeof k.url === 'string' && /^https?:\\/\\//i.test(k.url))\n  .map((k) => ({ ad: String(k.ad || k.url), url: k.url }));\n\nif (kaynaklar.length === 0) {\n  throw new Error('rss-kaynaklar.json içinde geçerli kaynak yok. Örnek için local-files/rss-kaynaklar.ornek.json dosyasına bakın.');\n}\nreturn kaynaklar.map((k) => ({ json: k }));\n"
+      },
+      "id": "05584389-db8a-4b4e-8555-6d6ee6571e70",
+      "name": "Kaynakları Listele",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "fedfe287-bdd2-4538-9774-05d12837ddef",
+      "name": "Beslemeyi Getir",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tüm beslemeleri ayrıştırır, daha önce görülmemiş haberleri seçer.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst cozumle = (s) => String(s || '')\n  .replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/g, '$1')\n  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\")\n  .replace(/&#(\\d+);/g, (_, n) => String.fromCharCode(Number(n)))\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/\\s+/g, ' ').trim();\n\nconst alan = (blok, etiket) => {\n  const m = blok.match(new RegExp('<' + etiket + '[^>]*>([\\\\s\\\\S]*?)</' + etiket + '>', 'i'));\n  return m ? cozumle(m[1]) : '';\n};\nconst linkBul = (blok) => {\n  const rss = blok.match(/<link[^>]*>([\\s\\S]*?)<\\/link>/i);\n  if (rss && cozumle(rss[1])) return cozumle(rss[1]);\n  const atom = blok.match(/<link[^>]+href=[\"']([^\"']+)[\"']/i); // Atom beslemeleri\n  return atom ? atom[1] : '';\n};\n\nconst kaynaklar = $('Kaynakları Listele').all().map((x) => x.json);\nconst yanitlar = $input.all();\n\nconst durumJson = $('Durumu Çıkar').first().json || {};\nconst oncekiler = (durumJson.data && durumJson.data.gorulen) || [];\nconst gorulen = new Set(Array.isArray(oncekiler) ? oncekiler : []);\nconst ilkCalisma = gorulen.size === 0;\n\nconst yeniler = [];\nconst hatalar = [];\n\nyanitlar.forEach((y, i) => {\n  const kaynak = kaynaklar[i] || { ad: 'Bilinmeyen kaynak' }; // sıra korunur\n  const json = y.json || {};\n  if (json.error) {\n    hatalar.push(kaynak.ad + ': ' + String(json.error.message || json.error).slice(0, 120));\n    return;\n  }\n  const xml = String(json.data || '');\n  const bloklar = (xml.match(/<item[\\s\\S]*?<\\/item>/gi) || [])\n    .concat(xml.match(/<entry[\\s\\S]*?<\\/entry>/gi) || []);\n  if (bloklar.length === 0) {\n    hatalar.push(kaynak.ad + ': besleme okunamadı (RSS/Atom değil?)');\n    return;\n  }\n  for (const b of bloklar.slice(0, 30)) {\n    const link = linkBul(b);\n    const baslik = alan(b, 'title');\n    if (!link || !baslik || gorulen.has(link)) continue;\n    gorulen.add(link);\n    yeniler.push({\n      kaynak: kaynak.ad,\n      baslik: baslik.slice(0, 200),\n      link,\n      ozet: (alan(b, 'description') || alan(b, 'summary')).slice(0, 300),\n      tarih: alan(b, 'pubDate') || alan(b, 'updated') || '',\n    });\n  }\n});\n\n// Liste sınırsız büyümesin: son 1000 bağlantı yeter.\nconst gorulenListe = [...gorulen].slice(-1000);\n\n// İlk çalıştırmada arşivin tamamı \"yeni\" sayılır — bunu göndermek yerine\n// sadece işaretleyip sonraki turdan itibaren haber veririz.\nif (ilkCalisma) {\n  return [{ json: {\n    gonderilecek: false, yazilsin: true, gorulen: gorulenListe, yeniler: [],\n    text: '', html: '', konu: '',\n    bilgi: 'İlk çalıştırma: ' + gorulenListe.length + ' mevcut haber işaretlendi, bundan sonrakiler bildirilecek.',\n  } }];\n}\n\nif (yeniler.length === 0) {\n  return [{ json: {\n    gonderilecek: false, yazilsin: true, gorulen: gorulenListe, yeniler: [],\n    text: '', html: '', konu: '', bilgi: 'Yeni haber yok.' + (hatalar.length ? ' Sorunlu kaynak: ' + hatalar.join(' | ') : ''),\n  } }];\n}\n\nconst gun = new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });\nconst gruplar = new Map();\nfor (const h of yeniler) {\n  if (!gruplar.has(h.kaynak)) gruplar.set(h.kaynak, []);\n  gruplar.get(h.kaynak).push(h);\n}\n\nconst satirlar = ['📰 Yeni haberler — ' + gun + ' (' + yeniler.length + ')'];\nconst htmlParca = [];\nfor (const [kaynak, liste] of gruplar) {\n  satirlar.push('', '— ' + kaynak);\n  htmlParca.push('<h3>' + esc(kaynak) + '</h3><ul>');\n  for (const h of liste.slice(0, 10)) {\n    satirlar.push('• ' + h.baslik + '\\n  ' + h.link);\n    htmlParca.push('<li><a href=\"' + esc(h.link) + '\">' + esc(h.baslik) + '</a></li>');\n  }\n  if (liste.length > 10) satirlar.push('  … ve ' + (liste.length - 10) + ' tane daha');\n  htmlParca.push('</ul>');\n}\nif (hatalar.length) satirlar.push('', '⚠️ ' + hatalar.join('\\n⚠️ '));\n\n// Modele gidecek başlık listesi (özet isteğe bağlı; Ollama kapalıysa atlanır).\nconst basliklar = yeniler.slice(0, 40)\n  .map((h) => '- [' + h.kaynak + '] ' + h.baslik + (h.ozet ? ' — ' + h.ozet.slice(0, 160) : ''))\n  .join('\\n');\n\nreturn [{ json: {\n  gonderilecek: true, yazilsin: true, gorulen: gorulenListe, yeniler,\n  konu: '📰 Yeni haberler — ' + gun + ' (' + yeniler.length + ')',\n  text: satirlar.join('\\n'),\n  html: '<div style=\"font-family:system-ui,sans-serif;line-height:1.5\"><h2>📰 Yeni haberler — ' +\n        esc(gun) + '</h2>' + htmlParca.join('') +\n        (hatalar.length ? '<p style=\"color:#b00\">⚠️ ' + esc(hatalar.join(' | ')) + '</p>' : '') + '</div>',\n  basliklar,\n  model: String($env.OLLAMA_MODEL || 'qwen2.5:3b').trim(),\n} }];\n"
+      },
+      "id": "a096b2b0-1098-4b00-83bc-911e386fc779",
+      "name": "Yeni Haberleri Bul",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        150
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ollama özeti isteğe bağlıdır: RSS_AI_OZET=1 ise başlıklar modele gider.\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nif (String($env.RSS_AI_OZET || '').trim() !== '1') return [];\nreturn [{ json: j }];"
+      },
+      "id": "975cd1fa-ff0b-4029-a470-2e7ef0058fd5",
+      "name": "AI Özeti Açık mı?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.model, prompt: 'Aşağıdaki haber başlıklarını Türkçe olarak en fazla 5 maddede özetle. Sadece verilen başlıkları kullan, yorum ve bilgi ekleme.\\n\\n' + $json.basliklar, stream: false }) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "2efd8aaf-a7da-4673-a29e-8cb841bcc0f6",
+      "name": "Ollama'ya Sor (RSS)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        40
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Model çalıştıysa özeti mesajın başına ekler; çalışmadıysa mesaj aynen kalır.\nconst hazirlik = $('Yeni Haberleri Bul').first().json || {};\nconst yanit = $input.first().json || {};\nif (yanit.error || !yanit.response) {\n  return [{ json: { ...hazirlik, aiNotu: '' } }];\n}\nconst ozet = String(yanit.response).trim().slice(0, 1200);\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nreturn [{ json: {\n  ...hazirlik,\n  text: '🧠 Günün özeti:\\n' + ozet + '\\n\\n' + hazirlik.text,\n  html: '<div style=\"font-family:system-ui,sans-serif\"><h3>🧠 Günün özeti</h3><p>' +\n        esc(ozet).replace(/\\n/g, '<br>') + '</p></div>' + hazirlik.html,\n} }];\n"
+      },
+      "id": "bcfbd94e-b159-4236-a775-408f357eaedc",
+      "name": "AI Özetini Ekle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        40
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI özeti kapalıysa (ya da gönderilecek haber yoksa) metin olduğu gibi geçer.\nconst j = $input.first().json;\nif (j.gonderilecek && String($env.RSS_AI_OZET || '').trim() === '1') return [];\nreturn [{ json: j }];"
+      },
+      "id": "0df56a83-8ed3-4ef1-b229-91635f5c9278",
+      "name": "AI Özetsiz Devam",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa haberler oraya gider.\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "52bcce0e-b23d-4b15-b4e2-0d46d6824c55",
+      "name": "Telegram Kurulu mu? (RSS)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b782bd72-983d-4cdb-9546-292c67bb4676",
+      "name": "Haberleri Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        -60
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE haberler mail olarak gider (çift bildirim olmasın).\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "28021fb4-bdf4-4a70-ac6a-93b570cc585b",
+      "name": "Telegram Yoksa Mail (RSS)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "eae6c376-07bb-40b2-a80d-3a9bf03d3753",
+      "name": "Haberleri Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2160,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca görülen bağlantı listesi yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { gorulen: j.gorulen, sonCalisma: new Date().toISOString() } }];"
+      },
+      "id": "1450e31a-467c-4ea0-994e-d97c4f8a55ec",
+      "name": "RSS Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "rss-durum.json"
+        }
+      },
+      "id": "0ecf47d8-46ef-48df-93d2-49d4ec0973ea",
+      "name": "Durumu Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2160,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/rss-durum.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "4e2d070e-da54-45a1-a886-d4198045825c",
+      "name": "Durumu Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2340,
+        340
+      ]
+    }
+  ],
+  "connections": {
+    "Kaynakları Oku": {
+      "main": [
+        [
+          {
+            "node": "Kaynakları Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kaynakları Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Durumu Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durumu Oku": {
+      "main": [
+        [
+          {
+            "node": "Durumu Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durumu Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Kaynakları Listele",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kaynakları Listele": {
+      "main": [
+        [
+          {
+            "node": "Beslemeyi Getir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Beslemeyi Getir": {
+      "main": [
+        [
+          {
+            "node": "Yeni Haberleri Bul",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her Sabah 08:15": {
+      "main": [
+        [
+          {
+            "node": "Kaynakları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (RSS)": {
+      "main": [
+        [
+          {
+            "node": "Kaynakları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yeni Haberleri Bul": {
+      "main": [
+        [
+          {
+            "node": "AI Özeti Açık mı?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI Özetsiz Devam",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Özeti Açık mı?": {
+      "main": [
+        [
+          {
+            "node": "Ollama'ya Sor (RSS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama'ya Sor (RSS)": {
+      "main": [
+        [
+          {
+            "node": "AI Özetini Ekle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Özetini Ekle": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (RSS)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (RSS)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Özetsiz Devam": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (RSS)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (RSS)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Kurulu mu? (RSS)": {
+      "main": [
+        [
+          {
+            "node": "Haberleri Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (RSS)": {
+      "main": [
+        [
+          {
+            "node": "Haberleri Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Durumu Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durumu Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Durumu Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

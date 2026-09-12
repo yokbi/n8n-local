@@ -30,11 +30,14 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 6. [Görev API'sini başka uygulamalardan kullanma](#6-görev-apisini-başka-uygulamalardan-kullanma)
 7. [Telegram botu, fiyat takibi ve harcama kaydı](#7-telegram-botu-fiyat-takibi-ve-harcama-kaydı)
 8. [Takvim özeti, not ve hatırlatma](#8-takvim-özeti-not-ve-hatırlatma)
-9. [Opsiyonel: Yerel AI (Ollama)](#9-opsiyonel-yerel-ai-ollama)
-10. [Verileriniz nerede? Yedekleme](#10-verileriniz-nerede-yedekleme)
-11. [Başka uygulamalar bağlamak](#11-başka-uygulamalar-bağlamak)
-12. [Sorun giderme](#12-sorun-giderme)
-13. [Güncelleme](#13-güncelleme)
+9. [Günaydın brifingi ve hata nöbetçisi](#9-günaydın-brifingi-ve-hata-nöbetçisi)
+10. [Haberler, yedekleme ve sayfa takibi](#10-haberler-yedekleme-ve-sayfa-takibi)
+11. [Opsiyonel: Yerel AI (Ollama)](#11-opsiyonel-yerel-ai-ollama)
+12. [Yerel AI sohbet ve link özetleyici](#12-yerel-ai-sohbet-ve-link-özetleyici)
+13. [Verileriniz nerede? Yedekleme](#13-verileriniz-nerede-yedekleme)
+14. [Başka uygulamalar bağlamak](#14-başka-uygulamalar-bağlamak)
+15. [Sorun giderme](#15-sorun-giderme)
+16. [Güncelleme](#16-güncelleme)
 
 ---
 
@@ -53,6 +56,13 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 │  │ 07 Fatura/harcama kaydı              │                            │
 │  │ 08 Günlük takvim özeti (Google)      │                            │
 │  │ 09 Not ve hatırlatma                 │                            │
+│  │ 10 Günaydın brifingi — 07:30         │                            │
+│  │ 11 Hata nöbetçisi (tüm workflow'lar) │                            │
+│  │ 12 Yerel AI sohbet           ────────┼─────▶                      │
+│  │ 13 Link özetleyici           ────────┼─────▶                      │
+│  │ 14 RSS haber özeti — 08:15   ────────┼─────▶                      │
+│  │ 15 Otomatik yedekleme — 03:00        │                            │
+│  │ 16 Sayfa değişiklik takibi           │                            │
 │  └──────┬──────────────────┬────────────┘                            │
 │         │                  │                                         │
 │   n8n_data volume    local-files/*.json (görev, fiyat, harcama, not) │
@@ -73,6 +83,13 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 | `07-fatura-harcama-cikarma` | Fatura maillerinden tutarı ayıklayıp yerel dosyaya kaydeder; ayın 1'inde önceki ayın dökümünü mail atar | IMAP + SMTP (§4-A) |
 | `08-gunluk-takvim-ozeti` | Her sabah 07:45'te Google Takvim'deki bugünün etkinliklerini Telegram'a (yoksa mail) gönderir | Google Calendar OAuth2 (§8.1) |
 | `09-not-hatirlatma` | Hızlı not + hatırlatma: webhook veya Telegram'dan ekleyin, zamanı gelince bildirim gelir; veriler yerel JSON'da | — veya SMTP (§4-A) |
+| `10-gunaydin-brifingi` | Her sabah 07:30'da hava durumu, döviz kuru, açık görevler, bugünün hatırlatmaları ve dünkü harcama tek mesajda | — veya SMTP (§9.1) |
+| `11-hata-nobetcisi` | Herhangi bir workflow hata verdiğinde anında uyarır; hataları yerel dosyaya kaydeder | — veya SMTP (§9.2) |
+| `12-yerel-ai-sohbet` | Ollama ile sohbet: webhook'tan veya Telegram'da `/ai` ile; geçmiş yerel dosyada tutulur | — (Ollama, §12.1) |
+| `13-link-ozetleyici` | Gönderdiğiniz bağlantıyı indirip yerel AI ile özetler, okuma listesine kaydeder (`/oku`) | — (Ollama, §12.2) |
+| `14-rss-haber-ozeti` | Takip ettiğiniz RSS/Atom beslemelerinden yalnızca **yeni** haberleri gönderir; isteğe bağlı AI özeti | — veya SMTP (§10.1) |
+| `15-otomatik-yedekleme` | Her gece `local-files/` klasörünü tarihli klasöre kopyalar; isteğe bağlı workflow yedeği | — (§10.2) |
+| `16-sayfa-degisiklik-takibi` | Takip ettiğiniz sayfaların içeriği değişince haber verir (fiyat takibinin metin sürümü) | — veya SMTP (§10.3) |
 
 Her workflow'un tuvalinde, kurulum adımlarını anlatan Türkçe **sarı not kutuları** vardır.
 
@@ -99,6 +116,12 @@ cp local-files/gorevler.ornek.json local-files/gorevler.json
 cp local-files/fiyat-takibi.ornek.json local-files/fiyat-takibi.json
 cp local-files/harcamalar.ornek.json local-files/harcamalar.json
 cp local-files/notlar.ornek.json local-files/notlar.json
+cp local-files/hatalar.ornek.json local-files/hatalar.json
+cp local-files/sohbet.ornek.json local-files/sohbet.json
+cp local-files/okunacaklar.ornek.json local-files/okunacaklar.json
+cp local-files/rss-kaynaklar.ornek.json local-files/rss-kaynaklar.json
+cp local-files/rss-durum.ornek.json local-files/rss-durum.json
+cp local-files/sayfa-takibi.ornek.json local-files/sayfa-takibi.json
 
 # 3) n8n'i başlatın
 docker compose up -d
@@ -164,6 +187,19 @@ Resmî anlatım: <https://docs.n8n.io/integrations/builtin/credentials/google/oa
 > Webhook'lar (görev API'si) yalnızca workflow **Active** iken
 > `http://localhost:5678/webhook/...` adresinde çalışır. Editördeki
 > **Execute workflow** ile test ederken geçici `webhook-test/...` adresi kullanılır.
+
+### Workflow mantığını Docker'sız denemek
+
+Workflow'ların Code düğümlerindeki mantık (bozuk dosya koruması, "aynı haberi
+iki kez gönderme", Ollama kapalıyken veri kaybetmeme…) n8n başlatılmadan
+denenebilir:
+
+```bash
+node testler/kod-testleri.js
+```
+
+Node.js dışında bir şey gerekmez; gerçek HTTP isteği atılmaz, dosya yazılmaz.
+Bir Code düğümünü değiştirdikten sonra bunu çalıştırmak iyi bir alışkanlıktır.
 
 ## 6. Görev API'sini başka uygulamalardan kullanma
 
@@ -334,7 +370,148 @@ Dakikada* düğümündeki aralığı 1 dakika yapın.
 > 5 dakikada bir), tam aynı ana denk gelen iki yazma işleminden biri diğerini
 > ezebilir. Pratikte nadirdir; şüphelenirseniz `/notlar` ile kontrol edin.
 
-## 9. Opsiyonel: Yerel AI (Ollama)
+## 9. Günaydın brifingi ve hata nöbetçisi
+
+### 9.1 Günaydın brifingi (workflow 10)
+
+Her sabah **07:30**'da tek bir mesaj: hava durumu, dolar/euro kuru, açık
+görevleriniz, bugünün hatırlatmaları ve dünkü harcama toplamı.
+
+Telegram kuruluysa (§7.1) oraya, değilse SMTP mail olarak gider.
+**Hiçbir API anahtarı gerekmez** — hava [Open-Meteo](https://open-meteo.com),
+kur ise TCMB'nin günlük yayınından okunur.
+
+Konumunuzu `.env` dosyasına yazın (boş bırakılırsa İstanbul kullanılır):
+
+```bash
+HAVA_SEHIR=Ankara
+HAVA_ENLEM=39.93
+HAVA_BOYLAM=32.86
+```
+
+Sonra `docker compose up -d` ile n8n'i yeniden başlatın.
+
+> Takvim bilerek dâhil değildir: workflow 08 zaten 07:45'te ayrı bir takvim
+> özeti gönderir. İkisini birleştirmek isterseniz 08'in metnini bu workflow'un
+> **Brifingi Hazırla** düğümüne taşıyabilirsiniz.
+>
+> TCMB hafta sonu ve resmî tatillerde kur yayınlamaz; o günlerde **son iş
+> gününün** kuru görünür.
+
+### 9.2 Hata nöbetçisi (workflow 11)
+
+Bir workflow bozulduğunda n8n varsayılan olarak **sessiz kalır** — sabah özeti
+gelmez, siz de günlerce fark etmezsiniz. Bu workflow o boşluğu kapatır:
+herhangi bir workflow hata verdiğinde anında Telegram (yoksa mail) uyarısı
+gönderir, hatayı `local-files/hatalar.json` içine yazar (son 200 kayıt) ve aynı
+workflow gün içinde tekrar patlarsa *"🔁 Bugün 3. kez"* notunu ekler.
+
+**Bunu Active yapmak yetmez.** n8n'de her workflow kendi hata workflow'unu
+ayrıca seçer:
+
+1. Workflow 11'i içe aktarın ve **kaydedin**.
+2. Diğer workflow'lardan birini açın → sağ üst **⋮ → Settings**.
+3. **Error Workflow** listesinden **11 — Hata Nöbetçisi**'ni seçin → **Save**.
+4. Aynısını kullandığınız tüm workflow'lar için tekrarlayın.
+
+Denemek için herhangi bir workflow'a geçici bir Code düğümü ekleyip içine
+`throw new Error('deneme');` yazın ve elle çalıştırın — uyarı gelmeli.
+
+> Workflow 11'in kendi **Error Workflow** ayarını boş bırakın; nöbetçinin
+> nöbetçisi olmaz. Nöbetçi kendisi de asla durmaz: `hatalar.json` bozuksa
+> dosyaya yazmayı atlar ama **bildirimi yine gönderir**.
+
+## 10. Haberler, yedekleme ve sayfa takibi
+
+### 10.1 RSS haber özeti (workflow 14)
+
+Takip ettiğiniz beslemeleri her sabah **08:15**'te tarar ve **yalnızca daha
+önce göstermediklerini** gönderir. RSS ve Atom desteklenir; hesap, anahtar
+veya kayıt gerekmez.
+
+Kaynakları `local-files/rss-kaynaklar.json` dosyasına yazın:
+
+```json
+{ "kaynaklar": [
+  { "ad": "BBC News Türkçe", "url": "https://feeds.bbci.co.uk/turkce/rss.xml" },
+  { "ad": "Kendi blogum",    "url": "https://ornek.com/feed" }
+] }
+```
+
+Görülen bağlantılar `local-files/rss-durum.json` içinde tutulur, bu yüzden aynı
+haber iki kez gelmez.
+
+> **İlk çalıştırma sessizdir:** mevcut haberler "görüldü" diye işaretlenir,
+> yüzlerce eski haber gönderilmez. Bildirimler ikinci turdan itibaren başlar.
+
+İsteğe bağlı olarak başlıkları yerel AI'ya özetletebilirsiniz — `.env`
+dosyasına `RSS_AI_OZET=1` yazın (Ollama açık olmalı, §11). Ollama kapalıysa
+özet atlanır, haber listesi yine gelir.
+
+### 10.2 Otomatik yedekleme (workflow 15)
+
+Her gece **03:00**'te `local-files/` klasöründeki bütün `.json` dosyalarını
+tarihli bir klasöre kopyalar:
+
+```
+local-files/yedek/2026-09-12-gorevler.json
+local-files/yedek/2026-09-12-notlar.json
+…
+```
+
+Yedekler `local-files/yedek/` klasöründe, dosya adının başında tarihle durur.
+Bu klasör depoyla birlikte gelir — n8n'in dosya yazma düğümü var olmayan bir
+klasörü kendiliğinden oluşturmadığı için tarih klasör adı değil dosya adıdır.
+
+Workflow'ların kendisi n8n'in veritabanında durur. Onları da yedeklemek
+isterseniz panelde **profil → Settings → n8n API → Create an API key** deyip
+anahtarı `.env` dosyasına `N8N_API_KEY=...` olarak yazın; artık her gece
+`yedek/<tarih>-workflows.json` da oluşur. Anahtar boşsa bu adım sessizce
+atlanır.
+
+> ⚠️ **Bu bir dış yedek değildir** — aynı diskte durur. `local-files/`
+> klasörünü ayrıca harici bir diske veya bulut yedeğinize dâhil edin (§13).
+
+Yedekler birikir; ayda bir temizlemek için:
+
+```bash
+find local-files/yedek -type f -name '*.json' -mtime +30 -delete
+```
+
+Geri yükleme: ilgili dosyayı `yedek/` klasöründen tarihsiz adıyla köke
+kopyalayın:
+
+```bash
+cp local-files/yedek/2026-09-12-gorevler.json local-files/gorevler.json
+```
+
+### 10.3 Sayfa değişiklik takibi (workflow 16)
+
+Fiyat takibinin (workflow 06) genel hâli: sayı değil **metin** izler. Bir
+duyuru sayfası, iş ilanı listesi, kontenjan tablosu ya da "stokta yok" yazısı
+değiştiğinde haber verir. Kontrol **6 saatte bir** yapılır.
+
+`local-files/sayfa-takibi.json`:
+
+```json
+{ "sayfalar": [
+  { "ad": "Duyurular",
+    "url": "https://ornek.com/duyurular",
+    "secici": ".duyuru-listesi" }
+] }
+```
+
+`secici` isteğe bağlıdır — yazılmazsa sayfanın tamamı (`body`) izlenir. Ancak
+tüm sayfayı izlerseniz reklam, tarih, sayaç gibi her yüklemede değişen parçalar
+yüzünden sürekli uyarı alırsınız; **doğru seçiciyi vermek önemlidir**.
+Seçiciyi bulmak için sayfayı tarayıcıda açın → ilgili bölüme sağ tık →
+**İncele** → işaretli satıra sağ tık → **Copy → Copy selector**.
+
+> İlk kontrol sessizdir (başlangıç durumu kaydedilir). İçerik JavaScript ile
+> yükleniyorsa — workflow 06'daki gibi — bu yöntemle izlenemez; bu durumda
+> `sayfa-takibi.json` içindeki `sonHata` alanı sebebi yazar.
+
+## 11. Opsiyonel: Yerel AI (Ollama)
 
 Mail özetini "insan gibi" yazsın ama veriler makineden çıkmasın istiyorsanız:
 
@@ -349,7 +526,80 @@ workflow'daki nota bakın (örn. 02'nin özetini Ollama'ya yazdırmak).
 Türkçesi daha iyi/kötü modeller için `llama3.2:3b`, `gemma2:2b` gibi
 alternatifleri deneyebilirsiniz.
 
-## 10. Verileriniz nerede? Yedekleme
+## 12. Yerel AI sohbet ve link özetleyici
+
+Bu iki workflow, §11'de kurduğunuz Ollama'yı günlük kullanıma bağlar. Sorunuz
+da cevabı da bilgisayarınızdan çıkmaz.
+
+Hangi modelin kullanılacağını `.env` içindeki `OLLAMA_MODEL` belirler
+(varsayılan `qwen2.5:3b`).
+
+### 12.1 Yerel AI sohbet (workflow 12)
+
+```bash
+# Soru sor
+curl -s -X POST http://localhost:5678/webhook/ai \
+  -H 'Content-Type: application/json' \
+  -d '{"soru": "Kısaca n8n nedir?"}'
+
+# Sohbet geçmişini temizle
+curl -s -X POST http://localhost:5678/webhook/ai \
+  -H 'Content-Type: application/json' \
+  -d '{"komut": "sifirla"}'
+```
+
+Sohbet hatırlanır: `local-files/sohbet.json` içinde oturum başına son 100 mesaj
+saklanır, modele son 10 tur gönderilir. `{"soru": "...", "oturum": "is"}`
+diyerek ayrı sohbetler tutabilirsiniz.
+
+İlk soru modeli belleğe yüklediği için yavaştır (30 saniyeyi bulabilir),
+sonrakiler hızlanır. Model cevap veremezse **geçmiş bozulmaz** — ne soru ne
+cevap dosyaya yazılır.
+
+### 12.2 Link özetleyici (workflow 13)
+
+```bash
+# Bağlantı ekle
+curl -s -X POST http://localhost:5678/webhook/oku \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "https://ornek.com/yazi", "etiket": "iş"}'
+
+# Okuma listesini görüntüle
+curl -s http://localhost:5678/webhook/okunacaklar
+```
+
+Sayfa indirilir, metni ayıklanır, yerel AI kısa bir özet çıkarır ve hepsi
+`local-files/okunacaklar.json` içine kaydedilir. Ollama kapalı olsa bile
+çalışır: özet üretilmez ama başlık, adres ve sayfanın kendi açıklaması
+kaydedilir. Aynı adres ikinci kez gönderilirse yeniden indirilmez.
+
+İçerik JavaScript ile yükleniyorsa metin ayıklanamaz; bu durumda model
+**bilerek çağrılmaz** (uydurma özet üretmesin diye), bağlantı yine listeye
+girer.
+
+### 12.3 Telegram'dan kullanmak
+
+Workflow 05'teki bota şunları yazabilirsiniz:
+
+| Komut | Ne yapar |
+|---|---|
+| `/ai <soru>` | Soruyu yerel modele sorar, cevabı Telegram'a gönderir |
+| `/aisifirla` | O sohbetin geçmişini temizler |
+| `/oku <adres>` | Sayfayı özetler ve okuma listesine ekler |
+
+**Tek seferlik ayar gerekir.** Workflow 05'i açın, tuvalin altındaki
+*AI Workflow'una İlet* ve *Link Workflow'una İlet* düğümlerine tıklayıp
+**Workflow** listesinden 12 ve 13 numaralı workflow'ları seçin, kaydedin.
+Bu adım atlanırsa yalnızca bu iki komut çalışmaz; bot diğer her şeye cevap
+vermeye devam eder.
+
+> Bu çağrılar **cevabı beklemeden** yapılır. Sebebi: `docker-compose.yml`
+> içinde çalıştırmalar sıraya alınmıştır (`N8N_CONCURRENCY_PRODUCTION_LIMIT=1`,
+> §13). Bot cevabı bekleseydi, beklediği workflow sıraya girip hiç
+> başlayamazdı. Bu yüzden bot önce *"🤔 Düşünüyorum…"* der, cevabı 12 numaralı
+> workflow ayrıca gönderir.
+
+## 13. Verileriniz nerede? Yedekleme
 
 | Veri | Yer |
 |---|---|
@@ -381,7 +631,7 @@ silmek isterseniz: `docker compose down -v` (geri dönüşü yoktur).
 > **durur** (boş liste yazmaz), siz de dosyayı düzeltir veya yedekten
 > dönersiniz. Bu yüzden `local-files/` klasörünü yedeğe dâhil edin.
 
-## 11. Başka uygulamalar bağlamak
+## 14. Başka uygulamalar bağlamak
 
 n8n'de yüzlerce hazır node var — Telegram, Google Takvim, Notion, Todoist,
 Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
@@ -397,7 +647,7 @@ Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
 Hangi servisi bağlarsanız bağlayın, kimlik bilgileri yine yalnızca sizin
 makinenizde (şifreli) durur.
 
-## 12. Sorun giderme
+## 15. Sorun giderme
 
 | Belirti | Çözüm |
 |---|---|
@@ -419,8 +669,17 @@ makinenizde (şifreli) durur.
 | Telegram `409 Conflict` hatası | Aynı bot token'ında bir webhook kurulu (başka bir uygulama/örnek kullanıyor). `curl https://api.telegram.org/bot<TOKEN>/deleteWebhook` ile silin — bir token'ı yalnızca tek kurulum kullanabilir. |
 | `EACCES: permission denied` (dosya yazılamıyor) | Yalnızca Linux'ta olur: konteyner `uid 1000` ile çalışır, klasör başka bir kullanıcıya ait. Çözüm: `sudo chown -R 1000:1000 local-files`. Mac/Windows'ta bu sorun çıkmaz. |
 | `... okunamadı; veri kaybını önlemek için durduruldu` | JSON dosyası bozulmuş (ör. yazma sırasında bilgisayar kapanmış). Workflow **bilerek** durur: aksi hâlde listeyi boş sanıp üzerine yazardı. Dosyayı bir metin düzenleyicide açıp düzeltin, ya da yedeğinizden / `.ornek.json`'dan geri kopyalayın. |
+| Brifingde hava durumu yok | `.env` içindeki `HAVA_ENLEM`/`HAVA_BOYLAM` sayı mı (ör. `41.01`)? Değiştirdiyseniz `docker compose up -d` yaptınız mı? İnternete erişilemiyorsa brifing hava satırı olmadan gider. |
+| Brifingde kur satırı yok | TCMB hafta sonu ve resmî tatillerde yayın yapmaz. Ertesi iş günü kendiliğinden düzelir. |
+| Hata nöbetçisi hiç uyarı göndermiyor | Workflow 11'i **Active** yapmak yetmez: uyarı almak istediğiniz **her** workflow'da **⋮ → Settings → Error Workflow** alanından 11'i seçmelisiniz (§9.2). |
+| `/ai` veya `/oku` yazınca bot sessiz kalıyor | Workflow 05'teki *AI/Link Workflow'una İlet* düğümlerinde hedef workflow seçilmemiş (§12.3). Ayrıca 12 ve 13 numaralı workflow'lar **Active** olmalı. |
+| `/ai` cevabı "Ollama çalışmıyor gibi" diyor | AI profilini başlatın: `docker compose --profile ai up -d`; ilk kullanımda `docker exec -it ollama ollama pull qwen2.5:3b`. |
+| RSS özeti hiç gelmiyor | İlk çalıştırma bilerek sessizdir (mevcut haberler işaretlenir). İkinci turdan sonra da gelmiyorsa `rss-kaynaklar.json` içindeki adresleri tarayıcıda açıp gerçekten RSS/Atom olduklarını doğrulayın. |
+| Sayfa takibi sürekli "değişti" diyor | Seçici çok geniş (muhtemelen `body`) ve sayfada her yüklemede değişen bir parça var. Daha dar bir CSS seçici verin (§10.3). |
+| Yedekleme `.json dosyası bulunamadı` diyor | `local-files/` klasöründe hiç veri dosyası yok — §3'teki `cp ... .ornek.json` adımlarını tamamlayın. |
+| Yedekte `workflows.json` yok | `.env` içinde `N8N_API_KEY` boş (isteğe bağlıdır) ya da anahtar geçersiz — §10.2. |
 
-## 13. Güncelleme
+## 16. Güncelleme
 
 `docker-compose.yml` içinde n8n sürümü **sabittir** (`n8n:2.35.3`) — böylece
 büyük sürüm atlamaları kurulumunuzu bir sabah habersiz bozamaz. Güncellemek
@@ -437,5 +696,5 @@ Yeni sürümler ve varsa geriye dönük uyumsuzluklar:
 <https://github.com/n8n-io/n8n/releases>
 
 Workflow'larınız ve credential'larınız volume'da olduğu için güncellemeden
-etkilenmez. Yine de büyük sürüm (ör. 2.x → 3.x) geçişinden önce §9'daki
+etkilenmez. Yine de büyük sürüm (ör. 2.x → 3.x) geçişinden önce §13'teki
 yedeklemeyi yapın.

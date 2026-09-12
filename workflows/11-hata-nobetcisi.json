@@ -1,0 +1,309 @@
+{
+  "name": "11 — Hata Nöbetçisi",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🚨 Hata nöbetçisi — sessiz bozulmaları yakalar\n\nDiğer workflow'lardan biri hata verdiğinde **anında** haber verir:\nTelegram kuruluysa oraya, değilse SMTP mail olarak.\n\nBu olmadan bir workflow bozulduğunda hiçbir şey olmaz — sabah özeti\ngelmez, siz de günlerce fark etmezsiniz.\n\nAyrıca her hatayı `local-files/hatalar.json` içine yazar (son 200 kayıt)\nve aynı workflow gün içinde tekrar patlarsa mesaja *\"🔁 Bugün 3. kez\"*\nnotunu ekler.\n\n> Bu workflow **kendisi durmaz**: `hatalar.json` bozuksa yazmayı atlar\n> ama bildirimi yine gönderir. Bir nöbetçinin susması, hata vermesinden\n> daha kötüdür.",
+        "width": 520,
+        "height": 380
+      },
+      "id": "50374ad2-0622-40f5-ac18-fb39f0ec7153",
+      "name": "Not a8f6f",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Kurulum — HER workflow'a tek tek tanıtılmalı\n\nBunu **Active** yapmak yetmez. n8n'de her workflow kendi hata\nworkflow'unu ayrıca seçer:\n\n1. Bu workflow'u içe aktarın ve **kaydedin** (Active olması gerekmez).\n2. Diğer workflow'lardan birini açın.\n3. Sağ üst **⋮ → Settings** (Ayarlar).\n4. **Error Workflow** listesinden **11 — Hata Nöbetçisi**'ni seçin.\n5. **Save**.\n6. Aynısını 01…10 için tekrarlayın.\n\n**Denemek için:** herhangi bir workflow'a geçici bir Code düğümü ekleyip\niçine `throw new Error('deneme');` yazın ve elle çalıştırın — uyarı\ngelmeli. Sonra düğümü silin.\n\n> Bu workflow'un kendi Error Workflow ayarını **boş bırakın**;\n> nöbetçinin nöbetçisi olmaz.",
+        "width": 520,
+        "height": 400
+      },
+      "id": "ebf78814-7a64-4bf4-9999-d0a176fcd485",
+      "name": "Not 123e9",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        260
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0f485fd3-4b9c-45f5-839f-0f7e199640a3",
+      "name": "Hata Yakalandı",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/hatalar.json",
+        "options": {}
+      },
+      "id": "8bb49401-4b5e-4785-b895-76472e749f22",
+      "name": "Hataları Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "0e4dc49b-576b-417b-98d5-27d4e4aa43c2",
+      "name": "Hataları Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        140
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bozulan workflow'un bilgilerini okunur bir uyarıya çevirir ve\n// local-files/hatalar.json içine son 200 kaydı tutar.\n//\n// ÖNEMLİ: bu workflow bir NÖBETÇİdir — kendisi asla durmamalı. Bu yüzden\n// hatalar.json bozuksa hata fırlatmak yerine yazmayı atlar, bildirimi yine\n// gönderir ve mesajın sonuna bir uyarı satırı ekler.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\n\nconst olay = $('Hata Yakalandı').first().json || {};\nconst wf = olay.workflow || {};\nconst ex = olay.execution || {};\nconst hata = ex.error || olay.error || {};\n\nconst simdi = new Date();\nconst zamanMetni = simdi.toLocaleString('tr-TR', {\n  day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',\n});\n\nconst wfAdi = wf.name || 'Bilinmeyen workflow';\nconst dugum = ex.lastNodeExecuted || hata.node || '';\nconst mesaj = String(hata.message || 'Hata mesajı yok').split('\\n')[0].slice(0, 400);\nconst calistirmaUrl = ex.url || (ex.id ? 'http://localhost:5678/workflow/' + (wf.id || '') + '/executions/' + ex.id : '');\n\n// ── Geçmişe ekle (bozuksa atla) ──────────────────────────────────────────────\nlet hatalar = [];\nlet yazilsin = true;\nlet uyari = '';\nconst okuHata = $('Hataları Oku').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst cikarHata = $('Hataları Çıkar').first().json.error;\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nif (!dosyaYok && (okuHata || cikarHata)) {\n  yazilsin = false;\n  uyari = '\\n⚠️ hatalar.json okunamadı, bu kayıt dosyaya yazılmadı.';\n} else {\n  const j = $('Hataları Çıkar').first().json || {};\n  const d = (j.data && j.data.hatalar) || [];\n  hatalar = Array.isArray(d) ? d.map((x) => ({ ...x })) : [];\n}\nif (yazilsin) {\n  hatalar.push({\n    tarih: simdi.toISOString(),\n    workflow: wfAdi,\n    workflowId: wf.id || null,\n    dugum,\n    mesaj,\n    calistirma: ex.id || null,\n  });\n  if (hatalar.length > 200) hatalar = hatalar.slice(-200); // dosya şişmesin\n}\n\n// ── Aynı workflow bugün kaç kez patladı ─────────────────────────────────────\nconst gunBasi = new Date(simdi); gunBasi.setHours(0, 0, 0, 0);\nconst bugunAyni = hatalar.filter((h) =>\n  h.workflow === wfAdi && new Date(h.tarih).getTime() >= gunBasi.getTime()).length;\nconst tekrar = bugunAyni > 1 ? '\\n🔁 Bugün ' + bugunAyni + '. kez.' : '';\n\nconst satirlar = [\n  '🚨 Workflow hatası',\n  '',\n  '📛 ' + wfAdi,\n  dugum ? '🔧 Düğüm: ' + dugum : '',\n  '🕒 ' + zamanMetni,\n  '',\n  '💬 ' + mesaj,\n].filter(Boolean);\nconst text = satirlar.join('\\n') + tekrar + uyari +\n  (calistirmaUrl ? '\\n\\n🔗 ' + calistirmaUrl : '');\n\nconst html = '<div style=\"font-family:system-ui,sans-serif;line-height:1.5\">' +\n  '<h2>🚨 Workflow hatası</h2>' +\n  '<p><b>' + esc(wfAdi) + '</b>' + (dugum ? ' — düğüm: <code>' + esc(dugum) + '</code>' : '') + '</p>' +\n  '<p style=\"color:#b00\">' + esc(mesaj) + '</p>' +\n  '<p style=\"color:#666\">' + esc(zamanMetni) + (tekrar ? ' · ' + esc(tekrar.trim()) : '') + '</p>' +\n  (calistirmaUrl ? '<p><a href=\"' + esc(calistirmaUrl) + '\">Çalıştırmayı aç</a></p>' : '') +\n  (uyari ? '<p style=\"color:#b00\">' + esc(uyari.trim()) + '</p>' : '') +\n  '</div>';\n\nreturn [{ json: {\n  text, html, hatalar, yazilsin,\n  konu: '🚨 n8n hatası: ' + wfAdi,\n} }];\n"
+      },
+      "id": "87e400f9-4556-45bf-915a-30de1c214cbf",
+      "name": "Hata Mesajını Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca hata listesi yazılır (okuma bozulduysa hiç yazılmaz).\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { hatalar: j.hatalar } }];"
+      },
+      "id": "267022ff-2d8b-48a0-a888-9b2b2264ba2e",
+      "name": "Hata Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "hatalar.json"
+        }
+      },
+      "id": "65b64010-1735-4a04-aec8-739972584ebf",
+      "name": "Hataları Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/hatalar.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "79f0cd40-1130-40a6-928a-b6ec6724a3f9",
+      "name": "Hataları Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa uyarı oraya gider.\nconst j = $input.first().json;\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "3018e18b-1485-4e4d-bb29-ce362fad340e",
+      "name": "Telegram Kurulu mu? (Hata)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "815a8b03-d22a-49a6-8abd-992a5dcf5aa0",
+      "name": "Hatayı Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        980,
+        -60
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE uyarı mail olarak gider (çift bildirim olmasın).\nconst j = $input.first().json;\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "909c0200-a9e0-4cf2-b693-f45bf7282100",
+      "name": "Telegram Yoksa Mail (Hata)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "82de3cf0-8aa7-45ba-8dbe-3fa1aa6d2e0a",
+      "name": "Hatayı Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        980,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Hata Yakalandı": {
+      "main": [
+        [
+          {
+            "node": "Hataları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hataları Oku": {
+      "main": [
+        [
+          {
+            "node": "Hataları Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hataları Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Hata Mesajını Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hata Mesajını Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (Hata)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Hata)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Hata Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Kurulu mu? (Hata)": {
+      "main": [
+        [
+          {
+            "node": "Hatayı Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Hata)": {
+      "main": [
+        [
+          {
+            "node": "Hatayı Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hata Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Hataları Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hataları Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Hataları Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
