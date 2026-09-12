@@ -1,6 +1,6 @@
 # Durum Raporu — n8n-local
 
-**Denetim tarihi:** 2026-09-07 · **Depo:** https://github.com/yokbi/n8n-local
+**Denetim tarihi:** 2026-09-07 · **Güncelleme:** 2026-09-12 · **Depo:** https://github.com/yokbi/n8n-local
 **Varsayılan dal:** `main`
 
 ---
@@ -12,14 +12,15 @@
 | Proje | Kendi bilgisayarınızda çalışan, veriyi dışarı göndermeyen kişisel otomasyon merkezi |
 | Teknoloji | **n8n** (Docker) + SQLite · isteğe bağlı **Ollama** (yerel AI) |
 | Kurulum | `docker compose up -d` → http://localhost:5678 |
-| Workflow | **9 adet** hazır, `workflows/` altında JSON olarak |
-| Doküman | `README.md` (22 KB, 13 bölüm) + `RUNNING.md` (adım adım) |
+| Workflow | **16 adet** hazır, `workflows/` altında JSON olarak |
+| Doküman | `README.md` (16 bölüm) + `RUNNING.md` (adım adım) |
 | Çalıştırma betiği | Üç platform için **zaten mevcut** ✅ |
 | Olgunluk | **Yüksek.** Bu, denetlenen depolar arasında dokümantasyonu en iyi olanlardan biri. |
 
-**Depoda kod yazılmıyor** — n8n workflow'ları JSON olarak ve Docker
-yapılandırması olarak duruyor. Bu yüzden "test" burada *çalıştırıp denemek*
-demek, *derlemek* değil.
+**Depoda derlenen bir uygulama yok** — n8n workflow'ları JSON olarak ve Docker
+yapılandırması olarak duruyor. Ancak workflow'ların içindeki Code düğümlerinin
+JavaScript'i artık `node testler/kod-testleri.js` ile n8n başlatmadan
+denenebiliyor (42 test). Uçtan uca deneme için yine *çalıştırmak* gerekiyor.
 
 ---
 
@@ -36,51 +37,38 @@ demek, *derlemek* değil.
 | 07 | `07-fatura-harcama-cikarma.json` | Fatura/harcama kaydı |
 | 08 | `08-gunluk-takvim-ozeti.json` | Günlük takvim özeti |
 | 09 | `09-not-hatirlatma.json` | Not ve hatırlatma |
+| 10 | `10-gunaydin-brifingi.json` | Günaydın brifingi: hava, kur, görev, hatırlatma, harcama |
+| 11 | `11-hata-nobetcisi.json` | Bozulan workflow'u anında haber verir |
+| 12 | `12-yerel-ai-sohbet.json` | Ollama ile sohbet (webhook + Telegram `/ai`) |
+| 13 | `13-link-ozetleyici.json` | Bağlantıyı özetleyip okuma listesine ekler (`/oku`) |
+| 14 | `14-rss-haber-ozeti.json` | RSS/Atom beslemelerinden yalnızca yeni haberler |
+| 15 | `15-otomatik-yedekleme.json` | `local-files/` klasörünün gecelik tarihli yedeği |
+| 16 | `16-sayfa-degisiklik-takibi.json` | Sayfa içeriği değişince uyarı |
 
 ---
 
-## 3. 🟡 ÖNEMLİ BULGU — dayanıklılık düzeltmeleri birleştirilmemiş
+## 3. ✅ ÇÖZÜLDÜ — dayanıklılık düzeltmeleri birleştirildi
 
-`claude/bu-repo-nedr-fy2s7i` dalında **1 commit, 6 dosya** duruyor ve
-birleştirilmemiş:
+Bu raporun ilk hâlinde `claude/bu-repo-nedr-fy2s7i` dalı birleştirilmemiş
+duruyordu ve gerçek veri kaybı senaryolarını kapatıyordu. **2026-09-12'de
+birleştirildi:**
 
-```
-1ec494f  Dayanıklılık: sürüm sabitleme, yazma çakışması ve bozuk dosya koruması
-```
+| Düzeltme | Durum |
+|---|---|
+| n8n sürümü sabitlendi (`latest` → `2.35.3`) | ✅ `docker-compose.yml` |
+| Yazma çakışması koruması (`N8N_CONCURRENCY_PRODUCTION_LIMIT=1`) | ✅ `docker-compose.yml` |
+| Bozuk JSON koruması (03, 05, 06, 07) | ✅ birleştirildi |
+| Aynı koruma workflow 09'a da eklendi | ✅ dal sonrası yazıldığı için eksikti |
+| Sorun giderme tablosuna 4 satır | ✅ README |
 
-Bu **doküman değil, gerçek düzeltmeler.** İçeriği:
+Birleştirme sırasında workflow 05'te çakışma çıktı: `main`'deki genişletilmiş
+bot komutları (harcama, not, hatırlatma, fiyat) ile daldaki bozuk-dosya
+koruması aynı Code düğümünü değiştiriyordu. **İkisi de korundu** — koruma,
+botun okuduğu beş dosyanın hepsini kapsayacak şekilde yeni kodun üstüne
+yazıldı.
 
-### a) n8n sürümü sabitleniyor
-```diff
--    image: docker.n8n.io/n8nio/n8n:latest
-+    image: docker.n8n.io/n8nio/n8n:2.35.3
-```
-`latest` bir gün sessizce büyük sürüm atlayıp kurulumu bozabilir. `main`'de
-şu anda `latest` duruyor — yani **kurulumunuz bir sabah kendiliğinden
-bozulabilir.**
-
-### b) Yazma çakışması koruması
-```diff
-+    - N8N_CONCURRENCY_PRODUCTION_LIMIT=1
-```
-Görev listesini **hem webhook (03) hem Telegram botu (05)** yazıyor. Eşzamanlı
-çalışırlarsa klasik "oku-değiştir-yaz" yarışı oluşur ve **bir görev sessizce
-kaybolur**. Sıraya alma bunu engelliyor.
-
-### c) Bozuk dosya koruması (4 workflow JSON'unda)
-JSON dosyası bozuksa (ör. yazma sırasında bilgisayar kapandıysa) workflow artık
-**bilerek duruyor** — eskiden listeyi boş sanıp **üzerine yazıyordu**, yani
-veri kaybediyordu.
-
-### d) Sorun giderme tablosuna 4 yeni satır
-`403`/`Forbidden` fiyat takibi, Telegram `409 Conflict`, Linux `EACCES`,
-bozuk JSON.
-
-**Değerlendirme:** Bu düzeltmeler `main`'dekinden **açıkça daha güvenli**.
-Özellikle (b) ve (c) gerçek veri kaybı senaryolarını kapatıyor.
-→ `YAPILACAKLAR.md` N1
-
----
+> **Birleştirmeden sonra workflow'ları n8n'e yeniden içe aktarın** — JSON
+> dosyaları değiştiği için paneldeki eski kopyalar kendiliğinden güncellenmez.
 
 ## 4. Doküman doğruluk kontrolü
 
@@ -96,8 +84,8 @@ bozuk JSON.
 | `docker-compose.yml` geçerli | YAML olarak ayrıştırıldı | ✅ |
 | Şifreleme anahtarı `.env`'den | `N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}` | ✅ |
 
-**Dokümanlar doğrudur.** Tek istisna: `README.md` §12 (Güncelleme) `latest`
-imajını varsayıyor; birleştirilmemiş dal bunu düzeltiyor (§3a).
+**Dokümanlar doğrudur.** İlk denetimde bulunan tek tutarsızlık (README'nin
+`latest` imajını varsayması) §3'teki birleştirmeyle giderildi.
 
 ---
 
@@ -106,7 +94,8 @@ imajını varsayıyor; birleştirilmemiş dal bunu düzeltiyor (§3a).
 | Dal | `main`'in önünde | Fark | İçerik |
 |---|---:|---:|---|
 | `main` | — | — | Ana sürüm |
-| **`claude/bu-repo-nedr-fy2s7i`** | **1** | **6 dosya** | **Dayanıklılık düzeltmeleri — birleştirilmemiş** |
+| `claude/bu-repo-nedr-fy2s7i` | 0 | 0 | Birleştirildi (2026-09-12) |
+| `claude/new-features-suggestions-07uiwu` | — | — | Yeni workflow'lar 10–16 + dayanıklılık birleştirmesi |
 | `claude/kalan-kod-isleri-9b8tt5` | 0 | 0 | Birleştirilmiş |
 | `claude/multi-platform-setup-scripts-8qef52` | 0 | 0 | Birleştirilmiş (PR #3) |
 | `claude/repo-audit-docs-e1dail` | — | — | Bu doküman turu |
@@ -117,7 +106,10 @@ imajını varsayıyor; birleştirilmemiş dal bunu düzeltiyor (§3a).
 
 ### ✅ Yapılanlar
 - `docker-compose.yml` YAML olarak ayrıştırıldı — **geçerli**
-- 9 workflow JSON dosyasının varlığı doğrulandı
+- 16 workflow JSON dosyasının tamamı ayrıştırıldı; düğüm adları ve
+  bağlantı hedefleri tutarlı
+- Tüm Code düğümlerinin JavaScript'i sözdizimi denetiminden geçti
+- 42 mantık testi çalıştırıldı ve geçti (`node testler/kod-testleri.js`)
 - Gizlilik ayarları (127.0.0.1 bağlama, telemetri kapalı) kaynakta doğrulandı
 - Dal envanteri `git` ile ölçüldü, birleştirilmemiş dalın diff'i okundu
 - Çalıştırma betiklerinin üçü de mevcut
@@ -150,15 +142,18 @@ Sonra: **http://localhost:5678**
 
 Adım adım rehber zaten yazılı: [`RUNNING.md`](RUNNING.md)
 
-**Önce yapılması önerilen:** `YAPILACAKLAR.md` → **N1** (dayanıklılık dalını
-birleştirin). Sürüm sabitlemesi olmadan `latest` imajı çekilir ve kurulumunuz
-hangi n8n sürümüne denk geleceği belirsizdir.
+**Sürüm sabitlemesi artık yapıldı** (§3), ayrıca bir şey yapmanız gerekmiyor.
 
 **Denenecekler (öncelik sırasıyla):**
 1. Panel açılıyor mu (`http://localhost:5678`)
 2. Workflow 03 (görev takibi) — webhook ile bir görev ekleyip listeleyin
 3. Workflow 05 (Telegram) — bot token'ı varsa
-4. E-posta workflow'ları (01, 02) — uygulama şifresi gerektirir, README §4
+4. **Workflow 10 (günaydın brifingi)** — dış servis gerektirmez, *Elle Test Et*
+   düğümüyle hemen denenebilir
+5. **Workflow 11 (hata nöbetçisi)** — bir workflow'a geçici `throw new Error()`
+   koyup deneyin; sonra her workflow'un **Settings → Error Workflow** alanına
+   tanıtın (README §9.2)
+6. E-posta workflow'ları (01, 02) — uygulama şifresi gerektirir, README §4
 
 **Ollama profili Intel Mac'te:** `docker compose --profile ai up -d` çalışır ama
 GPU hızlandırma olmadan yalnızca CPU'da koşar. README küçük bir model

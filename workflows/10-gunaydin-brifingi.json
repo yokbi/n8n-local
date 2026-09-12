@@ -1,0 +1,438 @@
+{
+  "name": "10 — Günaydın Brifingi (07:30)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ☀️ Günaydın brifingi — her şey tek mesajda\n\nHer sabah **07:30**'da tek bir mesaj gönderir:\n\n- 🌡 **Hava durumu** (Open-Meteo — API anahtarı gerekmez)\n- 💱 **Dolar / Euro** (TCMB günlük kur — anahtar gerekmez)\n- 📋 **Açık görevler** (`gorevler.json`)\n- ⏰ **Bugünün hatırlatmaları** (`notlar.json`)\n- 💸 **Dünkü harcama toplamı** (`harcamalar.json`)\n\n`.env` içinde `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` doluysa\n→ **Telegram'a**, değilse → **SMTP mail** olarak gider.\n\n**Hiçbir dış servise kayıt/anahtar gerekmez.** Yalnızca iki genel\nadres çağrılır (hava ve kur); başka veri dışarı çıkmaz.",
+        "width": 520,
+        "height": 400
+      },
+      "id": "443f7122-e50b-4cd9-b720-cb5267f1b35a",
+      "name": "Not 68292",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Ayarlar\n\n**Şehir.** `.env` dosyasına kendi konumunuzu yazın:\n```\nHAVA_SEHIR=İstanbul\nHAVA_ENLEM=41.01\nHAVA_BOYLAM=28.98\n```\nKoordinatları haritadan alabilirsiniz. Boş bırakılırsa İstanbul\nkullanılır.\n\n**Saat.** *Her Sabah 07:30* düğümündeki saat/dakika alanları.\nSaat dilimi `.env` içindeki `GENERIC_TIMEZONE`'dan gelir.\n\n**Hafta sonu kuru.** TCMB hafta sonu ve tatilde yayın yapmaz;\no günlerde **son iş gününün** kuru gösterilir.\n\n**Bölüm çıkarmak** isterseniz *Brifingi Hazırla* düğümündeki ilgili\nbloğu silin — hepsi ayrı ayrı yorumlanmıştır.\n\n**Takvim** bilerek dâhil değil: workflow 08 zaten 07:45'te ayrı bir\ntakvim özeti gönderiyor.",
+        "width": 520,
+        "height": 400
+      },
+      "id": "6692e918-a100-435f-b94d-0cb1f8414d95",
+      "name": "Not cf71c",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 7,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "52560b09-2f8e-4565-b02a-9de588bfc22e",
+      "name": "Her Sabah 07:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -40,
+        60
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "892fa202-15e0-4642-b658-ee7879d7ff78",
+      "name": "Elle Test Et (Brifing)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/gorevler.json",
+        "options": {}
+      },
+      "id": "9624275f-0398-486c-ab89-1174f5f6d994",
+      "name": "Görevleri Oku (Brifing)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        180,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "83b8a990-4195-492c-a5e1-43995d72f87a",
+      "name": "Görevleri Çıkar (Brifing)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/notlar.json",
+        "options": {}
+      },
+      "id": "502dbcf7-3523-4f6b-9bcb-f993619da258",
+      "name": "Notları Oku (Brifing)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        540,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "1d344fe5-c7c3-4b30-bca2-49aa8cb1bd22",
+      "name": "Notları Çıkar (Brifing)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        720,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/harcamalar.json",
+        "options": {}
+      },
+      "id": "45636392-8bdf-44d1-a801-0014943a5406",
+      "name": "Harcamaları Oku (Brifing)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        900,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "a492ad86-3968-40dd-bfcf-1833f0403aac",
+      "name": "Harcamaları Çıkar (Brifing)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.open-meteo.com/v1/forecast?latitude={{ $env.HAVA_ENLEM || '41.01' }}&longitude={{ $env.HAVA_BOYLAM || '28.98' }}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "2d34b730-9cbf-435d-99f8-7fc23af402a3",
+      "name": "Hava Durumunu Al",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://www.tcmb.gov.tr/kurlar/today.xml",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "c7acb9ae-9849-498f-9624-9923c6d83d60",
+      "name": "Kurları Al (TCMB)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        150
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Okuma zinciri hata verdiyse: dosya gerçekten YOKSA boş listeyle devam edilir,\n// ama dosya bozuk/erişilemez ise çalışma durdurulur — aksi hâlde liste boş\n// sanılıp üzerine yazılır ve veriler kaybolur.\nconst _dosyaKontrol = (okuNode, cikarNode, dosya) => {\n  const okuHata = $(okuNode).first().json.error;\n  const okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\n  if (/ENOENT|no such file|not found/i.test(okuMesaj)) return; // dosya henüz oluşmamış\n  const cikarHata = $(cikarNode).first().json.error;\n  if (okuHata || cikarHata) {\n    const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n    throw new Error(dosya + ' okunamadı; brifing hazırlanamadı → ' + m);\n  }\n};\n_dosyaKontrol('Görevleri Oku (Brifing)', 'Görevleri Çıkar (Brifing)', 'gorevler.json');\n_dosyaKontrol('Notları Oku (Brifing)', 'Notları Çıkar (Brifing)', 'notlar.json');\n_dosyaKontrol('Harcamaları Oku (Brifing)', 'Harcamaları Çıkar (Brifing)', 'harcamalar.json');\n\nconst _liste = (dugum, alan) => {\n  const j = $(dugum).first().json || {};\n  const d = (j.data && j.data[alan]) || [];\n  return Array.isArray(d) ? d.map((x) => ({ ...x })) : [];\n};\nconst HAVA = {\n  0: ['Açık', '☀️'], 1: ['Az bulutlu', '🌤'], 2: ['Parçalı bulutlu', '⛅'], 3: ['Çok bulutlu', '☁️'],\n  45: ['Sisli', '🌫'], 48: ['Kırağılı sis', '🌫'],\n  51: ['Hafif çisenti', '🌦'], 53: ['Çisenti', '🌦'], 55: ['Yoğun çisenti', '🌦'],\n  61: ['Hafif yağmur', '🌧'], 63: ['Yağmurlu', '🌧'], 65: ['Kuvvetli yağmur', '🌧'],\n  66: ['Dondurucu yağmur', '🌧'], 67: ['Dondurucu yağmur', '🌧'],\n  71: ['Hafif kar', '🌨'], 73: ['Kar yağışlı', '🌨'], 75: ['Yoğun kar', '❄️'], 77: ['Kar taneli', '🌨'],\n  80: ['Sağanak', '🌦'], 81: ['Sağanak', '🌦'], 82: ['Kuvvetli sağanak', '⛈'],\n  85: ['Kar sağanağı', '🌨'], 86: ['Kar sağanağı', '🌨'],\n  95: ['Gök gürültülü', '⛈'], 96: ['Dolulu fırtına', '⛈'], 99: ['Dolulu fırtına', '⛈'],\n};\n\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) + ' TL';\n\nconst gorevler = _liste('Görevleri Çıkar (Brifing)', 'gorevler');\nconst notlar = _liste('Notları Çıkar (Brifing)', 'notlar');\nconst harcamalar = _liste('Harcamaları Çıkar (Brifing)', 'harcamalar');\n\nconst simdi = new Date();\nconst bas = new Date(simdi); bas.setHours(0, 0, 0, 0);\nconst bit = new Date(bas); bit.setDate(bit.getDate() + 1);\nconst zaman = (s) => new Date(s).getTime();\nconst gunAdi = simdi.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });\n\nconst satirlar = ['☀️ Günaydın! ' + gunAdi];\nconst htmlBolum = [];\n\n// ── Hava durumu (Open-Meteo, anahtar gerektirmez) ────────────────────────────\nconst havaJson = $('Hava Durumunu Al').first().json || {};\nconst g = havaJson.daily;\nif (g && Array.isArray(g.temperature_2m_max) && g.temperature_2m_max.length) {\n  const kod = Number((g.weather_code || [])[0]);\n  const [ad, ikon] = HAVA[kod] || ['', '🌡'];\n  const enYuksek = Math.round(g.temperature_2m_max[0]);\n  const enDusuk = Math.round((g.temperature_2m_min || [])[0]);\n  const yagis = Number((g.precipitation_probability_max || [])[0]);\n  const sehir = String($env.HAVA_SEHIR || '').trim();\n  let h = ikon + ' ' + (sehir ? sehir + ': ' : '') + (ad ? ad + ', ' : '') + enDusuk + '° / ' + enYuksek + '°';\n  if (Number.isFinite(yagis) && yagis >= 30) h += ' · ☔ yağış %' + yagis;\n  satirlar.push('', h);\n  htmlBolum.push('<p>' + esc(h) + '</p>');\n} else if (havaJson.error) {\n  satirlar.push('', '🌡 Hava durumu alınamadı.');\n}\n\n// ── Döviz kuru (TCMB günlük XML — hafta sonu son iş gününü verir) ────────────\nconst kurMetin = String(($('Kurları Al (TCMB)').first().json || {}).data || '');\nconst kurOku = (kod) => {\n  const blok = kurMetin.match(new RegExp('<Currency[^>]*CurrencyCode=\"' + kod + '\"[\\\\s\\\\S]*?</Currency>'));\n  if (!blok) return null;\n  const s = blok[0].match(/<ForexSelling>([\\d.]+)<\\/ForexSelling>/);\n  const n = s ? Number(s[1]) : NaN;\n  return Number.isFinite(n) && n > 0 ? n : null;\n};\nconst usd = kurOku('USD');\nconst eur = kurOku('EUR');\nif (usd || eur) {\n  const parcalar = [];\n  if (usd) parcalar.push('$ ' + usd.toFixed(2));\n  if (eur) parcalar.push('€ ' + eur.toFixed(2));\n  const k = '💱 ' + parcalar.join('  ·  ');\n  satirlar.push(k);\n  htmlBolum.push('<p>' + esc(k) + '</p>');\n}\n\n// ── Bugünün takvim etkinlikleri (workflow 08 aktifse dosyadan gelir) ─────────\n// Takvim bu workflow'a bağlı değil: 08 zaten ayrı mesaj gönderiyor.\n\n// ── Açık görevler ────────────────────────────────────────────────────────────\nconst acik = gorevler.filter((x) => x && x.durum !== 'tamam');\nif (acik.length) {\n  const ilk = acik.slice(0, 8);\n  satirlar.push('', '📋 Açık görev (' + acik.length + '):');\n  ilk.forEach((x) => satirlar.push('#' + x.id + ' ' + x.baslik));\n  if (acik.length > ilk.length) satirlar.push('… ve ' + (acik.length - ilk.length) + ' tane daha');\n  htmlBolum.push('<h3>📋 Açık görev (' + acik.length + ')</h3><ul>' +\n    ilk.map((x) => '<li>#' + esc(x.id) + ' ' + esc(x.baslik) + '</li>').join('') + '</ul>');\n} else {\n  satirlar.push('', '📋 Açık görev yok. 🎉');\n  htmlBolum.push('<p>📋 Açık görev yok. 🎉</p>');\n}\n\n// ── Bugünün hatırlatmaları ───────────────────────────────────────────────────\nconst bugunkuNotlar = notlar\n  .filter((n) => n && n.hatirlat && n.durum !== 'gonderildi' &&\n                 zaman(n.hatirlat) >= bas.getTime() && zaman(n.hatirlat) < bit.getTime())\n  .sort((a, b) => zaman(a.hatirlat) - zaman(b.hatirlat));\nif (bugunkuNotlar.length) {\n  const ss = (s) => new Date(s).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });\n  satirlar.push('', '⏰ Bugünün hatırlatmaları:');\n  bugunkuNotlar.forEach((n) => satirlar.push(ss(n.hatirlat) + ' ' + n.metin));\n  htmlBolum.push('<h3>⏰ Bugünün hatırlatmaları</h3><ul>' +\n    bugunkuNotlar.map((n) => '<li>' + esc(ss(n.hatirlat)) + ' ' + esc(n.metin) + '</li>').join('') + '</ul>');\n}\n\n// ── Dün ne harcandı ──────────────────────────────────────────────────────────\nconst dunBas = new Date(bas); dunBas.setDate(dunBas.getDate() - 1);\nconst dunkuler = harcamalar.filter((x) => x && typeof x.tutar === 'number' &&\n  zaman(x.tarih) >= dunBas.getTime() && zaman(x.tarih) < bas.getTime());\nif (dunkuler.length) {\n  const toplam = dunkuler.reduce((t, x) => t + x.tutar, 0);\n  const h = '💸 Dün: ' + tl(toplam) + ' (' + dunkuler.length + ' kayıt)';\n  satirlar.push('', h);\n  htmlBolum.push('<p>' + esc(h) + '</p>');\n}\n\nconst text = satirlar.join('\\n');\nconst html = '<div style=\"font-family:system-ui,sans-serif;line-height:1.5\">' +\n  '<h2>☀️ Günaydın! ' + esc(gunAdi) + '</h2>' + htmlBolum.join('') + '</div>';\n\nreturn [{ json: { text, html, konu: '☀️ Günaydın — ' + gunAdi, gonderilecek: true } }];\n"
+      },
+      "id": "75c21bfd-3e94-442a-af91-a412b3475767",
+      "name": "Brifingi Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa brifing oraya gider.\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "dc1716fe-0253-419d-80d9-9a0a14f4eadb",
+      "name": "Telegram Kurulu mu? (Brifing)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "5fd1442e-1435-4eca-b679-8ce0be6767b3",
+      "name": "Brifingi Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        40
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE brifing mail olarak gider (çift bildirim olmasın).\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "0c5790fc-f0fb-40fb-a9a4-32a808d5e8c6",
+      "name": "Telegram Yoksa Mail (Brifing)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1820,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "0fb02169-003f-4a2b-a336-f2b2ee91c31c",
+      "name": "Brifingi Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2020,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Görevleri Oku (Brifing)": {
+      "main": [
+        [
+          {
+            "node": "Görevleri Çıkar (Brifing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görevleri Çıkar (Brifing)": {
+      "main": [
+        [
+          {
+            "node": "Notları Oku (Brifing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Oku (Brifing)": {
+      "main": [
+        [
+          {
+            "node": "Notları Çıkar (Brifing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Çıkar (Brifing)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Oku (Brifing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Oku (Brifing)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Çıkar (Brifing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Çıkar (Brifing)": {
+      "main": [
+        [
+          {
+            "node": "Hava Durumunu Al",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hava Durumunu Al": {
+      "main": [
+        [
+          {
+            "node": "Kurları Al (TCMB)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kurları Al (TCMB)": {
+      "main": [
+        [
+          {
+            "node": "Brifingi Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her Sabah 07:30": {
+      "main": [
+        [
+          {
+            "node": "Görevleri Oku (Brifing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (Brifing)": {
+      "main": [
+        [
+          {
+            "node": "Görevleri Oku (Brifing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Brifingi Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (Brifing)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Brifing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Kurulu mu? (Brifing)": {
+      "main": [
+        [
+          {
+            "node": "Brifingi Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Brifing)": {
+      "main": [
+        [
+          {
+            "node": "Brifingi Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

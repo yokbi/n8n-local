@@ -160,6 +160,10 @@ doldurmanız/gözden geçirmeniz gerekir:
 | `GENERIC_TIMEZONE` | Hayır (varsayılan `Europe/Istanbul`) | Zamanlanmış workflow'ların çalışacağı saat dilimi. |
 | `TELEGRAM_BOT_TOKEN` | Hayır | Yalnızca Telegram botu (workflow 05) kullanacaksanız gerekir. `@BotFather`'dan alınır. |
 | `TELEGRAM_CHAT_ID` | Hayır | Telegram botunu etkinleştirdikten sonra `/start` yazınca bot size söyler. |
+| `HAVA_SEHIR` · `HAVA_ENLEM` · `HAVA_BOYLAM` | Hayır (varsayılan İstanbul) | Günaydın brifingindeki (workflow 10) hava durumu konumu. |
+| `OLLAMA_MODEL` | Hayır (varsayılan `qwen2.5:3b`) | Yerel AI workflow'larının (12, 13, 14) kullanacağı model. |
+| `RSS_AI_OZET` | Hayır | `1` yazarsanız RSS haber özetine (workflow 14) yerel AI özeti eklenir. |
+| `N8N_API_KEY` | Hayır | Otomatik yedeklemenin (workflow 15) workflow'ları da yedeklemesi için panelden üretilen API anahtarı. |
 
 Bir değeri değiştirdikten sonra n8n'in bunu okuması için betiği (veya
 `docker compose up -d`) tekrar çalıştırmanız gerekir.
@@ -212,4 +216,4 @@ veri dosyaları zaten var olduğu için betik onlara dokunmaz, sadece
 | Windows'ta betik pencereyi hemen kapatıyor | Çift tıklamak yerine bir komut satırı (cmd) açıp içinden `run-windows.bat` yazarak çalıştırın; hata mesajını görürsünüz. |
 
 Daha fazla sorun giderme maddesi (IMAP/SMTP, Gmail OAuth, Telegram botu vb.)
-için `README.md` §12'ye bakın.
+için `README.md` §15'e bakın.

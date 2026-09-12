@@ -4,3 +4,7 @@
 # Kişisel veriler (görevler, harcamalar vb.) repoya girmez — örnekler hariç.
 local-files/*
 !local-files/*.ornek.json
+# Yedek klasörünün kendisi depoda dursun; içeriği (gerçek yedekler) girmesin.
+!local-files/yedek/
+local-files/yedek/*
+!local-files/yedek/.gitkeep

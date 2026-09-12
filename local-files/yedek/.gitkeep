@@ -1,0 +1,5 @@
+Bu klasör workflow 15'in (otomatik yedekleme) yazdığı yerdir.
+n8n'in dosya yazma düğümü var olmayan bir klasörü oluşturmadığı için
+klasörün depoyla birlikte gelmesi gerekir — bu yüzden bu dosya duruyor.
+Yedekler buraya "YYYY-AA-GG-dosyaadi.json" biçiminde yazılır ve
+.gitignore sayesinde depoya girmez.

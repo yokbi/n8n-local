@@ -1,0 +1,13 @@
+{
+  "sayfalar": [
+    {
+      "ad": "Örnek duyuru sayfası — beni kendi sayfanızla değiştirin",
+      "url": "https://www.example.com/duyurular",
+      "secici": "body",
+      "sonIz": null,
+      "sonOzet": null,
+      "sonKontrol": null,
+      "sonHata": null
+    }
+  ]
+}

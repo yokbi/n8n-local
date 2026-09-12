@@ -1,0 +1,479 @@
+{
+  "name": "12 — Yerel AI Sohbet (Ollama)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🤖 Yerel AI sohbet — internete hiçbir şey gitmez\n\nSorunuz bilgisayarınızdaki **Ollama** modeline gider, cevap oradan\ndöner. Ne soru ne cevap dışarı çıkar.\n\n**Sohbeti hatırlar:** `local-files/sohbet.json` içinde oturum başına\nson 100 mesaj saklanır, modele son 10 tur gönderilir.\n\n### Kullanım\n```bash\n# Soru sor\ncurl -s -X POST http://localhost:5678/webhook/ai \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"soru\": \"Kısaca n8n nedir?\"}'\n\n# Geçmişi temizle\ncurl -s -X POST http://localhost:5678/webhook/ai \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"komut\": \"sifirla\"}'\n```\n\n**Telegram'dan:** workflow 05'te `/ai <soru>` yazın — soru buraya\niletilir, cevap Telegram'a düşer (model düşünürken birkaç saniye\nsürebilir).\n\n> **Telegram için tek seferlik ayar gerekir:** workflow 05'teki\n> *AI Workflow'una İlet* düğümünü açıp **Workflow** listesinden bu\n> workflow'u seçin. Bu adım atlanırsa `/ai` çalışmaz (bot diğer\n> komutlara cevap vermeye devam eder).",
+        "width": 540,
+        "height": 460
+      },
+      "id": "00eeefaf-df3e-404f-8471-ca820967c796",
+      "name": "Not bf6ac",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -680,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Gereken tek şey: Ollama açık olsun\n\n```bash\ndocker compose --profile ai up -d\ndocker exec -it ollama ollama pull qwen2.5:3b\n```\n\n**Model değiştirmek:** `.env` dosyasına\n```\nOLLAMA_MODEL=qwen2.5:7b\n```\nyazıp `docker compose up -d` deyin. Boşsa `qwen2.5:3b` kullanılır.\n\n**Hız.** İlk soru modeli belleğe yüklediği için yavaştır (30 sn'yi\nbulabilir), sonrakiler hızlanır. Intel Mac / GPU'suz makinede 3B'den\nbüyük model önerilmez.\n\n**Oturumlar.** `oturum` alanı vererek ayrı sohbetler tutabilirsiniz:\n`{\"soru\": \"...\", \"oturum\": \"is\"}`. Telegram'dan gelenlerde oturum =\nsohbet ID'si.\n\n**Hata durumunda geçmiş bozulmaz:** model cevap veremezse ne soru ne\ncevap dosyaya yazılır.",
+        "width": 540,
+        "height": 420
+      },
+      "id": "6e6edd1e-16ae-4a6a-b9b0-f6bf19691d8a",
+      "name": "Not 91f76",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -680,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6cdcc90f-0220-401c-acdd-827735668759",
+      "name": "Soru Geldi (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        120
+      ],
+      "webhookId": "1a41d112-bce9-402c-9b53-529d524bed97"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "e11f59cf-5c9e-4dc3-9635-b56293b11399",
+      "name": "Workflow 05'ten Çağrı",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İki giriş de buradan geçer:\n//  • Webhook ile gelen istekte alanlar \"body\" içindedir,\n//  • Workflow 05'in \"/ai\" komutuyla yaptığı çağrıda doğrudan gelir.\nconst j = $input.first().json || {};\nconst webhooktan = Object.prototype.hasOwnProperty.call(j, 'body');\nconst govde = webhooktan ? (j.body || {}) : j;\nreturn [{ json: {\n  soru: String(govde.soru || govde.mesaj || govde.text || '').trim(),\n  chat_id: govde.chat_id ? String(govde.chat_id) : '',\n  oturum: String(govde.oturum || govde.chat_id || 'varsayilan'),\n  komut: String(govde.komut || '').trim().toLowerCase(),\n  webhooktan,\n} }];"
+      },
+      "id": "73cc21db-780a-47a0-a933-aebf3b198aa4",
+      "name": "İsteği Al",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        140,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/sohbet.json",
+        "options": {}
+      },
+      "id": "4ac3ee80-b958-4559-b816-5e06348aa956",
+      "name": "Sohbeti Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        320,
+        200
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "88ca080c-fd57-47ee-bda5-6856011837cc",
+      "name": "Sohbeti Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        500,
+        200
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Okuma zinciri hata verdiyse: dosya gerçekten YOKSA boş listeyle devam edilir,\n// ama dosya bozuk/erişilemez ise çalışma durdurulur — aksi hâlde liste boş\n// sanılıp üzerine yazılır ve veriler kaybolur.\nconst _dosyaKontrol = (okuNode, cikarNode, dosya) => {\n  const okuHata = $(okuNode).first().json.error;\n  const okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\n  if (/ENOENT|no such file|not found/i.test(okuMesaj)) return; // dosya henüz oluşmamış\n  const cikarHata = $(cikarNode).first().json.error;\n  if (okuHata || cikarHata) {\n    const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n    throw new Error(dosya + ' okunamadı; sohbet geçmişi korunsun diye durduruldu → ' + m);\n  }\n};\n_dosyaKontrol('Sohbeti Oku', 'Sohbeti Çıkar', 'sohbet.json');\n\n\n// Gelen soruyu, son konuşmalarla birlikte Ollama'ya gidecek biçime çevirir.\nconst istek = $('İsteği Al').first().json || {};\nconst soru = istek.soru;\nconst chatId = istek.chat_id;\nconst oturum = istek.oturum;\nconst komut = istek.komut;\nconst webhooktan = istek.webhooktan;\n\nconst okunan = $('Sohbeti Çıkar').first().json || {};\nconst hepsi = (okunan.data && okunan.data.oturumlar) || {};\nconst oturumlar = (hepsi && typeof hepsi === 'object' && !Array.isArray(hepsi)) ? { ...hepsi } : {};\nconst gecmis = Array.isArray(oturumlar[oturum]) ? oturumlar[oturum].slice() : [];\n\n// /sifirla → bu oturumun geçmişini sil, modele hiç gitme\nif (komut === 'sifirla' || /^\\/?(sifirla|sıfırla|temizle)$/i.test(soru)) {\n  oturumlar[oturum] = [];\n  return [{ json: {\n    atla: true, oturum, chatId, webhooktan, oturumlar, yazilsin: true,\n    cevap: '🧹 Sohbet geçmişi temizlendi.',\n  } }];\n}\n\nif (!soru) {\n  return [{ json: {\n    atla: true, oturum, chatId, webhooktan, oturumlar, yazilsin: false,\n    cevap: 'Soru boş. Örnek: {\"soru\": \"n8n nedir?\"}',\n  } }];\n}\n\n// Son 10 tur (20 mesaj) hatırlanır — küçük modeller uzun geçmişte dağılır.\nconst son = gecmis.slice(-20);\nconst mesajlar = [\n  { role: 'system', content: 'Sen kullanıcının kendi bilgisayarında çalışan yardımcı bir asistansın. Türkçe, kısa ve net cevap ver. Bilmediğin şeyi uydurma.' },\n  ...son.map((m) => ({ role: m.rol === 'ben' ? 'user' : 'assistant', content: String(m.metin || '') })),\n  { role: 'user', content: soru },\n];\n\nreturn [{ json: {\n  atla: false, oturum, chatId, webhooktan, soru, oturumlar,\n  model: String($env.OLLAMA_MODEL || 'qwen2.5:3b').trim(),\n  mesajlar,\n} }];\n"
+      },
+      "id": "0547fad6-a4df-4cd5-9a1a-328f33865ab3",
+      "name": "Soruyu Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ollama'ya yalnızca gerçekten soru varsa gidilir (/sifirla ve boş soru atlanır).\nconst j = $input.first().json;\nreturn j.atla ? [] : [{ json: j }];"
+      },
+      "id": "203910a5-6861-4bf5-83fd-dde73acf5c04",
+      "name": "Modele Gidecek mi?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.model, messages: $json.mesajlar, stream: false }) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "162fd71f-12a4-4ffe-ba4c-4f8a9fc37797",
+      "name": "Ollama'ya Sor (Sohbet)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        120
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ollama'nın cevabını alır, geçmişe ekler ve gönderilecek metni kurar.\nconst hazirlik = $('Soruyu Hazırla').first().json || {};\nconst oturum = hazirlik.oturum;\nconst oturumlar = { ...(hazirlik.oturumlar || {}) };\n\nconst yanit = $input.first().json || {};\nif (yanit.error || !(yanit.message && yanit.message.content)) {\n  const ham = String((yanit.error && (yanit.error.message || yanit.error.description)) || yanit.error || '');\n  const dusuk = ham.toLowerCase();\n  let aciklama;\n  if (/econnrefused|enotfound|getaddrinfo|socket hang up/.test(dusuk)) {\n    aciklama = 'Ollama çalışmıyor gibi. Başlatmak için:\\ndocker compose --profile ai up -d';\n  } else if (/404|not found|model/.test(dusuk)) {\n    aciklama = 'Model bulunamadı. İndirmek için:\\ndocker exec -it ollama ollama pull ' + (hazirlik.model || 'qwen2.5:3b');\n  } else if (/timeout|etimedout|aborted/.test(dusuk)) {\n    aciklama = 'Model zamanında cevap veremedi. İlk soru model belleğe yüklenirken yavaştır; tekrar deneyin ya da daha küçük bir model kullanın.';\n  } else {\n    aciklama = 'Yerel AI\\'ya ulaşılamadı' + (ham ? ': ' + ham.slice(0, 200) : '.');\n  }\n  // Hata durumunda geçmişi BOZMA: soru da cevap da yazılmaz.\n  return [{ json: { cevap: '⚠️ ' + aciklama, chatId: hazirlik.chatId, webhooktan: hazirlik.webhooktan, oturum, oturumlar, yazilsin: false } }];\n}\n\nconst cevap = String(yanit.message.content).trim();\nconst simdi = new Date().toISOString();\nconst gecmis = Array.isArray(oturumlar[oturum]) ? oturumlar[oturum].slice() : [];\ngecmis.push({ rol: 'ben', metin: hazirlik.soru, tarih: simdi });\ngecmis.push({ rol: 'ai', metin: cevap, tarih: new Date().toISOString() });\n// Oturum başına son 100 mesaj saklanır — dosya sınırsız büyümesin.\noturumlar[oturum] = gecmis.slice(-100);\n\nreturn [{ json: { cevap, chatId: hazirlik.chatId, webhooktan: hazirlik.webhooktan, oturum, oturumlar, yazilsin: true } }];\n"
+      },
+      "id": "cbf99559-1280-4f05-b8f8-3dd505543d81",
+      "name": "Cevabı İşle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        120
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Modele hiç gidilmeyen durumlar (/sifirla, boş soru) buradan geçer.\n// Model kolu çalıştıysa bu kol boş döner, böylece aşağısı iki kez çalışmaz.\nconst j = $input.first().json;\nif (!j.atla) return [];\nreturn [{ json: {\n  cevap: j.cevap, chatId: j.chatId, webhooktan: j.webhooktan, oturum: j.oturum,\n  oturumlar: j.oturumlar, yazilsin: !!j.yazilsin,\n} }];"
+      },
+      "id": "ba7da589-2c5c-47ef-993f-7cbb10100bb3",
+      "name": "Atlanan Cevap",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yanıt düğümü yalnızca webhook ile gelen isteklerde çalışmalı;\n// workflow 05'ten gelen çağrıda yanıtlanacak bir HTTP isteği yoktur.\nconst j = $input.first().json;\nreturn j.webhooktan ? [{ json: j }] : [];"
+      },
+      "id": "01ea0678-6746-4a0c-8462-31f708d6cb16",
+      "name": "Webhook'a mı Yanıtlanacak?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ cevap: $json.cevap, oturum: $json.oturum }) }}",
+        "options": {}
+      },
+      "id": "b2b7d0e8-d940-4a92-bd26-dd81eb352214",
+      "name": "Yanıt Ver (AI)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1620,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Soru Telegram'dan geldiyse (chat_id doluysa) cevap oraya da gider.\nconst j = $input.first().json;\nif (!j.chatId) return [];\nreturn [{ json: { chat_id: j.chatId, text: String(j.cevap).slice(0, 3900) } }];"
+      },
+      "id": "c364b8dc-0e22-47c2-9db8-6f5005815af3",
+      "name": "Telegram'a Cevapla (AI)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "73999c2b-af8c-4f68-ba52-46ccbd716446",
+      "name": "AI Cevabını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca oturum geçmişi yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { oturumlar: j.oturumlar } }];"
+      },
+      "id": "b64b9874-2714-4649-83c8-064dae435c07",
+      "name": "Sohbet Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "sohbet.json"
+        }
+      },
+      "id": "2492fd53-55a7-4724-9e8f-4405e1f92d82",
+      "name": "Sohbeti Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1620,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/sohbet.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "f20d28a0-eb81-4bbe-9b76-4dbdfc8ec45b",
+      "name": "Sohbeti Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        320
+      ]
+    }
+  ],
+  "connections": {
+    "İsteği Al": {
+      "main": [
+        [
+          {
+            "node": "Sohbeti Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sohbeti Oku": {
+      "main": [
+        [
+          {
+            "node": "Sohbeti Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sohbeti Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Soruyu Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Soru Geldi (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Soruyu Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Modele Gidecek mi?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Atlanan Cevap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Modele Gidecek mi?": {
+      "main": [
+        [
+          {
+            "node": "Ollama'ya Sor (Sohbet)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama'ya Sor (Sohbet)": {
+      "main": [
+        [
+          {
+            "node": "Cevabı İşle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cevabı İşle": {
+      "main": [
+        [
+          {
+            "node": "Webhook'a mı Yanıtlanacak?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram'a Cevapla (AI)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sohbet Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atlanan Cevap": {
+      "main": [
+        [
+          {
+            "node": "Webhook'a mı Yanıtlanacak?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram'a Cevapla (AI)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sohbet Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook'a mı Yanıtlanacak?": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Ver (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram'a Cevapla (AI)": {
+      "main": [
+        [
+          {
+            "node": "AI Cevabını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sohbet Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Sohbeti Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sohbeti Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Sohbeti Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
