@@ -14,7 +14,9 @@ name: n8n
 
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
+    # Sürüm sabit: "latest" bir gün sessizce büyük sürüm atlayıp kurulumu
+    # bozabilir. Güncellemek için bu numarayı elle yükseltin (§12).
+    image: docker.n8n.io/n8nio/n8n:2.35.3
     container_name: n8n
     restart: unless-stopped
     ports:
@@ -35,8 +37,13 @@ services:
       - N8N_PERSONALIZATION_ENABLED=false
       - N8N_TEMPLATES_ENABLED=false
       - N8N_HIRING_BANNER_ENABLED=false
-      # Yeni görev çalıştırıcı mimarisi (n8n'in önerdiği ayar).
-      - N8N_RUNNERS_ENABLED=true
+      # Aynı anda tek bir zamanlanmış/webhook çalıştırması. Görev listesi gibi
+      # paylaşılan JSON dosyalarını birden fazla workflow (03 ve 05) yazdığı
+      # için, sıraya alma "oku-değiştir-yaz" çakışmasında kayıt kaybını önler.
+      - N8N_CONCURRENCY_PRODUCTION_LIMIT=1
+      # Not: N8N_RUNNERS_ENABLED n8n 2.0'dan itibaren gereksiz (varsayılan
+      # olarak açık). n8n 1.x'e geri dönerseniz şu satırı açın:
+      # - N8N_RUNNERS_ENABLED=true
       # Telegram görev botu (workflow 05) — isteğe bağlı, .env'den gelir.
       # Boş bırakılırsa bot dalları sessizce devre dışı kalır.
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
