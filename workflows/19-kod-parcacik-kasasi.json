@@ -1,0 +1,549 @@
+{
+  "name": "19 — Kod Parçacığı Kasası",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📎 Kod parçacığı kasası — her cihazdan aynı kasa\n\nBir kez yazdığınız komutu bir daha aramayın. Parçacıklar\n`local-files/parcacikalar.json` dosyasında, sizin makinenizde durur.\n\n### Kurulum\n1. `cp local-files/parcacikalar.ornek.json local-files/parcacikalar.json`\n2. Workflow'u **Active** yapın. (Credential gerekmez.)\n\n### Mac / Windows / Linux — terminal\n```bash\n# Kaydet\ncurl -X POST http://localhost:5678/webhook/kod \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"baslik\":\"Docker temizlik\",\"dil\":\"bash\",\"etiket\":\"docker\",\n       \"kod\":\"docker system prune -af\"}'\n\n# Ara (başlık, etiket, dil ve kod içinde arar)\ncurl 'http://localhost:5678/webhook/kodlar?ara=docker'\n\n# Tek parçacığı al (yalnızca kodu)\ncurl 'http://localhost:5678/webhook/kodlar?id=1&sade=1'\n```\n`sade=1` yalnızca kodu düz metin verir — doğrudan borulayabilirsiniz:\n`curl -s '...&sade=1' | pbcopy` (Mac) · `clip` (Windows).\n\n### iPhone — Telegram (workflow 05)\n```\n/kod docker              → arar, ilk 5 sonucu listeler\n/kodgetir 3              → #3'ü kod bloğu olarak gönderir (dokun-kopyala)\n/kodkaydet Docker temizlik\ndocker system prune -af  → ikinci satırdan itibaren kod\n/kodsil 3\n```",
+        "width": 540,
+        "height": 900
+      },
+      "id": "ca18fd46-3b67-4f55-9d3a-3ad9d6679d4d",
+      "name": "Not e79d8",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- Arama puanlıdır: **başlık > etiket/dil > kod içi**. En çok kullanılan\n  parçacık eşit puanda öne çıkar (`kullanim` sayacı `/kodgetir` ile artar).\n- Telegram'a gönderilen kod `<pre>` bloğu olarak gider — telefonda\n  tek dokunuşla kopyalanır. Metin HTML olarak kaçırılır (`<`, `&`),\n  yani kodunuzdaki işaretler mesajı bozmaz.\n- Parçacık başına en fazla ~8 000 karakter tutulur; daha uzun kod\n  kırpılır (dosya şişmesin diye).\n- Dosya bozuksa workflow **durur**, boş liste yazıp kasayı silmez.\n- 🔒 Hiçbir şey dışarı gitmez. Yalnızca `/kodgetir` ile Telegram'a\n  gönderdiğiniz parçacık Telegram sunucularından geçer.",
+        "width": 540,
+        "height": 320
+      },
+      "id": "f6716afb-8eec-40e7-9f62-ca06d81184da",
+      "name": "Not 28e38",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kod",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ac6658c4-175f-4d70-8279-5a17a8364f1d",
+      "name": "Parçacık İsteği (Webhook POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        0
+      ],
+      "webhookId": "d9305c20-b8a0-4fde-b4bd-2132aeda102d"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "6c754b27-416f-4cd8-baea-d7948bb26fdc",
+      "name": "Workflow 05'ten Çağrı (Kod)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Üç giriş de buradan geçer:\n//  • Webhook ile gelen istekte alanlar \"body\" içindedir,\n//  • Workflow 05'in /kod komutlarında alanlar doğrudan gelir.\nconst j = $input.first().json || {};\nconst webhooktan = Object.prototype.hasOwnProperty.call(j, 'body');\nconst govde = webhooktan ? (j.body || {}) : j;\n\nconst chat_id = govde.chat_id ? String(govde.chat_id) : '';\nlet islem = String(govde.islem || govde.komut || '').trim().toLowerCase();\nlet baslik = String(govde.baslik || '').trim();\nlet kod = String(govde.kod || '');\nlet dil = String(govde.dil || '').trim().toLowerCase();\nlet etiket = String(govde.etiket || '').trim();\nlet q = String(govde.q || govde.ara || '').trim();\nlet id = Number(govde.id) || 0;\n\n// Telegram tarafı tek bir \"metin\" alanı yollar; biçimi komuta göre çözülür.\nconst metin = String(govde.metin || '').trim();\nif (metin) {\n  if (islem === 'kaydet') {\n    const satirlar = metin.split(/\\r?\\n/);\n    if (satirlar.length > 1) {\n      baslik = satirlar[0].trim();\n      kod = satirlar.slice(1).join('\\n').trim();\n    } else if (metin.includes('|')) {\n      baslik = metin.slice(0, metin.indexOf('|')).trim();\n      kod = metin.slice(metin.indexOf('|') + 1).trim();\n    } else {\n      baslik = metin;\n      kod = '';\n    }\n    // \"Başlık #docker #bash\" → etiketler başlıktan ayıklanır\n    const etiketler = (baslik.match(/#[\\wğüşıöçĞÜŞİÖÇ.-]+/g) || []).map((x) => x.slice(1));\n    if (etiketler.length) {\n      etiket = etiketler.join(',');\n      baslik = baslik.replace(/#[\\wğüşıöçĞÜŞİÖÇ.-]+/g, '').replace(/\\s+/g, ' ').trim();\n    }\n  } else if (islem === 'getir' || islem === 'sil') {\n    id = Number((metin.match(/#?(\\d+)/) || [])[1]) || 0;\n  } else {\n    q = metin;\n  }\n}\n\nif (!islem) {\n  islem = kod ? 'kaydet' : id ? 'getir' : q ? 'ara' : 'liste';\n}\n\nreturn [{ json: { islem, baslik, kod, dil, etiket, q, id, chat_id, webhooktan } }];"
+      },
+      "id": "4665ee63-0be2-4143-bc64-bf4ac5f185bf",
+      "name": "İsteği Al (Kod)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          360,
+          100
+        ],
+        "options": {}
+      },
+      "id": "d2ae77b7-2df0-42e5-80c8-881f73758a37",
+      "name": "Parçacıkları Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "530aff6d-593c-4e5c-b9c5-27c4e7a659d8",
+      "name": "Parçacıkları Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        560,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Kaydet / ara / getir / sil işlemlerini uygular.\n// Okuma zinciri hata verdiyse: dosya bozuk/erişilemez ise çalışma durdurulur —\n// aksi hâlde kasa boş sanılıp üzerine yazılır ve tüm parçacıklar kaybolur.\nconst okuHata = $('Parçacıkları Oku').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Parçacıkları Çıkar').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('parcacikalar.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\n\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst istek = $('İsteği Al (Kod)').first().json;\nconst okunan = $input.first().json || {};\nconst ham = (okunan.data && okunan.data.parcacikalar) || okunan.parcacikalar || [];\nconst parcacikalar = (Array.isArray(ham) ? ham : []).map((p) => ({ ...p }));\n\nconst EN_UZUN = 8000;\nconst simdi = () => new Date().toISOString();\nconst etiketListesi = (s) => String(s || '').split(/[,\\s]+/).map((x) => x.replace(/^#/, '').trim().toLowerCase()).filter(Boolean);\nconst ozetSatir = (p) => '#' + p.id + ' ' + p.baslik + (p.dil ? ' [' + p.dil + ']' : '') +\n  ((p.etiketler && p.etiketler.length) ? ' (' + p.etiketler.join(', ') + ')' : '');\nconst ilkSatir = (p) => String(p.kod || '').split(/\\r?\\n/)[0].slice(0, 70);\n\n// Puanlı arama: başlık > etiket/dil > kod içi. Eşitlikte çok kullanılan önde.\nconst ara = (q) => {\n  const kelimeler = q.toLowerCase().split(/\\s+/).filter(Boolean);\n  return parcacikalar\n    .map((p) => {\n      const baslik = String(p.baslik || '').toLowerCase();\n      const etiketler = (p.etiketler || []).join(' ').toLowerCase();\n      const dil = String(p.dil || '').toLowerCase();\n      const kod = String(p.kod || '').toLowerCase();\n      let puan = 0;\n      for (const k of kelimeler) {\n        if (baslik.includes(k)) puan += 3;\n        if (etiketler.includes(k) || dil === k) puan += 2;\n        if (kod.includes(k)) puan += 1;\n      }\n      return { p, puan };\n    })\n    .filter((x) => x.puan > 0)\n    .sort((a, b) => b.puan - a.puan || (Number(b.p.kullanim) || 0) - (Number(a.p.kullanim) || 0))\n    .map((x) => x.p);\n};\n\nlet mesaj = '';\nlet telegramText = '';\nlet sonuc = null;\nlet yazilsin = false;\nlet hata = false;\n\nif (istek.islem === 'kaydet') {\n  if (!istek.baslik || !istek.kod) {\n    hata = true;\n    mesaj = 'Kullanım: başlık ve kod zorunlu.\\nTelegram: /kodkaydet Başlık\\n(ikinci satırdan itibaren kod)\\nWebhook: {\"baslik\":\"...\",\"kod\":\"...\"}';\n    telegramText = esc(mesaj);\n  } else {\n    const id = parcacikalar.reduce((mx, p) => Math.max(mx, Number(p.id) || 0), 0) + 1;\n    const kod = istek.kod.length > EN_UZUN ? istek.kod.slice(0, EN_UZUN) + '\\n… (kırpıldı)' : istek.kod;\n    const kayit = {\n      id,\n      baslik: istek.baslik.slice(0, 120),\n      dil: istek.dil || '',\n      etiketler: etiketListesi(istek.etiket),\n      kod,\n      olusturulma: simdi(),\n      kullanim: 0,\n      sonKullanim: null,\n    };\n    parcacikalar.push(kayit);\n    yazilsin = true;\n    sonuc = kayit;\n    mesaj = '📎 Kaydedildi: ' + ozetSatir(kayit) + '\\nGetirmek için: /kodgetir ' + id;\n    telegramText = esc(mesaj);\n  }\n} else if (istek.islem === 'getir') {\n  const p = parcacikalar.find((x) => Number(x.id) === Number(istek.id));\n  if (!p) {\n    hata = true;\n    mesaj = '#' + istek.id + ' bulunamadı. /kod ile arayın.';\n    telegramText = esc(mesaj);\n  } else {\n    p.kullanim = (Number(p.kullanim) || 0) + 1;\n    p.sonKullanim = simdi();\n    yazilsin = true;\n    sonuc = p;\n    mesaj = ozetSatir(p) + '\\n\\n' + p.kod;\n    telegramText = '📎 <b>' + esc(p.baslik) + '</b>\\n<pre><code>' + esc(p.kod) + '</code></pre>';\n  }\n} else if (istek.islem === 'sil') {\n  const p = parcacikalar.find((x) => Number(x.id) === Number(istek.id));\n  if (!p) {\n    hata = true;\n    mesaj = '#' + istek.id + ' bulunamadı.';\n  } else {\n    parcacikalar.splice(parcacikalar.indexOf(p), 1);\n    yazilsin = true;\n    mesaj = '🗑 Silindi: ' + ozetSatir(p);\n  }\n  telegramText = esc(mesaj);\n} else if (istek.islem === 'ara' && istek.q) {\n  const bulunan = ara(istek.q);\n  sonuc = bulunan;\n  if (bulunan.length === 0) {\n    mesaj = '\"' + istek.q + '\" için parçacık yok. Kaydetmek için: /kodkaydet Başlık ⏎ kod';\n  } else {\n    mesaj = '📎 \"' + istek.q + '\" (' + bulunan.length + ' sonuç)\\n' +\n      bulunan.slice(0, 5).map((p) => ozetSatir(p) + '\\n   ' + ilkSatir(p)).join('\\n') +\n      '\\n\\nTamamı için: /kodgetir <numara>';\n  }\n  telegramText = esc(mesaj);\n} else {\n  // liste\n  sonuc = parcacikalar;\n  if (parcacikalar.length === 0) {\n    mesaj = 'Kasa boş. Kaydetmek için: /kodkaydet Başlık ⏎ kod';\n  } else {\n    const sirali = [...parcacikalar].sort((a, b) => (Number(b.kullanim) || 0) - (Number(a.kullanim) || 0) || Number(b.id) - Number(a.id));\n    mesaj = '📎 Kasada ' + parcacikalar.length + ' parçacık:\\n' +\n      sirali.slice(0, 10).map((p) => ozetSatir(p)).join('\\n') +\n      (parcacikalar.length > 10 ? '\\n…ve ' + (parcacikalar.length - 10) + ' tane daha' : '') +\n      '\\n\\nAramak için: /kod <kelime>';\n  }\n  telegramText = esc(mesaj);\n}\n\nreturn [{ json: {\n  parcacikalar,\n  yazilsin,\n  hata,\n  mesaj,\n  telegramText,\n  sonuc,\n  chat_id: istek.chat_id,\n  webhooktan: istek.webhooktan,\n  islem: istek.islem,\n} }];"
+      },
+      "id": "eefde815-c455-4570-a7d1-5b353ce8524b",
+      "name": "İşlemi Uygula",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yanıt düğümü yalnızca webhook ile gelen isteklerde çalışmalı;\n// workflow 05'ten gelen çağrıda yanıtlanacak bir HTTP isteği yoktur.\nconst j = $input.first().json;\nreturn j.webhooktan ? [{ json: j }] : [];"
+      },
+      "id": "a7af95c1-ffd6-406f-bc50-ce86f5beb7b9",
+      "name": "Webhook'a mı Yanıtlanacak? (Kod)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: !$json.hata, islem: $json.islem, mesaj: $json.mesaj, sonuc: $json.sonuc }) }}",
+        "options": {}
+      },
+      "id": "6c94d7f2-5bfd-4621-af25-d7d9334fe309",
+      "name": "Yanıt Ver (Kod)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İstek Telegram'dan geldiyse sonuç oraya gider (kod bloğu HTML olarak).\nconst j = $input.first().json;\nif (!j.chat_id) return [];\nreturn [{ json: { chat_id: j.chat_id, text: String(j.telegramText || j.mesaj).slice(0, 3900) } }];"
+      },
+      "id": "1ee09d60-c664-4910-a2d9-b29f802be07e",
+      "name": "Telegram'a Bildir (Kod)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text, parse_mode: 'HTML' }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "1e8442b0-1ce8-4e65-a6fa-f4146b0b5a05",
+      "name": "Kod Yanıtını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca parçacık listesi yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { parcacikalar: j.parcacikalar } }];"
+      },
+      "id": "b73acff0-691a-4a39-96a5-e1e5af536257",
+      "name": "Parçacık Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "parcacikalar.json"
+        }
+      },
+      "id": "d486caa9-b772-4f97-b9ac-8e0d6aa3c1e8",
+      "name": "Parçacıkları Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/parcacikalar.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "d77ccbb7-bbc0-4c29-8090-d61bf15d2ca2",
+      "name": "Parçacıkları Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "kodlar",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c5032b95-3f60-4dc5-b9fb-35586d315f25",
+      "name": "Parçacık Listesi (Webhook GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        460
+      ],
+      "webhookId": "5fd03560-be76-4d43-ab4e-3483fee43697"
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          160,
+          460
+        ],
+        "options": {}
+      },
+      "id": "ddb04a08-9b65-4227-9a8a-a92ce2b40a0d",
+      "name": "Parçacıkları Oku (Liste)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "dc047bb0-ce22-46c3-9ca4-afe7c5d711c0",
+      "name": "Parçacıkları Çıkar (Liste)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        460
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// GET /webhook/kodlar — arama ve tek parçacık getirme (terminalden kullanım için).\n//   ?ara=docker      → eşleşen parçacıklar (JSON)\n//   ?id=3            → tek parçacık (JSON)\n//   ?id=3&sade=1     → yalnızca kodun kendisi (düz metin)\nconst sorgu = $('Parçacık Listesi (Webhook GET)').first().json.query || {};\nconst okuHata = $('Parçacıkları Oku (Liste)').first().json.error;\nconst cikarHata = $('Parçacıkları Çıkar (Liste)').first().json.error;\nif (okuHata || cikarHata) {\n  const m = String((okuHata && (okuHata.message || okuHata)) || (cikarHata && (cikarHata.message || cikarHata)));\n  return [{ json: { sade: false, govde: { hata: 'parcacikalar.json okunamadı: ' + m } } }];\n}\n\nconst j = $input.first().json || {};\nconst ham = (j.data && j.data.parcacikalar) || j.parcacikalar || [];\nconst parcacikalar = Array.isArray(ham) ? ham : [];\n\nconst id = Number(sorgu.id) || 0;\nconst q = String(sorgu.ara || sorgu.q || '').trim().toLowerCase();\nconst sade = String(sorgu.sade || '') === '1';\n\nif (id) {\n  const p = parcacikalar.find((x) => Number(x.id) === id);\n  if (!p) return [{ json: { sade, govde: sade ? '' : { hata: '#' + id + ' bulunamadı' } } }];\n  return [{ json: { sade, govde: sade ? String(p.kod || '') : p } }];\n}\n\nconst kelimeler = q.split(/\\s+/).filter(Boolean);\nconst bulunan = kelimeler.length === 0 ? parcacikalar : parcacikalar\n  .map((p) => {\n    const alan = [p.baslik, p.dil, (p.etiketler || []).join(' '), p.kod].join('\\n').toLowerCase();\n    let puan = 0;\n    for (const k of kelimeler) if (alan.includes(k)) puan += 1;\n    return { p, puan };\n  })\n  .filter((x) => x.puan > 0)\n  .sort((a, b) => b.puan - a.puan)\n  .map((x) => x.p);\n\nreturn [{ json: { sade, govde: sade ? bulunan.map((p) => p.kod).join('\\n\\n') : bulunan } }];"
+      },
+      "id": "dc20731f-2ebf-4826-b1a8-e54eef14ea7b",
+      "name": "Listeyi Süz (Kod)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ?sade=1 verildiyse yanıt düz metin olur (curl ... | pbcopy için).\nconst j = $input.first().json;\nreturn j.sade ? [{ json: j }] : [];"
+      },
+      "id": "41c97b38-ab91-4d10-aca6-b619a1b58ced",
+      "name": "Sade İstek mi? (Kod)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.govde }}",
+        "options": {}
+      },
+      "id": "694d50a8-6bec-40fb-ba31-bcafbe6b2084",
+      "name": "Kodu Düz Metin Yanıtla",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Varsayılan yanıt: JSON.\nconst j = $input.first().json;\nreturn j.sade ? [] : [{ json: j }];"
+      },
+      "id": "20f43894-9de8-4107-802b-4e8d6dfd8fab",
+      "name": "JSON İstek mi? (Kod)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.govde) }}",
+        "options": {}
+      },
+      "id": "7c69872a-c101-44cf-bace-432cdf4eea31",
+      "name": "Listeyi Yanıtla (Kod)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        540
+      ]
+    }
+  ],
+  "connections": {
+    "Parçacık İsteği (Webhook POST)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Kod)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (Kod)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Kod)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İsteği Al (Kod)": {
+      "main": [
+        [
+          {
+            "node": "Parçacıkları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parçacıkları Oku": {
+      "main": [
+        [
+          {
+            "node": "Parçacıkları Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parçacıkları Çıkar": {
+      "main": [
+        [
+          {
+            "node": "İşlemi Uygula",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İşlemi Uygula": {
+      "main": [
+        [
+          {
+            "node": "Webhook'a mı Yanıtlanacak? (Kod)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram'a Bildir (Kod)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Parçacık Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook'a mı Yanıtlanacak? (Kod)": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Ver (Kod)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram'a Bildir (Kod)": {
+      "main": [
+        [
+          {
+            "node": "Kod Yanıtını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parçacık Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Parçacıkları Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parçacıkları Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Parçacıkları Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parçacık Listesi (Webhook GET)": {
+      "main": [
+        [
+          {
+            "node": "Parçacıkları Oku (Liste)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parçacıkları Oku (Liste)": {
+      "main": [
+        [
+          {
+            "node": "Parçacıkları Çıkar (Liste)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parçacıkları Çıkar (Liste)": {
+      "main": [
+        [
+          {
+            "node": "Listeyi Süz (Kod)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listeyi Süz (Kod)": {
+      "main": [
+        [
+          {
+            "node": "Sade İstek mi? (Kod)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "JSON İstek mi? (Kod)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sade İstek mi? (Kod)": {
+      "main": [
+        [
+          {
+            "node": "Kodu Düz Metin Yanıtla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON İstek mi? (Kod)": {
+      "main": [
+        [
+          {
+            "node": "Listeyi Yanıtla (Kod)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

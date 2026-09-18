@@ -1,0 +1,24 @@
+{
+  "parcacikalar": [
+    {
+      "id": 1,
+      "baslik": "Docker: kullanılmayan her şeyi temizle",
+      "dil": "bash",
+      "etiketler": ["docker", "temizlik"],
+      "kod": "docker system prune -af --volumes",
+      "olusturulma": null,
+      "kullanim": 0,
+      "sonKullanim": null
+    },
+    {
+      "id": 2,
+      "baslik": "Git: son commit'i geri al (değişiklikler kalsın)",
+      "dil": "bash",
+      "etiketler": ["git"],
+      "kod": "git reset --soft HEAD~1",
+      "olusturulma": null,
+      "kullanim": 0,
+      "sonKullanim": null
+    }
+  ]
+}

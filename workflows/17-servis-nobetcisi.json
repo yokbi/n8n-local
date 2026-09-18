@@ -1,0 +1,673 @@
+{
+  "name": "17 — Servis Nöbetçisi (Uptime)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🩺 Servis nöbetçisi — siteleriniz ayakta mı?\n\nTakip listenizdeki adresleri **5 dakikada bir** yoklar. Bir servis\ndüşünce bir kez haber verir, düzelince bir kez daha — arada\nsessiz kalır, telefonunuzu doldurmaz.\n\n### Kurulum\n1. `cp local-files/servisler.ornek.json local-files/servisler.json`\n2. Dosyayı açıp kendi adreslerinizi yazın:\n```\n{ \"ad\": \"API sağlık\", \"url\": \"https://api.ornek.com/health\",\n  \"beklenenKod\": 200, \"icerir\": \"ok\", \"esik\": 2 }\n```\n   • `beklenenKod` — bu kod dışında bir yanıt gelirse ARIZA (varsayılan 200)\n   • `icerir` — yanıtın içinde geçmesi gereken metin (boş bırakılabilir)\n   • `esik` — kaç üst üste başarısız yoklamadan sonra uyarı (varsayılan 2)\n3. Telegram kuruluysa uyarı oraya gider. Değilse **Servis Uyarısını\n   Mail At** düğümünde credential'ı seçip iki adres alanını değiştirin.\n4. Workflow'u **Active** yapın.\n\n### Nereden kullanılır\n- **iPhone / Telegram:** `/servis` → o anki durum listesi\n- **Mac / Windows terminal:** `curl http://localhost:5678/webhook/servisler`\n- Uyarılar kendiliğinden gelir; bir şey yapmanız gerekmez.",
+        "width": 540,
+        "height": 780
+      },
+      "id": "3ff4f385-2b57-43be-8bad-178259cd0d76",
+      "name": "Not 63df2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- **Uyarı yalnızca durum değişince gider.** Kapalı bir servis her\n  turda tekrar yazmaz; düzeldiğinde ne kadar süre kapalı kaldığını\n  söyleyen bir mesaj gelir.\n- `esik` alanı tek seferlik takılmaları (anlık ağ hatası) eler:\n  varsayılan 2, yani ~10 dakika.\n- Yanıt gövdesi **kaydedilmez** — yalnızca HTTP kodu, hata metni ve\n  `icerir` eşleşmesi tutulur.\n- Bu workflow'un başarılı çalışmaları geçmişe kaydedilmez (5 dakikada\n  bir çalışıp geçmişi doldurmasın diye). Hata ayıklarken\n  **Settings → Save successful executions**'ı açın.\n- 🔒 Yoklama isteği yalnızca sizin verdiğiniz adreslere gider; sonuçlar\n  `local-files/servisler.json` dosyasında kalır.",
+        "width": 540,
+        "height": 340
+      },
+      "id": "042b3717-f130-4e39-bf5a-80a6575c4fae",
+      "name": "Not 0611e",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "9489baf7-e418-46cf-b4c0-5105db58dc4e",
+      "name": "Her 5 Dakikada (Servis)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -60,
+        40
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "9e7232c8-4fb9-4ea8-b80f-ccbb0bd3f8cb",
+      "name": "Elle Test Et (Servis)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          160,
+          120
+        ],
+        "options": {}
+      },
+      "id": "b86af6f5-5684-422f-a964-1b3fe29f34cd",
+      "name": "Servisleri Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "7160039b-cb4b-465d-8521-640d65b33da6",
+      "name": "Servisleri Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// servisler.json içindeki listeyi tek tek yoklanacak öğelere çevirir.\n// Okuma zinciri hata verdiyse: dosya bozuk/erişilemez ise çalışma durdurulur —\n// aksi hâlde liste boş sanılıp üzerine yazılır ve takip listesi kaybolur.\nconst okuHata = $('Servisleri Oku').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Servisleri Çıkar').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('servisler.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\nif (dosyaYok) {\n  throw new Error('local-files/servisler.json yok. Kurulum: cp local-files/servisler.ornek.json local-files/servisler.json');\n}\n\nconst j = $input.first().json || {};\nconst ham = (j.data && j.data.servisler) || j.servisler || [];\nconst servisler = (Array.isArray(ham) ? ham : [])\n  .filter((s) => s && typeof s.url === 'string' && /^https?:\\/\\//i.test(s.url.trim()))\n  .map((s) => ({\n    ad: String(s.ad || s.url).trim(),\n    url: s.url.trim(),\n    yontem: String(s.yontem || 'GET').toUpperCase(),\n    beklenenKod: Number(s.beklenenKod) || 200,\n    icerir: String(s.icerir || ''),\n    zamanAsimi: Number(s.zamanAsimi) || 15000,\n    esik: Math.max(1, Number(s.esik) || 2),\n    sonDurum: s.sonDurum || null,\n    sonKod: typeof s.sonKod === 'number' ? s.sonKod : null,\n    sonHata: s.sonHata || null,\n    sonKontrol: s.sonKontrol || null,\n    ardArda: Number(s.ardArda) || 0,\n    ilkHata: s.ilkHata || null,\n    uyarildi: Boolean(s.uyarildi),\n  }));\n\nif (servisler.length === 0) {\n  throw new Error('servisler.json içinde geçerli servis yok — her kaydın \"url\" alanı http:// veya https:// ile başlamalı.');\n}\nreturn servisler.map((s) => ({ json: s }));"
+      },
+      "id": "c6a723ac-306c-427b-9acc-3c5c7fbf7d82",
+      "name": "Servisleri Listele",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.yontem }}",
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": "={{ $json.zamanAsimi }}",
+          "redirect": {
+            "redirect": {}
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "24d811e0-f46f-4346-b29f-17c51f68adf5",
+      "name": "Servisi Yokla",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yoklama sonuçlarını önceki durumla karşılaştırır.\n// Bildirim YALNIZCA durum değişince gider: bir servis düştüğünde bir kez,\n// düzeldiğinde bir kez. Kapalı servis her turda tekrar yazmaz.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst kisalt = (s, n = 140) => {\n  const t = String(s || '').replace(/\\s+/g, ' ').trim();\n  return t.length > n ? t.slice(0, n) + '…' : t;\n};\nconst sureMetni = (ms) => {\n  const dk = Math.max(1, Math.round(ms / 60000));\n  if (dk < 60) return dk + ' dk';\n  const sa = Math.floor(dk / 60);\n  if (sa < 24) return sa + ' sa ' + (dk % 60) + ' dk';\n  return Math.floor(sa / 24) + ' gün ' + (sa % 24) + ' sa';\n};\n\nconst servisler = $('Servisleri Listele').all().map((x) => ({ ...x.json }));\nconst sonuclar = $input.all();\nconst simdi = new Date();\nconst dusenler = [];\nconst duzelenler = [];\n\nfor (let i = 0; i < servisler.length; i++) {\n  const s = servisler[i];\n  const r = (sonuclar[i] && sonuclar[i].json) || {};\n  const hataMetni = r.error ? kisalt(r.error.message || r.error) : '';\n  const kod = Number(r.statusCode || 0);\n  const govde = typeof r.body === 'string' ? r.body : (r.body ? JSON.stringify(r.body) : '');\n\n  let sorun = '';\n  if (hataMetni) {\n    sorun = /timeout|ETIMEDOUT|ESOCKETTIMEDOUT/i.test(hataMetni) ? 'yanıt vermedi (zaman aşımı)'\n      : /ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(hataMetni) ? 'adres çözülemedi (DNS)'\n      : /ECONNREFUSED/i.test(hataMetni) ? 'bağlantı reddedildi (servis kapalı olabilir)'\n      : /certificate|CERT_|SSL|TLS/i.test(hataMetni) ? 'TLS/sertifika hatası: ' + hataMetni\n      : hataMetni;\n  } else if (!kod) {\n    sorun = 'yanıt alınamadı';\n  } else if (kod !== s.beklenenKod) {\n    sorun = 'HTTP ' + kod + ' döndü (beklenen ' + s.beklenenKod + ')';\n  } else if (s.icerir && !govde.includes(s.icerir)) {\n    sorun = '\"' + kisalt(s.icerir, 40) + '\" metni yanıtta yok';\n  }\n\n  s.sonKontrol = simdi.toISOString();\n  s.sonKod = kod || null;\n\n  if (!sorun) {\n    if (s.uyarildi) {\n      const sure = s.ilkHata ? simdi.getTime() - new Date(s.ilkHata).getTime() : 0;\n      duzelenler.push({ ad: s.ad, url: s.url, sure: sureMetni(sure) });\n    }\n    s.sonDurum = 'ayakta';\n    s.sonHata = null;\n    s.ardArda = 0;\n    s.ilkHata = null;\n    s.uyarildi = false;\n  } else {\n    s.sonDurum = 'kapali';\n    s.sonHata = sorun;\n    s.ardArda = (Number(s.ardArda) || 0) + 1;\n    if (!s.ilkHata) s.ilkHata = simdi.toISOString();\n    if (!s.uyarildi && s.ardArda >= s.esik) {\n      s.uyarildi = true;\n      dusenler.push({ ad: s.ad, url: s.url, sorun, deneme: s.ardArda });\n    }\n  }\n}\n\nconst satirlar = [];\nconst htmlBolum = [];\nfor (const d of dusenler) {\n  satirlar.push('🔴 ' + d.ad + ' KAPALI\\n   ' + d.sorun + '\\n   ' + d.url);\n  htmlBolum.push('<li style=\"margin:6px 0\"><b>🔴 ' + esc(d.ad) + ' kapalı</b><br>' + esc(d.sorun) +\n    '<br><a href=\"' + esc(d.url) + '\">' + esc(d.url) + '</a></li>');\n}\nfor (const d of duzelenler) {\n  satirlar.push('✅ ' + d.ad + ' yeniden ayakta (' + d.sure + ' kapalı kaldı)');\n  htmlBolum.push('<li style=\"margin:6px 0\"><b>✅ ' + esc(d.ad) + ' yeniden ayakta</b><br>' +\n    esc(d.sure) + ' kapalı kaldı</li>');\n}\n\nconst kapali = servisler.filter((s) => s.sonDurum === 'kapali').length;\nconst ayakta = servisler.length - kapali;\nconst text = satirlar.length\n  ? satirlar.join('\\n\\n') + '\\n\\n— ' + ayakta + ' ayakta, ' + kapali + ' kapalı'\n  : '';\nconst html = htmlBolum.length\n  ? '<div style=\"font-family:sans-serif;max-width:640px\"><h2>🩺 Servis durumu</h2><ul style=\"list-style:none;padding:0\">' +\n    htmlBolum.join('') + '</ul><p style=\"color:#999\">' + ayakta + ' ayakta, ' + kapali + ' kapalı</p></div>'\n  : '';\nconst konu = dusenler.length\n  ? '[n8n] 🔴 ' + (dusenler.length === 1 ? dusenler[0].ad + ' kapalı' : dusenler.length + ' servis kapalı')\n  : duzelenler.length\n    ? '[n8n] ✅ ' + (duzelenler.length === 1 ? duzelenler[0].ad + ' yeniden ayakta' : duzelenler.length + ' servis düzeldi')\n    : '';\n\nreturn [{\n  json: {\n    servisler,\n    gonderilecek: satirlar.length > 0,\n    yazilsin: true,\n    text,\n    html,\n    konu,\n    dusen: dusenler.length,\n    duzelen: duzelenler.length,\n    ayakta,\n    kapali,\n  },\n}];"
+      },
+      "id": "cbce2beb-9646-4b46-8a6d-549cce95236c",
+      "name": "Sonuçları Değerlendir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1c5e69be-f22e-4e09-aeec-856a751c0568",
+              "leftValue": "={{ $json.gonderilecek }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "06279fed-b35c-42c6-8648-123667d05c1f",
+      "name": "Değişiklik Var mı?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1160,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa uyarı oraya gider; değilse bu dal boş döner.\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: ('🩺 ' + $input.first().json.text).slice(0, 3900) } }];"
+      },
+      "id": "e5e26ebe-10be-4379-89dc-c0cd4e3bf26a",
+      "name": "Telegram Kurulu mu? (Servis)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "251dd60d-4c28-49b1-a764-f84d94bd4f97",
+      "name": "Servis Uyarısını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        -60
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE uyarı mail olarak gider (çift bildirim olmasın).\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nconst j = $input.first().json;\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "2b1e8c56-0673-42b6-b205-9745eb4fc418",
+      "name": "Telegram Yoksa Mail (Servis)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "246b7795-0d79-4690-a2d1-cae03e580a77",
+      "name": "Servis Uyarısını Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca servis listesi (güncel durumlarıyla) yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { servisler: j.servisler } }];"
+      },
+      "id": "4af06653-e44c-4beb-aa53-f4a9f1458d44",
+      "name": "Servis Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "servisler.json"
+        }
+      },
+      "id": "7807f7f8-ac46-4290-a428-1eaa5a85308b",
+      "name": "Servisleri Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1380,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/servisler.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "1c9b6cce-8663-4386-8bd0-8f192128b19c",
+      "name": "Servisleri Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "a403cf1d-14ba-4ebf-bc1e-e2fe6c65691c",
+      "name": "Workflow 05'ten Çağrı (Servis)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -60,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          160,
+          520
+        ],
+        "options": {}
+      },
+      "id": "9c1fc928-7c8b-4162-ad42-04bd8e096b9c",
+      "name": "Servisleri Oku (Durum)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "c27b007c-c0a7-4538-b0e5-5e8347284e52",
+      "name": "Servisleri Çıkar (Durum)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        520
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram'dan /servis komutu gelince son bilinen durumu özetler.\n// Yeni yoklama YAPMAZ — zamanlanmış kontrolün en son yazdığı bilgiyi okur.\nconst cagri = $('Workflow 05\\'ten Çağrı (Servis)').first().json || {};\nconst okuHata = $('Servisleri Oku (Durum)').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst cikarHata = $('Servisleri Çıkar (Durum)').first().json.error;\n\nconst chat = cagri.chat_id ? String(cagri.chat_id) : '';\nif (!chat) return [];\n\nif (okuHata || cikarHata) {\n  const dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\n  return [{ json: { chat_id: chat, text: dosyaYok\n    ? '🩺 Takip listesi yok. Kurulum: cp local-files/servisler.ornek.json local-files/servisler.json'\n    : '🩺 servisler.json okunamadı: ' + (okuMesaj || 'bozuk dosya') } }];\n}\n\nconst j = $input.first().json || {};\nconst ham = (j.data && j.data.servisler) || j.servisler || [];\nconst servisler = Array.isArray(ham) ? ham : [];\nif (servisler.length === 0) {\n  return [{ json: { chat_id: chat, text: '🩺 Takip listesi boş. local-files/servisler.json dosyasına servis ekleyin.' } }];\n}\n\nconst gecen = (iso) => {\n  if (!iso) return 'hiç kontrol edilmedi';\n  const dk = Math.round((Date.now() - new Date(iso).getTime()) / 60000);\n  if (!Number.isFinite(dk)) return 'bilinmiyor';\n  if (dk < 1) return 'az önce';\n  if (dk < 60) return dk + ' dk önce';\n  const sa = Math.floor(dk / 60);\n  return sa < 24 ? sa + ' sa önce' : Math.floor(sa / 24) + ' gün önce';\n};\n\nconst satirlar = servisler.map((s) => {\n  const ad = s.ad || s.url;\n  if (s.sonDurum === 'kapali') {\n    return '🔴 ' + ad + ' — ' + (s.sonHata || 'kapalı') + ' (' + (Number(s.ardArda) || 1) + '. tur)';\n  }\n  if (s.sonDurum === 'ayakta') return '✅ ' + ad + ' — HTTP ' + (s.sonKod || 200);\n  return '⬜ ' + ad + ' — henüz kontrol edilmedi';\n});\n\nconst enSon = servisler\n  .map((s) => s.sonKontrol)\n  .filter(Boolean)\n  .sort()\n  .pop();\n\nreturn [{ json: {\n  chat_id: chat,\n  text: ('🩺 Servis durumu\\n' + satirlar.join('\\n') + '\\n\\nSon kontrol: ' + gecen(enSon)).slice(0, 3900),\n} }];"
+      },
+      "id": "f331d169-b01e-404c-944e-851d6d824ef0",
+      "name": "Durum Özetini Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "cce191bd-fe83-4085-8844-a3dccc564331",
+      "name": "Durumu Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        520
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "servisler",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5a3fa4d1-bdb0-4b68-990f-adec8a23a4cd",
+      "name": "Servis Durumu (Webhook GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        720
+      ],
+      "webhookId": "eaf07874-38d7-4646-9d1d-e3bd71c9ad7a"
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          160,
+          720
+        ],
+        "options": {}
+      },
+      "id": "fd3dfe57-4b51-45b8-b904-be3c9c5f406f",
+      "name": "Servisleri Oku (API)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "70669059-497d-4b12-879e-ac238c7f872b",
+      "name": "Servisleri Çıkar (API)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        720
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify((($json.data && $json.data.servisler) || $json.servisler || []).map(s => ({ ad: s.ad, url: s.url, durum: s.sonDurum, kod: s.sonKod, hata: s.sonHata, sonKontrol: s.sonKontrol }))) }}",
+        "options": {}
+      },
+      "id": "71d214d1-6593-4ba7-aa2c-59d245b4dec3",
+      "name": "Durumu Yanıtla",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        720
+      ]
+    }
+  ],
+  "connections": {
+    "Her 5 Dakikada (Servis)": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (Servis)": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Oku": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Listele",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Listele": {
+      "main": [
+        [
+          {
+            "node": "Servisi Yokla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisi Yokla": {
+      "main": [
+        [
+          {
+            "node": "Sonuçları Değerlendir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sonuçları Değerlendir": {
+      "main": [
+        [
+          {
+            "node": "Değişiklik Var mı?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Servis Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Değişiklik Var mı?": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (Servis)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Servis)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Telegram Kurulu mu? (Servis)": {
+      "main": [
+        [
+          {
+            "node": "Servis Uyarısını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Servis)": {
+      "main": [
+        [
+          {
+            "node": "Servis Uyarısını Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servis Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (Servis)": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Oku (Durum)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Oku (Durum)": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Çıkar (Durum)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Çıkar (Durum)": {
+      "main": [
+        [
+          {
+            "node": "Durum Özetini Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durum Özetini Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Durumu Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servis Durumu (Webhook GET)": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Oku (API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Oku (API)": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Çıkar (API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Çıkar (API)": {
+      "main": [
+        [
+          {
+            "node": "Durumu Yanıtla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": true
+  },
+  "pinData": {}
+}

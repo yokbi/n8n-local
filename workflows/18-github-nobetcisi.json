@@ -1,0 +1,582 @@
+{
+  "name": "18 — GitHub Nöbetçisi (PR, CI, Issue)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🐙 GitHub nöbetçisi — inceleme, CI ve issue\n\n**15 dakikada bir** GitHub'a bakar ve size düşen işleri bildirir:\n\n| | Ne bildirir |\n|---|---|\n| 🔍 | İncelemenizi bekleyen PR'lar |\n| 🔴 | CI'ı kırık kendi PR'larınız |\n| ✅ | Onaylanmış, birleştirilmeyi bekleyen PR'larınız |\n| 📌 | Size atanmış issue'lar |\n| 📣 | Adınızın geçtiği (mention) konular |\n\nHer kayıt **yalnızca bir kez** bildirilir; liste değişmedikçe sessizdir.\n\n### Kurulum\n1. GitHub → Settings → Developer settings → **Personal access tokens**\n   → *Fine-grained* ya da *classic* token üretin.\n   Gereken tek yetki **okuma**: classic'te `repo` (özel depolar için) +\n   `notifications`; yalnızca açık depolar için yetkisiz token da yeter.\n2. `.env` dosyasına yazın:\n   `GITHUB_TOKEN=ghp_...`\n   (başka bir hesabı izleyecekseniz `GITHUB_KULLANICI=kullanici-adi`)\n3. `docker compose up -d` ile n8n'i yeniden başlatın.\n4. Telegram kuruluysa bildirim oraya gider; değilse **GitHub Uyarısını\n   Mail At** düğümünde credential'ı ve iki adres alanını doldurun.\n5. Workflow'u **Active** yapın.\n\n> Token boşsa workflow **sessizce** hiçbir şey yapmaz (hata vermez).\n> Elle çalıştırırsanız eksik olduğunu söyler.\n\n### Nereden kullanılır\n- **iPhone / Telegram:** `/pr` → son durumun tamamı\n- **Mac / Windows:** bildirimler mail ya da Telegram olarak gelir",
+        "width": 540,
+        "height": 880
+      },
+      "id": "2bf45626-2365-415d-85bf-4e1e7edbf55d",
+      "name": "Not c2fc9",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- **İlk çalıştırma sessizdir**: o anki liste \"görüldü\" diye işaretlenir,\n  böylece eski 40 PR birden telefonunuza düşmez. İkinci turdan\n  itibaren yalnızca yenileri gelir.\n- Bir sorgu hata verirse (istek sınırı, geçersiz token) o kategorinin\n  işaretleri **korunur** — sorun geçtiğinde eski kayıtlar yeniymiş gibi\n  tekrar bildirilmez. Hatanın kendisi bir kez bildirilir.\n- Taslak (draft) PR'lar CI ve onay kategorilerinde bildirilmez.\n- Arama GitHub'ın kendi arama API'sini kullanır (5 istek / 15 dk);\n  kimliği doğrulanmış istek sınırı dakikada 30'dur, fazlasıyla yeterli.\n- 🔒 Token yalnızca `.env` dosyanızda durur ve yalnızca `api.github.com`\n  adresine gönderilir. Depo içerikleri indirilmez — sadece başlık,\n  numara ve bağlantı saklanır (`local-files/github-durum.json`).",
+        "width": 540,
+        "height": 380
+      },
+      "id": "f181badf-e080-4898-b963-9162d3d0656f",
+      "name": "Not 42d40",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "304b469f-e8c0-4894-902e-7c3e203e1ddf",
+      "name": "Her 15 Dakikada (GitHub)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -60,
+        40
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "81cc5a4e-8362-47d9-a6d1-3da444204a78",
+      "name": "Elle Test Et (GitHub)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          160,
+          120
+        ],
+        "options": {}
+      },
+      "id": "37ac2172-30fe-47cc-9600-01e75e2080f0",
+      "name": "Durumu Oku (GitHub)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "ca34b3f3-f621-4f54-a424-e0b1abf80095",
+      "name": "Durumu Çıkar (GitHub)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// GitHub arama sorgularını hazırlar (her sorgu ayrı bir öğe olur).\n// Okuma zinciri hata verdiyse: dosya bozuk/erişilemez ise çalışma durdurulur —\n// aksi hâlde \"hiç görülmemiş\" sanılıp tüm liste yeniden bildirilir.\nconst okuHata = $('Durumu Oku (GitHub)').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Durumu Çıkar (GitHub)').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('github-durum.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\n\nlet elleCalisti = false;\ntry { elleCalisti = Boolean($('Elle Test Et (GitHub)').first()); } catch (e) { elleCalisti = false; }\n\nconst token = String($env.GITHUB_TOKEN || '').trim();\nif (!token) {\n  if (elleCalisti) {\n    throw new Error('GITHUB_TOKEN boş. .env dosyasına bir GitHub token yazıp \"docker compose up -d\" ile yeniden başlatın.');\n  }\n  return []; // token yoksa workflow sessizce hiçbir şey yapmaz\n}\n\nconst kim = String($env.GITHUB_KULLANICI || '').trim() || '@me';\nconst sorgular = [\n  { anahtar: 'inceleme', ikon: '🔍', ad: 'İncelemeni bekleyen PR', q: 'is:open is:pr archived:false review-requested:' + kim },\n  { anahtar: 'ci', ikon: '🔴', ad: \"CI'ı kırık PR'ların\", q: 'is:open is:pr archived:false author:' + kim + ' status:failure', taslakAtla: true },\n  { anahtar: 'onay', ikon: '✅', ad: 'Onaylanmış, bekleyen PR', q: 'is:open is:pr archived:false author:' + kim + ' review:approved', taslakAtla: true },\n  { anahtar: 'issue', ikon: '📌', ad: 'Sana atanmış issue', q: 'is:open is:issue archived:false assignee:' + kim },\n  { anahtar: 'anma', ikon: '📣', ad: 'Adının geçtiği konular', q: 'is:open archived:false mentions:' + kim },\n];\n\nreturn sorgular.map((s) => ({\n  json: {\n    ...s,\n    url: 'https://api.github.com/search/issues?per_page=20&sort=updated&order=desc&q=' + encodeURIComponent(s.q),\n  },\n}));"
+      },
+      "id": "d189ad1c-9627-4c6d-a1e6-c08d72c36113",
+      "name": "Sorguları Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "2fb439ee-5c6b-420c-88b3-16f6100bd47e",
+      "name": "GitHub'a Sor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        120
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sorgu sonuçlarını önceki turla karşılaştırır: yalnızca YENİ kayıtlar bildirilir.\n// Bir sorgu hata verdiyse o kategorinin eski işaretleri korunur; aksi hâlde\n// sorun geçince tüm liste \"yeni\" sanılıp ikinci kez bildirilirdi.\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst kisalt = (s, n = 70) => {\n  const t = String(s || '').replace(/\\s+/g, ' ').trim();\n  return t.length > n ? t.slice(0, n) + '…' : t;\n};\nconst repoAdi = (u) => String(u || '').split('/repos/')[1] || '';\n\nconst sorgular = $('Sorguları Hazırla').all().map((x) => x.json);\nconst sonuclar = $input.all();\nconst durumJson = $('Durumu Çıkar (GitHub)').first().json || {};\nconst durum = durumJson.data || durumJson || {};\nconst gorulenEski = Array.isArray(durum.gorulen) ? durum.gorulen : [];\nconst eskiOzet = (durum.ozet && typeof durum.ozet === 'object') ? durum.ozet : {};\nconst ilkCalisma = !durum.sonCalisma;\n\nconst yeniler = [];\nconst uyarilar = [];\nconst yeniUyarilar = [];\nconst ozet = {};\nconst guncel = [];\nconst korunan = [];\n\nfor (let i = 0; i < sorgular.length; i++) {\n  const q = sorgular[i];\n  const r = (sonuclar[i] && sonuclar[i].json) || {};\n  const hamHata = r.error ? String(r.error.message || r.error) : '';\n  const apiHata = !hamHata && !Array.isArray(r.items) ? String(r.message || 'beklenmeyen yanıt') : '';\n  const hata = hamHata || apiHata;\n\n  if (hata) {\n    uyarilar.push(q.ad + ': ' + (\n      /401|Bad credentials/i.test(hata) ? 'GITHUB_TOKEN geçersiz görünüyor'\n      : /rate limit|403/i.test(hata) ? 'GitHub istek sınırı — sonraki turda tekrar denenecek'\n      : /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|timeout/i.test(hata) ? 'GitHub\\'a ulaşılamadı'\n      : kisalt(hata, 90)));\n    korunan.push(...gorulenEski.filter((k) => k.indexOf(q.anahtar + '|') === 0));\n    if (eskiOzet[q.anahtar]) ozet[q.anahtar] = eskiOzet[q.anahtar]; // eski görüntü korunur\n    continue;\n  }\n\n  const kayitlar = (Array.isArray(r.items) ? r.items : []).map((it) => ({\n    baslik: kisalt(it.title),\n    repo: repoAdi(it.repository_url),\n    no: it.number,\n    url: it.html_url,\n    kim: (it.user && it.user.login) || '',\n    taslak: Boolean(it.draft),\n    guncelleme: it.updated_at || null,\n  }));\n  ozet[q.anahtar] = { ad: q.ad, ikon: q.ikon, kayitlar };\n\n  for (const k of kayitlar) {\n    const anahtar = q.anahtar + '|' + k.url;\n    guncel.push(anahtar);\n    if (q.taslakAtla && k.taslak) continue;\n    if (!gorulenEski.includes(anahtar)) yeniler.push({ ...k, kategori: q.ad, ikon: q.ikon });\n  }\n}\n\nfor (const u of uyarilar) {\n  const anahtar = 'uyari|' + u;\n  guncel.push(anahtar);\n  if (!gorulenEski.includes(anahtar)) yeniUyarilar.push(u);\n}\n\nconst gruplar = new Map();\nfor (const y of yeniler) {\n  if (!gruplar.has(y.kategori)) gruplar.set(y.kategori, []);\n  gruplar.get(y.kategori).push(y);\n}\n\nconst satirlar = [];\nconst htmlBolum = [];\nfor (const [ad, kayitlar] of gruplar) {\n  satirlar.push(kayitlar[0].ikon + ' ' + ad + ' (' + kayitlar.length + ')');\n  htmlBolum.push('<h3 style=\"margin:14px 0 4px\">' + kayitlar[0].ikon + ' ' + esc(ad) + '</h3><ul>');\n  for (const k of kayitlar.slice(0, 6)) {\n    satirlar.push('• ' + k.repo + '#' + k.no + ' — ' + k.baslik + '\\n  ' + k.url);\n    htmlBolum.push('<li style=\"margin:4px 0\"><a href=\"' + esc(k.url) + '\">' + esc(k.repo) + '#' + k.no +\n      '</a> — ' + esc(k.baslik) + '</li>');\n  }\n  if (kayitlar.length > 6) {\n    satirlar.push('  …ve ' + (kayitlar.length - 6) + ' tane daha');\n    htmlBolum.push('<li style=\"color:#999\">…ve ' + (kayitlar.length - 6) + ' tane daha</li>');\n  }\n  htmlBolum.push('</ul>');\n  satirlar.push('');\n}\nfor (const u of yeniUyarilar) {\n  satirlar.push('⚠️ ' + u);\n  htmlBolum.push('<p style=\"color:#b45309\">⚠️ ' + esc(u) + '</p>');\n}\n\nconst gonderilecek = !ilkCalisma && (yeniler.length > 0 || yeniUyarilar.length > 0);\nconst text = satirlar.join('\\n').trim();\nconst html = '<div style=\"font-family:sans-serif;max-width:640px\"><h2>🐙 GitHub</h2>' + htmlBolum.join('') + '</div>';\nconst konu = '[n8n] 🐙 GitHub: ' + (yeniler.length\n  ? yeniler.length + ' yeni kayıt'\n  : yeniUyarilar.length + ' uyarı');\n\nreturn [{\n  json: {\n    gorulen: [...new Set([...guncel, ...korunan])].slice(-500),\n    ozet,\n    sonCalisma: new Date().toISOString(),\n    gonderilecek,\n    yazilsin: true,\n    ilkCalisma,\n    yeniSayisi: yeniler.length,\n    text,\n    html,\n    konu,\n  },\n}];"
+      },
+      "id": "1892bfc3-16d9-4359-925b-3ee2c36f297d",
+      "name": "Yenileri Bul",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1433be8-0d61-4a46-9910-f7deff06ba76",
+              "leftValue": "={{ $json.gonderilecek }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5034344c-7b4e-4cbf-87d9-b6d118a15607",
+      "name": "Bildirilecek Var mı?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1160,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa bildirim oraya gider; değilse bu dal boş döner.\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: ('🐙 GitHub\\n\\n' + $input.first().json.text).slice(0, 3900) } }];"
+      },
+      "id": "a2091aba-ee4a-475f-884a-c0a776fe5a3d",
+      "name": "Telegram Kurulu mu? (GitHub)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "25b23b66-fbe6-45ec-bfa3-12b5d2b696b4",
+      "name": "GitHub Uyarısını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        -60
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE bildirim mail olarak gider (çift mesaj olmasın).\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nconst j = $input.first().json;\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "d016886d-5c6e-4ea6-b49d-0a1615aec2be",
+      "name": "Telegram Yoksa Mail (GitHub)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f180301b-6f23-4c42-a5d9-36dde10542c7",
+      "name": "GitHub Uyarısını Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca durum kaydı yazılır (görülen anahtarlar + son görüntü).\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { gorulen: j.gorulen, ozet: j.ozet, sonCalisma: j.sonCalisma } }];"
+      },
+      "id": "4cb819d4-ffe9-4a24-b775-f3dd5941613c",
+      "name": "GitHub Durum Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "github-durum.json"
+        }
+      },
+      "id": "bda63ee4-8bfa-4283-be2e-2afc21d4f0b9",
+      "name": "Durumu Dosyaya Çevir (GitHub)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1380,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/github-durum.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "1359d0f5-e005-4e48-acbe-07479b995d04",
+      "name": "Durumu Yaz (GitHub)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "d95158e4-3f9c-4998-a4c5-cd2659e8ea93",
+      "name": "Workflow 05'ten Çağrı (GitHub)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -60,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          160,
+          520
+        ],
+        "options": {}
+      },
+      "id": "62e7a1c5-bf85-42a9-ba22-af110160bb89",
+      "name": "Durumu Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "3be42dcf-4c1e-40f7-8633-11392994afc6",
+      "name": "Durumu Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        520
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram'dan /pr komutu gelince son taramanın tamamını özetler.\n// Yeni istek atmaz — zamanlanmış turun (en fazla 15 dk önce) yazdığını okur.\nconst cagri = $('Workflow 05\\'ten Çağrı (GitHub)').first().json || {};\nconst chat = cagri.chat_id ? String(cagri.chat_id) : '';\nif (!chat) return [];\n\nconst okuHata = $('Durumu Oku (Rapor)').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst cikarHata = $('Durumu Çıkar (Rapor)').first().json.error;\nif (okuHata || cikarHata) {\n  const dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\n  return [{ json: { chat_id: chat, text: dosyaYok\n    ? '🐙 Henüz tarama yapılmadı. Workflow 17/18 Active mi? Kurulum: cp local-files/github-durum.ornek.json local-files/github-durum.json'\n    : '🐙 github-durum.json okunamadı: ' + (okuMesaj || 'bozuk dosya') } }];\n}\n\nconst j = $input.first().json || {};\nconst durum = j.data || j || {};\nconst ozet = (durum.ozet && typeof durum.ozet === 'object') ? durum.ozet : {};\nconst sira = ['inceleme', 'ci', 'onay', 'issue', 'anma'];\n\nconst gecen = (iso) => {\n  if (!iso) return 'henüz tarama yapılmadı';\n  const dk = Math.round((Date.now() - new Date(iso).getTime()) / 60000);\n  if (!Number.isFinite(dk)) return 'bilinmiyor';\n  if (dk < 1) return 'az önce';\n  if (dk < 60) return dk + ' dk önce';\n  const sa = Math.floor(dk / 60);\n  return sa < 24 ? sa + ' sa önce' : Math.floor(sa / 24) + ' gün önce';\n};\n\nconst bolumler = [];\nlet toplam = 0;\nfor (const anahtar of sira) {\n  const b = ozet[anahtar];\n  if (!b || !Array.isArray(b.kayitlar) || b.kayitlar.length === 0) continue;\n  toplam += b.kayitlar.length;\n  bolumler.push(b.ikon + ' ' + b.ad + ' (' + b.kayitlar.length + ')');\n  for (const k of b.kayitlar.slice(0, 5)) {\n    bolumler.push('• ' + k.repo + '#' + k.no + ' — ' + k.baslik + (k.taslak ? ' (taslak)' : '') + '\\n  ' + k.url);\n  }\n  if (b.kayitlar.length > 5) bolumler.push('  …ve ' + (b.kayitlar.length - 5) + ' tane daha');\n  bolumler.push('');\n}\n\nconst text = (toplam === 0\n  ? '🐙 GitHub: sizi bekleyen bir şey yok. 🎉'\n  : '🐙 GitHub\\n\\n' + bolumler.join('\\n').trim()) + '\\n\\nSon tarama: ' + gecen(durum.sonCalisma);\n\nreturn [{ json: { chat_id: chat, text: text.slice(0, 3900) } }];"
+      },
+      "id": "72b8ca77-bb45-49da-874a-c19cd75e2caf",
+      "name": "Rapor Hazırla (GitHub)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "8166940a-761e-4de0-b7ff-48a1511385cb",
+      "name": "Raporu Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        520
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Her 15 Dakikada (GitHub)": {
+      "main": [
+        [
+          {
+            "node": "Durumu Oku (GitHub)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (GitHub)": {
+      "main": [
+        [
+          {
+            "node": "Durumu Oku (GitHub)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durumu Oku (GitHub)": {
+      "main": [
+        [
+          {
+            "node": "Durumu Çıkar (GitHub)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durumu Çıkar (GitHub)": {
+      "main": [
+        [
+          {
+            "node": "Sorguları Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sorguları Hazırla": {
+      "main": [
+        [
+          {
+            "node": "GitHub'a Sor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub'a Sor": {
+      "main": [
+        [
+          {
+            "node": "Yenileri Bul",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yenileri Bul": {
+      "main": [
+        [
+          {
+            "node": "Bildirilecek Var mı?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "GitHub Durum Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bildirilecek Var mı?": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (GitHub)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (GitHub)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Telegram Kurulu mu? (GitHub)": {
+      "main": [
+        [
+          {
+            "node": "GitHub Uyarısını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (GitHub)": {
+      "main": [
+        [
+          {
+            "node": "GitHub Uyarısını Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub Durum Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Durumu Dosyaya Çevir (GitHub)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durumu Dosyaya Çevir (GitHub)": {
+      "main": [
+        [
+          {
+            "node": "Durumu Yaz (GitHub)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (GitHub)": {
+      "main": [
+        [
+          {
+            "node": "Durumu Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durumu Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Durumu Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Durumu Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Rapor Hazırla (GitHub)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rapor Hazırla (GitHub)": {
+      "main": [
+        [
+          {
+            "node": "Raporu Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": true
+  },
+  "pinData": {}
+}

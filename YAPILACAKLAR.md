@@ -3,7 +3,7 @@
 Öncelik: 🔴 kritik · 🟡 orta · 🟢 düşük
 
 Bu depo iyi durumda: dokümantasyon doğru, çalıştırma betikleri üç platform için
-mevcut, 16 workflow hazır ve dayanıklılık düzeltmeleri birleştirildi. Kalan
+mevcut, 21 workflow hazır ve dayanıklılık düzeltmeleri birleştirildi. Kalan
 maddeler ağırlıklı olarak **doğrulama** ve **tek seferlik panel ayarları** ile
 ilgili.
 
@@ -28,8 +28,8 @@ güncellenmez.
 
 ## N2 🟡 Hiçbir workflow uçtan uca çalıştırılarak doğrulanmadı
 
-**Durum.** Docker bu ortamda çalışmadığı için n8n hiç başlatılmadı. 16
-workflow'un JSON'u ayrıştırıldı ve Code düğümlerinin mantığı 42 testle
+**Durum.** Docker bu ortamda çalışmadığı için n8n hiç başlatılmadı. 21
+workflow'un JSON'u ayrıştırıldı ve Code düğümlerinin mantığı 113 testle
 denendi (`node testler/kod-testleri.js` — hepsi geçiyor), ama **hiçbir
 workflow gerçekten çalıştırılmadı**: e-posta gönderilmedi, Telegram'a mesaj
 düşmedi, hiçbir sayfa indirilmedi.
@@ -69,6 +69,16 @@ API'si, zamanlayıcılar, n8n'in kendi düğüm davranışları.
       klasörü oluşmalı
 - [ ] **Workflow 16 (sayfa takibi)** — ilk tur sessiz; sayfayı değiştirip (ya da
       `sayfa-takibi.json` içindeki `sonIz` alanını silip) ikinci turu deneyin
+- [ ] **Workflow 20 (araç kutusu)** — en kolayı, hiçbir kurulum istemez:
+      `curl 'http://localhost:5678/webhook/arac?islem=uuid'`
+- [ ] **Workflow 19 (kod kasası)** — bir parçacık kaydedip `?ara=` ile arayın
+- [ ] **Workflow 21 (webhook yakalayıcı)** — `/webhook/yakala` adresine bir
+      istek atıp `/webhook/istekler` ile bakın; başlıkların maskelendiğini
+      doğrulayın
+- [ ] **Workflow 17 (servis nöbetçisi)** — `servisler.json` içine çalışan bir
+      adres + bilerek bozuk bir adres yazın, `esik: 1` yapıp **Elle Test Et**
+- [ ] **Workflow 18 (GitHub nöbetçisi)** — `.env` içine `GITHUB_TOKEN` yazın,
+      **iki kez** çalıştırın (ilk tur bilerek sessizdir)
 
 Her birinin sonucunu bu dosyaya not edin; hangisinin gerçekten çalıştığı
 şu anda **hiçbir yerde yazılı değil.**
@@ -153,6 +163,11 @@ ekleyin:
 | 14 RSS haber özeti | ⬜ | | |
 | 15 Otomatik yedekleme | ⬜ | | |
 | 16 Sayfa takibi | ⬜ | | |
+| 17 Servis nöbetçisi | ⬜ | | |
+| 18 GitHub nöbetçisi | ⬜ | | |
+| 19 Kod parçacığı kasası | ⬜ | | |
+| 20 Geliştirici araç kutusu | ⬜ | | |
+| 21 Webhook yakalayıcı | ⬜ | | |
 
 Altı ay sonra "bu çalışıyor muydu?" diye düşünmemek için.
 
@@ -160,7 +175,7 @@ Altı ay sonra "bu çalışıyor muydu?" diye düşünmemek için.
 
 ## N7 🟡 Yeni workflow'ların tek seferlik ayarları
 
-16 workflow'un üçü, içe aktarmanın ötesinde panelde birer ayar ister.
+21 workflow'un birkaçı, içe aktarmanın ötesinde panelde birer ayar ister.
 Atlanırsa **sessizce** çalışmazlar:
 
 - [ ] **Workflow 11 (hata nöbetçisi)** — kullandığınız her workflow'da
@@ -173,6 +188,12 @@ Atlanırsa **sessizce** çalışmazlar:
 - [ ] **Workflow 15 (yedekleme)** — workflow'ların kendisini de yedeklemek
       isterseniz panelden bir API anahtarı üretip `.env` içine
       `N8N_API_KEY=...` yazın (README §10.2). İsteğe bağlıdır.
+- [ ] **Workflow 05 → 17/18/19/20/21 bağlantısı** — `/servis`, `/pr`, `/kod`,
+      `/arac` ve `/istekler` komutları için workflow 05'teki beş yeni
+      *… Workflow'una İlet* düğümünde hedefi seçin (README §13.6).
+      Seçilmeyenin yalnızca kendi komutu çalışmaz.
+- [ ] **Workflow 18 için token** — `.env` içine okuma yetkili `GITHUB_TOKEN`
+      yazıp `docker compose up -d`. Boş bırakılırsa workflow sessizce durur.
 
 ---
 

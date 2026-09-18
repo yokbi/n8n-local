@@ -1,0 +1,611 @@
+{
+  "name": "21 — Webhook Yakalayıcı (İstek Aynası)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🪤 Webhook yakalayıcı — kendi \"request bin\"iniz\n\nBir servisin (ya da yazdığınız uygulamanın) gönderdiği isteği\n**gerçekte nasıl gönderdiğini** görün: yöntem, başlıklar, sorgu\nparametreleri, gövde. Dışarıdaki request-bin sitelerinin aksine\nveri sizin makinenizde kalır.\n\n### Kurulum\n1. `cp local-files/yakalanan-istekler.ornek.json local-files/yakalanan-istekler.json`\n2. Workflow'u **Active** yapın. (Credential gerekmez.)\n\n### Kullanım\nTest edeceğiniz uygulamaya şu adresi verin:\n```\nhttp://localhost:5678/webhook/yakala\n```\n```bash\n# Gönderin (POST ya da GET)\ncurl -X POST 'http://localhost:5678/webhook/yakala?etiket=stripe' \\\n  -H 'X-Imza: abc' -d '{\"olay\":\"odeme.basarili\"}'\n\n# Yakalananları görün\ncurl 'http://localhost:5678/webhook/istekler?adet=5'\ncurl 'http://localhost:5678/webhook/istekler?id=3'\n```\n`?etiket=...` ile isteği adlandırın, `?kod=500` ile yanıt kodunu\nseçin (hata yolunu denemek için).\n\n### iPhone — Telegram (workflow 05)\n```\n/istekler      → son 5 isteğin özeti\n/istek 3       → #3'ün tüm ayrıntısı\n/istektemizle  → listeyi boşaltır\n```",
+        "width": 540,
+        "height": 900
+      },
+      "id": "76536f70-7e4a-4f7e-b871-c2c6c8c67903",
+      "name": "Not a551f",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -780,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- **Gizli başlıklar maskelenir**: `Authorization`, `Cookie`,\n  `X-Api-Key` ve içinde `token`/`secret`/`password` geçen başlıklar\n  ilk 6 karakter dışında saklanır. Böylece telefona düşen ayrıntıda\n  gerçek anahtarınız görünmez.\n- Son **50** istek tutulur; eskisi kendiliğinden düşer.\n  Gövde 4 000 karakterde kırpılır.\n- Yanıt kodu `?kod=500` ile seçilebilir (100–599) — gönderen tarafın\n  hata yolunu denemek için.\n- Dosya bozuksa yeni istek yazılmaz; workflow **durur** ve önceki\n  kayıtlar korunur.\n- Bu uç **kimlik doğrulaması istemez**. Panel yalnızca `127.0.0.1`'e\n  bağlıyken sorun değildir; LAN'a açtıysanız (README §6) yalnızca\n  ev ağınızda kullanın.",
+        "width": 540,
+        "height": 360
+      },
+      "id": "98a95eb7-eb35-4d3e-95ac-182ad4216801",
+      "name": "Not cc797",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -780,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "yakala",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "42e2fd2e-9578-437f-b332-bbd57edb2202",
+      "name": "İstek Yakala (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -100,
+        -40
+      ],
+      "webhookId": "d165aabf-0f80-4eb4-8a46-95136af0d419"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "yakala",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "498064e6-198d-467c-86aa-7b702f2f6bc9",
+      "name": "İstek Yakala (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -100,
+        140
+      ],
+      "webhookId": "42e2fc2c-23ed-4d56-a190-28cd89853a53"
+    },
+    {
+      "parameters": {
+        "jsCode": "// İki webhook da buradan geçer. Başlıklar maskelenir, gövde kırpılır.\nconst j = $input.first().json || {};\n\nlet yontem = String(j.method || '').toUpperCase();\nif (!yontem) {\n  try { yontem = $('İstek Yakala (GET)').first() ? 'GET' : 'POST'; } catch (e) { yontem = 'POST'; }\n}\n\nconst basliklar = j.headers || {};\nconst sorgu = j.query || {};\n\n// Gizli bilgi taşıyan başlıklar telefona düşmesin diye maskelenir.\nconst GIZLI = /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token)$/i;\nconst gizliGibi = /(token|secret|password|api[-_]?key|signature|imza)/i;\nconst maske = (deger) => {\n  const s = String(deger);\n  return s.length <= 6 ? '***' : s.slice(0, 6) + '… (' + s.length + ' karakter, gizlendi)';\n};\nconst temizBasliklar = {};\nlet sayac = 0;\nfor (const [ad, deger] of Object.entries(basliklar)) {\n  if (sayac++ >= 40) break;\n  temizBasliklar[ad] = (GIZLI.test(ad) || gizliGibi.test(ad)) ? maske(deger) : String(deger).slice(0, 300);\n}\n\nconst hamGovde = j.body;\nlet govde = '';\nlet govdeTipi = 'yok';\nif (typeof hamGovde === 'string') {\n  govde = hamGovde;\n  govdeTipi = 'metin';\n} else if (hamGovde && typeof hamGovde === 'object' && Object.keys(hamGovde).length) {\n  govde = JSON.stringify(hamGovde, null, 2);\n  govdeTipi = 'json';\n}\nconst boyut = govde.length;\nif (govde.length > 4000) govde = govde.slice(0, 4000) + '\\n… (kırpıldı)';\n\nconst kod = Math.min(599, Math.max(100, Number(sorgu.kod) || 200));\n\nreturn [{ json: {\n  yontem,\n  etiket: String(sorgu.etiket || '').slice(0, 40),\n  sorgu,\n  basliklar: temizBasliklar,\n  govde,\n  govdeTipi,\n  boyut,\n  kod,\n  ip: String(basliklar['x-forwarded-for'] || basliklar['x-real-ip'] || '').split(',')[0].trim(),\n  icerikTipi: String(basliklar['content-type'] || ''),\n} }];"
+      },
+      "id": "755f39d2-58ff-4abb-aab4-33e9ccb7fd52",
+      "name": "Gelen İsteği Al",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        140,
+        50
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          340,
+          50
+        ],
+        "options": {}
+      },
+      "id": "db21d9d3-9347-4324-9eb3-2401be13ef7b",
+      "name": "Yakalananları Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "b3feda81-42dc-4ef1-a742-70dc6561cb46",
+      "name": "Yakalananları Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        540,
+        50
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yakalanan isteği listeye ekler (son 50 tutulur).\n// Okuma zinciri hata verdiyse: dosya bozuk/erişilemez ise çalışma durdurulur —\n// aksi hâlde liste boş sanılıp üzerine yazılır ve eski kayıtlar kaybolur.\nconst okuHata = $('Yakalananları Oku').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Yakalananları Çıkar').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('yakalanan-istekler.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\n\nconst gelen = $('Gelen İsteği Al').first().json;\nconst okunan = $input.first().json || {};\nconst ham = (okunan.data && okunan.data.istekler) || okunan.istekler || [];\nconst oncekiler = Array.isArray(ham) ? ham : [];\n\nconst id = oncekiler.reduce((mx, x) => Math.max(mx, Number(x.id) || 0), 0) + 1;\nconst kayit = {\n  id,\n  zaman: new Date().toISOString(),\n  yontem: gelen.yontem,\n  etiket: gelen.etiket,\n  icerikTipi: gelen.icerikTipi,\n  sorgu: gelen.sorgu,\n  basliklar: gelen.basliklar,\n  govdeTipi: gelen.govdeTipi,\n  boyut: gelen.boyut,\n  govde: gelen.govde,\n  ip: gelen.ip,\n};\n\nconst istekler = [...oncekiler, kayit].slice(-50);\nreturn [{ json: { istekler, kayit, id, kod: gelen.kod, yazilsin: true } }];"
+      },
+      "id": "ca5bd29b-de05-4cfe-9d8c-40fe96c6c908",
+      "name": "İsteği Kaydet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        50
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca istek listesi yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { istekler: j.istekler } }];"
+      },
+      "id": "166051a2-d02d-494a-ac14-f871c1be0fcf",
+      "name": "Yakalanan Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "yakalanan-istekler.json"
+        }
+      },
+      "id": "25dca6e8-95c6-4293-8f76-afae02136ab4",
+      "name": "İstekleri Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1160,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/yakalanan-istekler.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "bf259d50-ee46-4006-b6aa-9f436f376e61",
+      "name": "İstekleri Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, id: $json.id, zaman: $json.kayit.zaman, mesaj: 'yakalandı — /webhook/istekler ile bakabilirsiniz' }) }}",
+        "options": {
+          "responseCode": "={{ $json.kod }}"
+        }
+      },
+      "id": "391dc815-e4ea-4f15-a895-e6a69fe0aa13",
+      "name": "Yanıt Ver (Yakala)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "istekler",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "44fe83e9-d640-4014-af3e-60d6e8d5b998",
+      "name": "İstek Listesi (Webhook GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -100,
+        360
+      ],
+      "webhookId": "c40315b6-eaa8-449a-a429-5f97e133a4b2"
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          140,
+          360
+        ],
+        "options": {}
+      },
+      "id": "0d0d7189-d6c6-4ba0-b295-81f3e6f38861",
+      "name": "Yakalananları Oku (Liste)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "907aef38-7c87-4002-9bcf-71dfcba997ea",
+      "name": "Yakalananları Çıkar (Liste)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        340,
+        360
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// GET /webhook/istekler — yakalananları JSON olarak verir.\n//   ?adet=5   → son 5 kayıt (varsayılan 10)\n//   ?id=3     → tek kayıt (tüm ayrıntısıyla)\n//   ?etiket=stripe → yalnızca o etiketli kayıtlar\nconst sorgu = $('İstek Listesi (Webhook GET)').first().json.query || {};\nconst okuHata = $('Yakalananları Oku (Liste)').first().json.error;\nconst cikarHata = $('Yakalananları Çıkar (Liste)').first().json.error;\nif (okuHata || cikarHata) {\n  const m = String((okuHata && (okuHata.message || okuHata)) || (cikarHata && (cikarHata.message || cikarHata)));\n  return [{ json: { govde: { hata: /ENOENT|no such file/i.test(m)\n    ? 'yakalanan-istekler.json yok — cp local-files/yakalanan-istekler.ornek.json local-files/yakalanan-istekler.json'\n    : 'yakalanan-istekler.json okunamadı: ' + m } } }];\n}\n\nconst j = $input.first().json || {};\nconst ham = (j.data && j.data.istekler) || j.istekler || [];\nconst istekler = Array.isArray(ham) ? ham : [];\n\nconst id = Number(sorgu.id) || 0;\nif (id) {\n  const k = istekler.find((x) => Number(x.id) === id);\n  return [{ json: { govde: k || { hata: '#' + id + ' bulunamadı' } } }];\n}\n\nconst etiket = String(sorgu.etiket || '').trim();\nconst adet = Math.min(50, Math.max(1, Number(sorgu.adet) || 10));\nconst suzulmus = etiket ? istekler.filter((x) => String(x.etiket || '') === etiket) : istekler;\nreturn [{ json: { govde: suzulmus.slice(-adet).reverse() } }];"
+      },
+      "id": "ed88839f-c113-4951-80e3-13020c28623c",
+      "name": "Listeyi Süz (İstek)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.govde) }}",
+        "options": {}
+      },
+      "id": "799da7a2-4051-4473-92dd-793fe2c7f92a",
+      "name": "Listeyi Yanıtla (İstek)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "11ad44d0-ac00-4001-8b10-48f97af147d9",
+      "name": "Workflow 05'ten Çağrı (İstek)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -100,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": [
+          140,
+          600
+        ],
+        "options": {}
+      },
+      "id": "4635dd09-2cf5-4797-a088-a7fb2616f8ed",
+      "name": "Yakalananları Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        "/",
+        "f"
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "e9e66d66-9d59-449f-bfe9-24530624598b",
+      "name": "Yakalananları Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        340,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram komutları: /istekler (son 5) · /istek <no> (ayrıntı) · /istektemizle\nconst cagri = $('Workflow 05\\'ten Çağrı (İstek)').first().json || {};\nconst chat = cagri.chat_id ? String(cagri.chat_id) : '';\nif (!chat) return [];\n\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst okuHata = $('Yakalananları Oku (Rapor)').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst cikarHata = $('Yakalananları Çıkar (Rapor)').first().json.error;\nif (okuHata || cikarHata) {\n  const dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\n  return [{ json: { chat_id: chat, yazilsin: false, istekler: [], text: dosyaYok\n    ? '🪤 Henüz istek yakalanmadı. Kurulum: cp local-files/yakalanan-istekler.ornek.json local-files/yakalanan-istekler.json'\n    : '🪤 yakalanan-istekler.json okunamadı: ' + (okuMesaj || 'bozuk dosya') } }];\n}\n\nconst j = $input.first().json || {};\nconst ham = (j.data && j.data.istekler) || j.istekler || [];\nconst istekler = Array.isArray(ham) ? ham : [];\nconst komut = String(cagri.komut || 'liste').toLowerCase();\nconst saat = (iso) => {\n  const d = new Date(iso);\n  return isNaN(d.getTime()) ? '??:??' : d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });\n};\n\nif (komut === 'temizle') {\n  return [{ json: {\n    chat_id: chat,\n    yazilsin: true,\n    istekler: [],\n    text: '🪤 ' + istekler.length + ' kayıt silindi. Yakalayıcı boş.',\n  } }];\n}\n\nif (komut === 'detay') {\n  const id = Number(cagri.id) || 0;\n  const k = istekler.find((x) => Number(x.id) === id);\n  if (!k) {\n    return [{ json: { chat_id: chat, yazilsin: false, istekler, text: '#' + id + ' bulunamadı. /istekler ile bakın.' } }];\n  }\n  const basliklar = Object.entries(k.basliklar || {}).map(([a, d]) => a + ': ' + d).join('\\n');\n  const sorgu = Object.entries(k.sorgu || {}).map(([a, d]) => a + '=' + d).join('&');\n  const govde = k.govde || '(gövde yok)';\n  const metin = [\n    '#' + k.id + ' ' + k.yontem + (k.etiket ? ' [' + k.etiket + ']' : '') + ' — ' + saat(k.zaman),\n    sorgu ? 'Sorgu: ' + sorgu : '',\n    k.ip ? 'IP: ' + k.ip : '',\n    '',\n    'Başlıklar:',\n    basliklar || '(yok)',\n    '',\n    'Gövde (' + k.govdeTipi + ', ' + k.boyut + ' karakter):',\n    govde,\n  ].filter((x) => x !== '').join('\\n');\n  return [{ json: { chat_id: chat, yazilsin: false, istekler, text: '<pre>' + esc(metin.slice(0, 3500)) + '</pre>' } }];\n}\n\nif (istekler.length === 0) {\n  return [{ json: { chat_id: chat, yazilsin: false, istekler, text:\n    '🪤 Henüz istek yakalanmadı.\\nTest için: curl -X POST http://localhost:5678/webhook/yakala -d \\'{\"a\":1}\\'' } }];\n}\nconst son = istekler.slice(-5).reverse();\nconst satirlar = son.map((k) => '#' + k.id + ' ' + saat(k.zaman) + ' ' + k.yontem +\n  (k.etiket ? ' [' + k.etiket + ']' : '') + ' — ' + k.govdeTipi + ', ' + k.boyut + ' karakter');\nreturn [{ json: {\n  chat_id: chat,\n  yazilsin: false,\n  istekler,\n  text: esc('🪤 Son ' + son.length + ' istek (toplam ' + istekler.length + '):\\n' + satirlar.join('\\n') +\n    '\\n\\nAyrıntı için: /istek <numara>'),\n} }];"
+      },
+      "id": "01bbb9c2-5189-4be1-9844-a1caafd529c7",
+      "name": "İstek Raporu",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text, parse_mode: 'HTML' }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "1762ac5b-34b3-407a-bc6a-ca91858d1bbc",
+      "name": "İstek Raporunu Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        520
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca istek listesi yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { istekler: j.istekler } }];"
+      },
+      "id": "cbbf07cd-83cd-4509-ae6b-4d5ba696d8f6",
+      "name": "Temizleme Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "yakalanan-istekler.json"
+        }
+      },
+      "id": "ef64487b-68ba-4f53-9499-af83f8aa0290",
+      "name": "İstekleri Dosyaya Çevir (Temizlik)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/yakalanan-istekler.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "a682b756-2f55-4221-895e-2fa0a979ef49",
+      "name": "İstekleri Yaz (Temizlik)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        700
+      ]
+    }
+  ],
+  "connections": {
+    "İstek Yakala (POST)": {
+      "main": [
+        [
+          {
+            "node": "Gelen İsteği Al",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İstek Yakala (GET)": {
+      "main": [
+        [
+          {
+            "node": "Gelen İsteği Al",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gelen İsteği Al": {
+      "main": [
+        [
+          {
+            "node": "Yakalananları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yakalananları Oku": {
+      "main": [
+        [
+          {
+            "node": "Yakalananları Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yakalananları Çıkar": {
+      "main": [
+        [
+          {
+            "node": "İsteği Kaydet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İsteği Kaydet": {
+      "main": [
+        [
+          {
+            "node": "Yakalanan Gövdesi",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Yanıt Ver (Yakala)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yakalanan Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "İstekleri Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İstekleri Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "İstekleri Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İstek Listesi (Webhook GET)": {
+      "main": [
+        [
+          {
+            "node": "Yakalananları Oku (Liste)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yakalananları Oku (Liste)": {
+      "main": [
+        [
+          {
+            "node": "Yakalananları Çıkar (Liste)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yakalananları Çıkar (Liste)": {
+      "main": [
+        [
+          {
+            "node": "Listeyi Süz (İstek)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listeyi Süz (İstek)": {
+      "main": [
+        [
+          {
+            "node": "Listeyi Yanıtla (İstek)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (İstek)": {
+      "main": [
+        [
+          {
+            "node": "Yakalananları Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yakalananları Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Yakalananları Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yakalananları Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "İstek Raporu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İstek Raporu": {
+      "main": [
+        [
+          {
+            "node": "İstek Raporunu Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Temizleme Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Temizleme Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "İstekleri Dosyaya Çevir (Temizlik)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İstekleri Dosyaya Çevir (Temizlik)": {
+      "main": [
+        [
+          {
+            "node": "İstekleri Yaz (Temizlik)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

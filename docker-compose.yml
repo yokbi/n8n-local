@@ -59,6 +59,10 @@ services:
       - RSS_AI_OZET=${RSS_AI_OZET:-}
       # Workflow yedeği (workflow 15) için n8n panel API anahtarı — isteğe bağlı.
       - N8N_API_KEY=${N8N_API_KEY:-}
+      # GitHub nöbetçisi (workflow 18) — okuma yetkili token, isteğe bağlı.
+      # Boş bırakılırsa workflow 18 sessizce devre dışı kalır.
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_KULLANICI=${GITHUB_KULLANICI:-}
       # LAN'dan http ile (IP adresiyle) erişecekseniz şu satırı açın:
       # - N8N_SECURE_COOKIE=false
     volumes:
