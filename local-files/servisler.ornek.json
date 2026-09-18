@@ -1,0 +1,20 @@
+{
+  "servisler": [
+    {
+      "ad": "Örnek site — beni kendi adresinizle değiştirin",
+      "url": "https://www.example.com",
+      "yontem": "GET",
+      "beklenenKod": 200,
+      "icerir": "",
+      "zamanAsimi": 15000,
+      "esik": 2,
+      "sonDurum": null,
+      "sonKod": null,
+      "sonHata": null,
+      "sonKontrol": null,
+      "ardArda": 0,
+      "ilkHata": null,
+      "uyarildi": false
+    }
+  ]
+}

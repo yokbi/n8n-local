@@ -71,10 +71,14 @@ if not exist ".env" (
 )
 
 REM ── 5) local-files ornek veri dosyalari ────────────────────────────────
-for %%F in (gorevler fiyat-takibi harcamalar notlar) do (
-  if exist "local-files\%%F.ornek.json" if not exist "local-files\%%F.json" (
-    copy /Y "local-files\%%F.ornek.json" "local-files\%%F.json" >nul
-    echo [bilgi] local-files\%%F.json olusturuldu ^(ornek veriden^).
+REM Her ".ornek.json" icin karsiligi yoksa bir calisma kopyasi olusturulur.
+REM (Liste elle yazilmaz: yeni workflow'larin dosyalari da kendiliginden gelir.)
+for %%F in ("local-files\*.ornek.json") do (
+  set "ORNEK=%%~nxF"
+  set "HEDEF=!ORNEK:.ornek.json=.json!"
+  if not exist "local-files\!HEDEF!" (
+    copy /Y "local-files\!ORNEK!" "local-files\!HEDEF!" >nul
+    echo [bilgi] local-files\!HEDEF! olusturuldu ^(ornek veriden^).
   )
 )
 

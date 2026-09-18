@@ -1,0 +1,258 @@
+{
+  "name": "20 — Geliştirici Araç Kutusu",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🧰 Geliştirici araç kutusu — internetsiz, tamamen yerel\n\nTelefonda base64 çözmek ya da JWT'nin içine bakmak için artık\n\"online decoder\" sitelerine gitmeyin: **veri makinenizden çıkmaz.**\n\n| İşlem | Ne yapar |\n|---|---|\n| `uuid` | UUID v4 üretir |\n| `b64 <metin>` | base64 kodlar/çözer (kendi anlar) |\n| `jwt <token>` | JWT'yi açar, süresi geçmiş mi söyler |\n| `zaman [değer]` | epoch ↔ ISO ↔ yerel saat |\n| `json <metin>` | doğrular + düzgün biçimlendirir |\n| `sha256 <metin>` | SHA-256 özeti |\n| `parola [uzunluk]` | rastgele parola |\n| `url <metin>` | yüzde kodlaması (encode/decode) |\n| `cron <ifade>` | Türkçe açıklar + sonraki 3 çalışma |\n| `slug <metin>` | Türkçe karakterli başlığı URL'ye çevirir |\n| `hex <sayı>` | onluk ↔ onaltılık ↔ ikilik |\n\n### Kurulum\nWorkflow'u **Active** yapın. Başka hiçbir şey gerekmez —\ndosya, credential, internet yok.\n\n### Nereden kullanılır\n- **iPhone / Telegram:** `/arac jwt eyJhbGciOi...` · `/arac uuid`\n- **Mac / Windows terminal:**\n```bash\ncurl 'http://localhost:5678/webhook/arac?islem=uuid'\ncurl -X POST http://localhost:5678/webhook/arac \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"islem\":\"jwt\",\"veri\":\"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.x\"}'\n```\n- **Tarayıcı:** adres çubuğuna\n  `localhost:5678/webhook/arac?islem=zaman&veri=1735689600`",
+        "width": 540,
+        "height": 980
+      },
+      "id": "fe380fc3-f231-45db-82e0-12e71486fb0e",
+      "name": "Not d4557",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- Tüm işlemler **saf JavaScript** ile yapılır: dış kütüphane, dış\n  servis ve dosya yok. Girdiğiniz veri hiçbir yere yazılmaz.\n- `jwt` **imzayı doğrulamaz** — yalnızca içeriği okunur hâle getirir.\n  (Doğrulama için gizli anahtar gerekir; burada bilerek yok.)\n- `parola` mümkünse `crypto.getRandomValues` kullanır; yoksa\n  `Math.random`'a düşer ve çıktı bunu **açıkça söyler**. Üretim sırları\n  için `openssl rand -base64 24` tercih edin.\n- `cron` sonraki çalışma saatlerini **konteynerin saat diliminde**\n  (`GENERIC_TIMEZONE`) hesaplar.\n- Yanıt Telegram'a `<pre>` bloğu olarak gider; uzun çıktılar 3 900\n  karakterde kırpılır.",
+        "width": 540,
+        "height": 320
+      },
+      "id": "c95c97cb-791a-482c-924f-f4366c980fba",
+      "name": "Not b2bce",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        740
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "arac",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1f2006ac-709f-45d1-8d80-d05d19d0bd6a",
+      "name": "Araç İsteği (Webhook POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -60
+      ],
+      "webhookId": "24cfb46c-a7ed-4165-aa17-f5ec7420fd09"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "arac",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "2cc30d06-3378-4674-84a8-24680065b573",
+      "name": "Araç İsteği (Webhook GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        120
+      ],
+      "webhookId": "9c39e0b3-0196-4bd0-b3bd-57972071c18a"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "641f8189-f4b3-4dd5-b66f-7e65a3abc7fc",
+      "name": "Workflow 05'ten Çağrı (Araç)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Üç giriş de buradan geçer:\n//  • POST webhook'ta alanlar \"body\" içinde,\n//  • GET webhook'ta \"query\" içinde,\n//  • workflow 05'in /arac komutunda doğrudan gelir.\nconst j = $input.first().json || {};\nconst webhooktan = Object.prototype.hasOwnProperty.call(j, 'body') || Object.prototype.hasOwnProperty.call(j, 'query');\nconst govde = Object.keys(j.body || {}).length ? j.body : (Object.keys(j.query || {}).length ? j.query : j);\n\nlet islem = String(govde.islem || govde.komut || '').trim().toLowerCase();\nlet veri = govde.veri !== undefined ? String(govde.veri) : String(govde.metin || '');\n\n// Telegram tek metin yollar: \"/arac jwt eyJ...\" → islem = jwt, veri = eyJ...\nif (!islem && veri) {\n  const ilk = veri.trim().split(/\\s+/)[0].toLowerCase();\n  islem = ilk;\n  veri = veri.trim().slice(ilk.length).trim();\n}\n\nreturn [{ json: {\n  islem: islem.replace(/^\\//, ''),\n  veri,\n  chat_id: govde.chat_id ? String(govde.chat_id) : '',\n  webhooktan,\n} }];"
+      },
+      "id": "d26765ce-c4a8-4a8f-8ba7-eb720c0c0f0f",
+      "name": "İsteği Al (Araç)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Geliştirici araç kutusu — hepsi saf JavaScript, dış bağımlılık yok.\nconst istek = $input.first().json || {};\nconst islem = String(istek.islem || '').toLowerCase();\nconst veri = String(istek.veri || '');\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\n\n// ── UTF-8 ve base64 (Buffer/atob'a güvenmeden) ───────────────────────────────\nconst ALFABE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\nconst baytlar = (s) => {\n  const out = [];\n  for (const ch of String(s)) {\n    const cp = ch.codePointAt(0);\n    if (cp < 0x80) out.push(cp);\n    else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));\n    else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));\n    else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));\n  }\n  return out;\n};\nconst metne = (b) => {\n  let s = '';\n  for (let i = 0; i < b.length;) {\n    const c = b[i++];\n    if (c < 0x80) s += String.fromCodePoint(c);\n    else if (c < 0xe0) s += String.fromCodePoint(((c & 31) << 6) | (b[i++] & 63));\n    else if (c < 0xf0) s += String.fromCodePoint(((c & 15) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63));\n    else s += String.fromCodePoint(((c & 7) << 18) | ((b[i++] & 63) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63));\n  }\n  return s;\n};\nconst b64Kodla = (s) => {\n  const b = baytlar(s);\n  let out = '';\n  for (let i = 0; i < b.length; i += 3) {\n    const n = (b[i] << 16) | ((b[i + 1] || 0) << 8) | (b[i + 2] || 0);\n    out += ALFABE[(n >> 18) & 63] + ALFABE[(n >> 12) & 63] +\n      (i + 1 < b.length ? ALFABE[(n >> 6) & 63] : '=') +\n      (i + 2 < b.length ? ALFABE[n & 63] : '=');\n  }\n  return out;\n};\nconst b64Coz = (s) => {\n  const t = String(s).replace(/-/g, '+').replace(/_/g, '/').replace(/[^A-Za-z0-9+/]/g, '');\n  const b = [];\n  for (let i = 0; i < t.length; i += 4) {\n    const n = (ALFABE.indexOf(t[i]) << 18) | (ALFABE.indexOf(t[i + 1]) << 12) |\n      ((ALFABE.indexOf(t[i + 2]) & 63) << 6) | (ALFABE.indexOf(t[i + 3]) & 63);\n    b.push((n >> 16) & 255);\n    if (t[i + 2] !== undefined) b.push((n >> 8) & 255);\n    if (t[i + 3] !== undefined) b.push(n & 255);\n  }\n  return metne(b);\n};\n\n// ── SHA-256 (RFC 6234) ──────────────────────────────────────────────────────\nconst sha256 = (mesaj) => {\n  const K = [\n    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,\n    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,\n    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,\n    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,\n    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,\n    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,\n    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,\n    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];\n  const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];\n  const b = baytlar(mesaj);\n  const bitUzunluk = b.length * 8;\n  b.push(0x80);\n  while (b.length % 64 !== 56) b.push(0);\n  for (let i = 7; i >= 0; i--) b.push(Math.floor(bitUzunluk / Math.pow(2, i * 8)) & 255);\n\n  const don = (x, n) => (x >>> n) | (x << (32 - n));\n  const w = new Array(64);\n  for (let i = 0; i < b.length; i += 64) {\n    for (let t = 0; t < 16; t++) {\n      w[t] = (b[i + t * 4] << 24) | (b[i + t * 4 + 1] << 16) | (b[i + t * 4 + 2] << 8) | b[i + t * 4 + 3];\n    }\n    for (let t = 16; t < 64; t++) {\n      const s0 = don(w[t - 15], 7) ^ don(w[t - 15], 18) ^ (w[t - 15] >>> 3);\n      const s1 = don(w[t - 2], 17) ^ don(w[t - 2], 19) ^ (w[t - 2] >>> 10);\n      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0;\n    }\n    let [a, bb, c, d, e, f, g, h] = H;\n    for (let t = 0; t < 64; t++) {\n      const S1 = don(e, 6) ^ don(e, 11) ^ don(e, 25);\n      const ch = (e & f) ^ (~e & g);\n      const t1 = (h + S1 + ch + K[t] + w[t]) | 0;\n      const S0 = don(a, 2) ^ don(a, 13) ^ don(a, 22);\n      const maj = (a & bb) ^ (a & c) ^ (bb & c);\n      const t2 = (S0 + maj) | 0;\n      h = g; g = f; f = e; e = (d + t1) | 0;\n      d = c; c = bb; bb = a; a = (t1 + t2) | 0;\n    }\n    const yeni = [a, bb, c, d, e, f, g, h];\n    for (let t = 0; t < 8; t++) H[t] = (H[t] + yeni[t]) | 0;\n  }\n  return H.map((x) => (x >>> 0).toString(16).padStart(8, '0')).join('');\n};\n\n// ── Rastgelelik ─────────────────────────────────────────────────────────────\nconst rastgeleBaytlar = (n) => {\n  try {\n    if (typeof globalThis !== 'undefined' && globalThis.crypto && globalThis.crypto.getRandomValues) {\n      const a = new Uint8Array(n);\n      globalThis.crypto.getRandomValues(a);\n      return { bayt: Array.from(a), guclu: true };\n    }\n  } catch (e) { /* sandbox izin vermiyorsa Math.random'a düşülür */ }\n  return { bayt: Array.from({ length: n }, () => Math.floor(Math.random() * 256)), guclu: false };\n};\n\nconst trSaat = (d) => d.toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' });\nconst gorece = (ms) => {\n  const fark = Math.round((ms - Date.now()) / 1000);\n  const mutlak = Math.abs(fark);\n  const birim = mutlak < 60 ? [mutlak, 'saniye'] : mutlak < 3600 ? [Math.round(mutlak / 60), 'dakika']\n    : mutlak < 86400 ? [Math.round(mutlak / 3600), 'saat'] : [Math.round(mutlak / 86400), 'gün'];\n  return fark >= 0 ? birim[0] + ' ' + birim[1] + ' sonra' : birim[0] + ' ' + birim[1] + ' önce';\n};\n\n// ── cron ────────────────────────────────────────────────────────────────────\nconst GUN_ADI = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];\nconst AY_ADI = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];\nconst alanCoz = (ifade, enAz, enCok, ad) => {\n  const kume = new Set();\n  for (const parca of String(ifade).split(',')) {\n    const m = parca.match(/^(\\*|\\d+)(?:-(\\d+))?(?:\\/(\\d+))?$/);\n    if (!m) throw new Error(ad + ' alanı anlaşılamadı: \"' + parca + '\"');\n    const adim = m[3] ? Number(m[3]) : 1;\n    if (adim < 1) throw new Error(ad + ' alanında adım 0 olamaz.');\n    let bas = m[1] === '*' ? enAz : Number(m[1]);\n    let son = m[1] === '*' ? enCok : (m[2] !== undefined ? Number(m[2]) : (m[3] ? enCok : Number(m[1])));\n    if (bas < enAz || son > enCok || bas > son) throw new Error(ad + ' alanı ' + enAz + '-' + enCok + ' aralığında olmalı.');\n    for (let v = bas; v <= son; v += adim) kume.add(v);\n  }\n  return kume;\n};\nconst alanAnlat = (ifade, tekil, cogul, bicim) => {\n  if (ifade === '*') return '';\n  const m = String(ifade).match(/^\\*\\/(\\d+)$/);\n  if (m) return 'her ' + m[1] + ' ' + cogul + 'de bir';\n  const araM = String(ifade).match(/^(\\d+)-(\\d+)$/);\n  if (araM) {\n    const ad = (n) => (bicim ? bicim(Number(n)) : n);\n    return ad(araM[1]) + '-' + ad(araM[2]) + ' ' + tekil + ' arası';\n  }\n  return String(ifade).split(',').map((x) => (bicim ? bicim(Number(x)) : x)).join(', ') + ' ' + tekil;\n};\n\nlet sonuc = '';\nlet basarili = true;\n\ntry {\n  if (islem === 'uuid') {\n    const { bayt, guclu } = rastgeleBaytlar(16);\n    bayt[6] = (bayt[6] & 0x0f) | 0x40;\n    bayt[8] = (bayt[8] & 0x3f) | 0x80;\n    const h = bayt.map((x) => x.toString(16).padStart(2, '0')).join('');\n    const uuid = [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20)].join('-');\n    sonuc = uuid + '\\n\\nKısa kimlik: ' + h.slice(0, 12) +\n      (guclu ? '' : '\\n(Math.random ile üretildi — sır olarak kullanmayın.)');\n  } else if (islem === 'b64' || islem === 'base64') {\n    if (!veri) throw new Error('Kullanım: b64 <metin>');\n    const b64Gibi = /^[A-Za-z0-9+/_-]+={0,2}$/.test(veri.replace(/\\s+/g, '')) && veri.replace(/\\s+/g, '').length % 4 === 0;\n    if (b64Gibi) {\n      const cozulen = b64Coz(veri);\n      sonuc = /[\\x00-\\x08\\x0e-\\x1f]/.test(cozulen)\n        ? 'Çözülen veri metin değil (ikili). Kodlanmış hâli:\\n' + b64Kodla(veri)\n        : 'Çözüldü:\\n' + cozulen;\n    } else {\n      sonuc = 'Kodlandı:\\n' + b64Kodla(veri);\n    }\n  } else if (islem === 'b64kodla') {\n    if (!veri) throw new Error('Kullanım: b64kodla <metin>');\n    sonuc = b64Kodla(veri);\n  } else if (islem === 'b64coz' || islem === 'b64çöz') {\n    if (!veri) throw new Error('Kullanım: b64coz <base64>');\n    sonuc = b64Coz(veri);\n  } else if (islem === 'jwt') {\n    const parcalar = veri.trim().split('.');\n    if (parcalar.length < 2) throw new Error('Bu bir JWT değil (nokta ile ayrılmış en az 2 parça bekleniyor).');\n    const basSatir = JSON.parse(b64Coz(parcalar[0]));\n    const govde = JSON.parse(b64Coz(parcalar[1]));\n    const satirlar = ['Başlık:', JSON.stringify(basSatir, null, 2), '', 'Gövde:', JSON.stringify(govde, null, 2)];\n    const zamanAlan = (ad, etiket) => {\n      if (typeof govde[ad] !== 'number') return;\n      const d = new Date(govde[ad] * 1000);\n      satirlar.push(etiket + ': ' + trSaat(d) + ' (' + gorece(d.getTime()) + ')');\n    };\n    satirlar.push('');\n    zamanAlan('iat', 'Üretilme (iat)');\n    zamanAlan('nbf', 'Geçerlilik başlangıcı (nbf)');\n    zamanAlan('exp', 'Bitiş (exp)');\n    if (typeof govde.exp === 'number') {\n      satirlar.push(govde.exp * 1000 < Date.now() ? '⛔ Süresi GEÇMİŞ' : '✅ Hâlâ geçerli');\n    }\n    satirlar.push('', 'Not: imza doğrulanmadı (yerel araç, anahtar yok).');\n    sonuc = satirlar.join('\\n');\n  } else if (islem === 'zaman' || islem === 'time') {\n    let d;\n    if (!veri) d = new Date();\n    else if (/^\\d{13}$/.test(veri.trim())) d = new Date(Number(veri.trim()));\n    else if (/^\\d{10}$/.test(veri.trim())) d = new Date(Number(veri.trim()) * 1000);\n    else d = new Date(veri.trim());\n    if (isNaN(d.getTime())) throw new Error('Zaman anlaşılamadı. Örnek: 1735689600 · 2026-01-01T00:00:00Z · \"zaman\" (şimdi)');\n    sonuc = [\n      'ISO 8601 : ' + d.toISOString(),\n      'Yerel     : ' + trSaat(d),\n      'epoch (s) : ' + Math.floor(d.getTime() / 1000),\n      'epoch (ms): ' + d.getTime(),\n      'Gün       : ' + GUN_ADI[d.getDay()],\n      'Görece    : ' + gorece(d.getTime()),\n    ].join('\\n');\n  } else if (islem === 'json') {\n    if (!veri) throw new Error('Kullanım: json {\"a\":1}');\n    let ayrisan;\n    try {\n      ayrisan = JSON.parse(veri);\n    } catch (e) {\n      const konum = Number((String(e.message).match(/position (\\d+)/) || [])[1]);\n      let yer = '';\n      if (Number.isFinite(konum)) {\n        const oncesi = veri.slice(0, konum);\n        const satir = oncesi.split('\\n').length;\n        const sutun = konum - oncesi.lastIndexOf('\\n');\n        yer = '\\nSatır ' + satir + ', sütun ' + sutun + ':\\n' + veri.slice(Math.max(0, konum - 30), konum + 30);\n      }\n      throw new Error('Geçersiz JSON: ' + e.message + yer);\n    }\n    const derinlik = (x) => (x && typeof x === 'object')\n      ? 1 + Math.max(0, ...Object.values(x).map(derinlik)) : 0;\n    const sayac = Array.isArray(ayrisan) ? ayrisan.length + ' öğe'\n      : (ayrisan && typeof ayrisan === 'object') ? Object.keys(ayrisan).length + ' anahtar' : 'tek değer';\n    sonuc = '✅ Geçerli JSON — ' + sayac + ', derinlik ' + derinlik(ayrisan) + '\\n\\n' + JSON.stringify(ayrisan, null, 2);\n  } else if (islem === 'sha256' || islem === 'sha') {\n    if (!veri) throw new Error('Kullanım: sha256 <metin>');\n    sonuc = sha256(veri);\n  } else if (islem === 'parola' || islem === 'sifre' || islem === 'şifre') {\n    const uzunluk = Math.min(128, Math.max(8, Number(veri) || 20));\n    const havuz = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#%^&*-_=+?';\n    const { bayt, guclu } = rastgeleBaytlar(uzunluk);\n    sonuc = bayt.map((b) => havuz[b % havuz.length]).join('') +\n      (guclu ? '\\n(crypto.getRandomValues ile üretildi)' : '\\n(Math.random ile üretildi — kritik sırlar için: openssl rand -base64 24)');\n  } else if (islem === 'url') {\n    if (!veri) throw new Error('Kullanım: url <metin>');\n    sonuc = veri.includes('%')\n      ? 'Çözüldü:\\n' + decodeURIComponent(veri) + '\\n\\nKodlanmış hâli:\\n' + encodeURIComponent(veri)\n      : 'Kodlandı:\\n' + encodeURIComponent(veri);\n  } else if (islem === 'cron') {\n    const alanlar = veri.trim().split(/\\s+/);\n    if (alanlar.length !== 5) throw new Error('5 alan bekleniyor: dakika saat ayın-günü ay haftanın-günü\\nÖrnek: 0 */4 * * *');\n    const [dk, sa, ayGun, ay, haftaGun] = alanlar;\n    const dkK = alanCoz(dk, 0, 59, 'Dakika');\n    const saK = alanCoz(sa, 0, 23, 'Saat');\n    const ayGunK = alanCoz(ayGun, 1, 31, 'Ayın günü');\n    const ayK = alanCoz(ay, 1, 12, 'Ay');\n    const haftaK = new Set([...alanCoz(haftaGun, 0, 7, 'Haftanın günü')].map((x) => x % 7));\n\n    const dkAdim = dk.match(/^\\*\\/(\\d+)$/);\n    const saAdim = sa.match(/^\\*\\/(\\d+)$/);\n    const zamanMetni = (() => {\n      if (dk === '*' && sa === '*') return 'her dakika';\n      if (sa === '*' && dkAdim) return 'her ' + dkAdim[1] + ' dakikada bir';\n      if (sa === '*' && /^\\d+$/.test(dk)) return 'her saat ' + dk + '. dakikada';\n      if (/^\\d+$/.test(dk) && /^\\d+$/.test(sa)) {\n        const saat = sa.padStart(2, '0') + ':' + dk.padStart(2, '0');\n        return (ayGun === '*' && haftaGun === '*' && ay === '*') ? 'her gün saat ' + saat : 'saat ' + saat;\n      }\n      if (/^\\d+$/.test(dk) && saAdim) return 'her ' + saAdim[1] + ' saatte bir, ' + dk + '. dakikada';\n      return [alanAnlat(sa, 'saatte', 'saat'), alanAnlat(dk, 'dakikada', 'dakika')]\n        .filter(Boolean).join(', ') || 'belirtilen zamanda';\n    })();\n    const parcalar = [zamanMetni];\n    if (ayGun !== '*') parcalar.push('ayın ' + alanAnlat(ayGun, 'günü', 'gün', (n) => n + '.'));\n    if (ay !== '*') parcalar.push(alanAnlat(ay, 'ayında', 'ay', (n) => AY_ADI[n - 1] || n));\n    if (haftaGun !== '*') parcalar.push(alanAnlat(haftaGun, 'günleri', 'gün', (n) => GUN_ADI[n % 7] || n));\n\n    const gunEsler = (d) => {\n      const gunTamam = ayGunK.has(d.getDate());\n      const haftaTamam = haftaK.has(d.getDay());\n      if (ayGun === '*' && haftaGun === '*') return true;\n      if (ayGun === '*') return haftaTamam;\n      if (haftaGun === '*') return gunTamam;\n      return gunTamam || haftaTamam; // cron'da ikisi de doluysa VEYA geçerlidir\n    };\n\n    const sonraki = [];\n    const d = new Date();\n    d.setSeconds(0, 0);\n    d.setMinutes(d.getMinutes() + 1);\n    for (let i = 0; i < 366 * 24 * 60 && sonraki.length < 3; i++) {\n      if (dkK.has(d.getMinutes()) && saK.has(d.getHours()) && ayK.has(d.getMonth() + 1) && gunEsler(d)) {\n        sonraki.push(trSaat(new Date(d)));\n      }\n      d.setMinutes(d.getMinutes() + 1);\n    }\n    sonuc = '⏱ ' + veri.trim() + '\\n→ ' + parcalar.join(', ') + '\\n\\nSonraki çalışmalar:\\n' +\n      (sonraki.length ? sonraki.map((x) => '• ' + x).join('\\n') : '• bir yıl içinde çalışmıyor');\n  } else if (islem === 'slug') {\n    if (!veri) throw new Error('Kullanım: slug <başlık>');\n    const harita = { ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', Ç: 'c', Ğ: 'g', İ: 'i', Ö: 'o', Ş: 's', Ü: 'u', I: 'i' };\n    sonuc = veri\n      .split('')\n      .map((c) => harita[c] !== undefined ? harita[c] : c)\n      .join('')\n      .toLowerCase()\n      .replace(/[^a-z0-9]+/g, '-')\n      .replace(/^-+|-+$/g, '')\n      .slice(0, 100) || '(boş)';\n  } else if (islem === 'hex') {\n    const t = veri.trim();\n    if (!t) throw new Error('Kullanım: hex 255 · hex 0xff');\n    let n;\n    if (/^0x[0-9a-f]+$/i.test(t)) n = parseInt(t.slice(2), 16);\n    else if (/^[0-9]+$/.test(t)) n = Number(t);\n    else if (/^[0-9a-f]+$/i.test(t)) n = parseInt(t, 16);\n    else throw new Error('Sayı anlaşılamadı: ' + t);\n    if (!Number.isFinite(n)) throw new Error('Sayı çok büyük.');\n    sonuc = ['Onluk   : ' + n, 'Onaltılık: 0x' + n.toString(16), 'İkilik  : 0b' + n.toString(2),\n      'Sekizlik: 0o' + n.toString(8), 'Bayt    : ' + (n / 1024 >= 1 ? (n / 1024).toFixed(1) + ' KB' : n + ' B')].join('\\n');\n  } else {\n    basarili = false;\n    sonuc = [\n      '🧰 Araç kutusu — kullanılabilir işlemler:',\n      '',\n      'uuid                 → UUID v4',\n      'b64 <metin>          → base64 kodla/çöz',\n      'jwt <token>          → JWT içeriğini aç',\n      'zaman [değer]        → epoch ↔ ISO ↔ yerel saat',\n      'json <metin>         → doğrula + biçimlendir',\n      'sha256 <metin>       → SHA-256 özeti',\n      'parola [uzunluk]     → rastgele parola',\n      'url <metin>          → yüzde kodlaması',\n      'cron <ifade>         → Türkçe açıklama + sonraki 3 çalışma',\n      'slug <başlık>        → URL uyumlu ad',\n      'hex <sayı>           → onluk ↔ onaltılık ↔ ikilik',\n      '',\n      islem ? 'Bilinmeyen işlem: ' + islem : 'Örnek: /arac cron 0 */4 * * *',\n    ].join('\\n');\n  }\n} catch (e) {\n  basarili = false;\n  sonuc = '⚠️ ' + e.message;\n}\n\nconst kirp = (s, n) => (s.length > n ? s.slice(0, n) + '\\n… (kırpıldı)' : s);\nreturn [{ json: {\n  islem: islem || 'yardim',\n  basarili,\n  sonuc: kirp(sonuc, 12000),\n  telegramText: '<pre>' + esc(kirp(sonuc, 3500)) + '</pre>',\n  chat_id: istek.chat_id,\n  webhooktan: istek.webhooktan,\n} }];"
+      },
+      "id": "8a737c4a-e000-4f8c-acad-89b2f41812f6",
+      "name": "Aracı Çalıştır",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yanıt düğümü yalnızca webhook ile gelen isteklerde çalışmalı;\n// workflow 05'ten gelen çağrıda yanıtlanacak bir HTTP isteği yoktur.\nconst j = $input.first().json;\nreturn j.webhooktan ? [{ json: j }] : [];"
+      },
+      "id": "30238b65-2130-45b3-84c1-48c0e7d70892",
+      "name": "Webhook'a mı Yanıtlanacak? (Araç)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: $json.basarili, islem: $json.islem, sonuc: $json.sonuc }) }}",
+        "options": {}
+      },
+      "id": "83aa4b5c-247d-4c48-a203-269ea9abbb0a",
+      "name": "Yanıt Ver (Araç)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        840,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İstek Telegram'dan geldiyse sonuç oraya gider (kod bloğu olarak).\nconst j = $input.first().json;\nif (!j.chat_id) return [];\nreturn [{ json: { chat_id: j.chat_id, text: String(j.telegramText).slice(0, 3900) } }];"
+      },
+      "id": "588779e2-24e0-4462-ab9c-cb090bd41ab5",
+      "name": "Telegram'a Bildir (Araç)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text, parse_mode: 'HTML' }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "8b253552-8fe1-47b8-ba55-1064b758755e",
+      "name": "Araç Yanıtını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        220
+      ],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Araç İsteği (Webhook POST)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Araç)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Araç İsteği (Webhook GET)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Araç)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (Araç)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Araç)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İsteği Al (Araç)": {
+      "main": [
+        [
+          {
+            "node": "Aracı Çalıştır",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aracı Çalıştır": {
+      "main": [
+        [
+          {
+            "node": "Webhook'a mı Yanıtlanacak? (Araç)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram'a Bildir (Araç)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook'a mı Yanıtlanacak? (Araç)": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Ver (Araç)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram'a Bildir (Araç)": {
+      "main": [
+        [
+          {
+            "node": "Araç Yanıtını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

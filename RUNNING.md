@@ -164,6 +164,8 @@ doldurmanız/gözden geçirmeniz gerekir:
 | `OLLAMA_MODEL` | Hayır (varsayılan `qwen2.5:3b`) | Yerel AI workflow'larının (12, 13, 14) kullanacağı model. |
 | `RSS_AI_OZET` | Hayır | `1` yazarsanız RSS haber özetine (workflow 14) yerel AI özeti eklenir. |
 | `N8N_API_KEY` | Hayır | Otomatik yedeklemenin (workflow 15) workflow'ları da yedeklemesi için panelden üretilen API anahtarı. |
+| `GITHUB_TOKEN` | Hayır | GitHub nöbetçisi (workflow 18) için **okuma yetkili** kişisel erişim anahtarı. Boşsa o workflow sessizce devre dışı kalır. |
+| `GITHUB_KULLANICI` | Hayır (varsayılan: token'ın sahibi) | Kendi hesabınız yerine başka bir kullanıcıyı izlemek isterseniz. |
 
 Bir değeri değiştirdikten sonra n8n'in bunu okuması için betiği (veya
 `docker compose up -d`) tekrar çalıştırmanız gerekir.
@@ -216,4 +218,21 @@ veri dosyaları zaten var olduğu için betik onlara dokunmaz, sadece
 | Windows'ta betik pencereyi hemen kapatıyor | Çift tıklamak yerine bir komut satırı (cmd) açıp içinden `run-windows.bat` yazarak çalıştırın; hata mesajını görürsünüz. |
 
 Daha fazla sorun giderme maddesi (IMAP/SMTP, Gmail OAuth, Telegram botu vb.)
-için `README.md` §15'e bakın.
+için `README.md` §17'e bakın.
+
+## 8. Sırada ne var?
+
+n8n açıldıktan sonra `workflows/` klasöründeki otomasyonları içe aktarın
+(`README.md` §5). Yazılımcıysanız 17–21 numaralı **geliştirici paketiyle**
+başlamak iyi bir fikir — hiçbiri credential istemez:
+
+| Workflow | Hemen denemek için |
+|---|---|
+| 20 — Araç kutusu | `curl 'http://localhost:5678/webhook/arac?islem=uuid'` |
+| 19 — Kod kasası | `curl 'http://localhost:5678/webhook/kodlar?ara=docker'` |
+| 21 — Webhook yakalayıcı | `curl -X POST localhost:5678/webhook/yakala -d '{"a":1}'` sonra `curl localhost:5678/webhook/istekler` |
+| 17 — Servis nöbetçisi | `local-files/servisler.json` içine kendi adresinizi yazıp **Elle Test Et** |
+| 18 — GitHub nöbetçisi | `.env` içine `GITHUB_TOKEN`, sonra **Elle Test Et** |
+
+Telefondan (iPhone) kullanmak için Telegram botunu kurun — panelin dışarı
+açılması gerekmez: `README.md` §14.

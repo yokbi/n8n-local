@@ -5,6 +5,11 @@ merkezi: günlük e-posta özeti, önemli mail uyarıları, Telegram'dan yöneti
 yerel görev listesi, fiyat takibi, fatura/harcama kaydı, günlük takvim özeti,
 not/hatırlatma ve isterseniz tamamen yerel AI (Ollama).
 
+Yazılım geliştiriyorsanız **geliştirici paketi** (workflow 17–21) da hazır:
+servis/uptime nöbetçisi, GitHub inceleme ve CI takibi, kod parçacığı kasası,
+internetsiz araç kutusu (uuid · base64 · JWT · cron · JSON) ve kendi webhook
+yakalayıcınız. Hepsi **iPhone, Mac ve Windows'tan** kullanılabilir — §13 ve §14.
+
 > Bu repo tek başına çalışır: klonlayın, `.env` oluşturun, `docker compose up -d` deyin.
 >
 > 🚀 **Hızlı başlangıç:** Windows'ta `run-windows.bat`, Intel Mac'te
@@ -34,10 +39,12 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 10. [Haberler, yedekleme ve sayfa takibi](#10-haberler-yedekleme-ve-sayfa-takibi)
 11. [Opsiyonel: Yerel AI (Ollama)](#11-opsiyonel-yerel-ai-ollama)
 12. [Yerel AI sohbet ve link özetleyici](#12-yerel-ai-sohbet-ve-link-özetleyici)
-13. [Verileriniz nerede? Yedekleme](#13-verileriniz-nerede-yedekleme)
-14. [Başka uygulamalar bağlamak](#14-başka-uygulamalar-bağlamak)
-15. [Sorun giderme](#15-sorun-giderme)
-16. [Güncelleme](#16-güncelleme)
+13. [Geliştirici paketi (workflow 17–21)](#13-geliştirici-paketi-workflow-1721)
+14. [iPhone, Mac ve Windows'tan kullanmak](#14-iphone-mac-ve-windowstan-kullanmak)
+15. [Verileriniz nerede? Yedekleme](#15-verileriniz-nerede-yedekleme)
+16. [Başka uygulamalar bağlamak](#16-başka-uygulamalar-bağlamak)
+17. [Sorun giderme](#17-sorun-giderme)
+18. [Güncelleme](#18-güncelleme)
 
 ---
 
@@ -63,6 +70,12 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 │  │ 14 RSS haber özeti — 08:15   ────────┼─────▶                      │
 │  │ 15 Otomatik yedekleme — 03:00        │                            │
 │  │ 16 Sayfa değişiklik takibi           │                            │
+│  │ ── geliştirici paketi ─────────────  │                            │
+│  │ 17 Servis nöbetçisi (uptime)         │                            │
+│  │ 18 GitHub nöbetçisi (PR, CI, issue)  │                            │
+│  │ 19 Kod parçacığı kasası              │                            │
+│  │ 20 Geliştirici araç kutusu           │                            │
+│  │ 21 Webhook yakalayıcı                │                            │
 │  └──────┬──────────────────┬────────────┘                            │
 │         │                  │                                         │
 │   n8n_data volume    local-files/*.json (görev, fiyat, harcama, not) │
@@ -90,6 +103,11 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 | `14-rss-haber-ozeti` | Takip ettiğiniz RSS/Atom beslemelerinden yalnızca **yeni** haberleri gönderir; isteğe bağlı AI özeti | — veya SMTP (§10.1) |
 | `15-otomatik-yedekleme` | Her gece `local-files/` klasörünü tarihli klasöre kopyalar; isteğe bağlı workflow yedeği | — (§10.2) |
 | `16-sayfa-degisiklik-takibi` | Takip ettiğiniz sayfaların içeriği değişince haber verir (fiyat takibinin metin sürümü) | — veya SMTP (§10.3) |
+| `17-servis-nobetcisi` | Siteleriniz/API'leriniz 5 dakikada bir yoklanır; düşünce ve düzelince bir kez haber verir (`/servis`) | — veya SMTP (§13.1) |
+| `18-github-nobetcisi` | İncelemenizi bekleyen PR, CI'ı kırık PR, size atanmış issue ve anılmalar (`/pr`) | GitHub token (§13.2) |
+| `19-kod-parcacik-kasasi` | Kod parçacıklarınızı kaydedip her cihazdan arayın (`/kod`, `curl`) | — (§13.3) |
+| `20-gelistirici-arac-kutusu` | uuid · base64 · JWT · epoch · JSON · SHA-256 · cron — internetsiz (`/arac`) | — (§13.4) |
+| `21-webhook-yakalayici` | Gelen HTTP isteğini olduğu gibi kaydeder ve gösterir; kendi request-bin'iniz (`/istekler`) | — (§13.5) |
 
 Her workflow'un tuvalinde, kurulum adımlarını anlatan Türkçe **sarı not kutuları** vardır.
 
@@ -122,6 +140,11 @@ cp local-files/okunacaklar.ornek.json local-files/okunacaklar.json
 cp local-files/rss-kaynaklar.ornek.json local-files/rss-kaynaklar.json
 cp local-files/rss-durum.ornek.json local-files/rss-durum.json
 cp local-files/sayfa-takibi.ornek.json local-files/sayfa-takibi.json
+# Geliştirici paketi (workflow 17–21):
+cp local-files/servisler.ornek.json local-files/servisler.json
+cp local-files/github-durum.ornek.json local-files/github-durum.json
+cp local-files/parcacikalar.ornek.json local-files/parcacikalar.json
+cp local-files/yakalanan-istekler.ornek.json local-files/yakalanan-istekler.json
 
 # 3) n8n'i başlatın
 docker compose up -d
@@ -239,6 +262,10 @@ programla açıp okuyabilirsiniz.
 > 🔒 Bu durumda n8n paneli ağınızdaki herkese açılır. Ev ağınız dışında
 > kullanmayın; isterseniz Webhook node'una *Authentication → Header Auth*
 > ekleyip kısayola da aynı başlığı koyarak uçları şifreleyebilirsiniz.
+
+> 💡 Ağı hiç açmadan telefondan kullanmanın yolu **Telegram botudur** (§7.1):
+> bot dışarıya kapı açmaz, Telegram'ı kendisi yoklar. Hangi özelliğin hangi
+> cihazdan nasıl kullanıldığı §14'te tablo hâlinde.
 
 ## 7. Telegram botu, fiyat takibi ve harcama kaydı
 
@@ -470,7 +497,7 @@ anahtarı `.env` dosyasına `N8N_API_KEY=...` olarak yazın; artık her gece
 atlanır.
 
 > ⚠️ **Bu bir dış yedek değildir** — aynı diskte durur. `local-files/`
-> klasörünü ayrıca harici bir diske veya bulut yedeğinize dâhil edin (§13).
+> klasörünü ayrıca harici bir diske veya bulut yedeğinize dâhil edin (§15).
 
 Yedekler birikir; ayda bir temizlemek için:
 
@@ -595,11 +622,253 @@ vermeye devam eder.
 
 > Bu çağrılar **cevabı beklemeden** yapılır. Sebebi: `docker-compose.yml`
 > içinde çalıştırmalar sıraya alınmıştır (`N8N_CONCURRENCY_PRODUCTION_LIMIT=1`,
-> §13). Bot cevabı bekleseydi, beklediği workflow sıraya girip hiç
+> §15). Bot cevabı bekleseydi, beklediği workflow sıraya girip hiç
 > başlayamazdı. Bu yüzden bot önce *"🤔 Düşünüyorum…"* der, cevabı 12 numaralı
 > workflow ayrıca gönderir.
 
-## 13. Verileriniz nerede? Yedekleme
+## 13. Geliştirici paketi (workflow 17–21)
+
+Bu beş workflow yazılım geliştirirken işe yarayan şeyleri yapar ve üçünü de
+aynı anda destekler: **iPhone** (Telegram), **Mac** ve **Windows** (terminal,
+tarayıcı, kısayol). Hepsi yereldir; veri dışarı çıkmaz.
+
+| # | Workflow | Ne verir | Gereken |
+|---|---|---|---|
+| 17 | Servis nöbetçisi | Siteniz/API'niz düşünce anında haber | — |
+| 18 | GitHub nöbetçisi | İnceleme bekleyen PR, kırık CI, atanmış issue | `GITHUB_TOKEN` |
+| 19 | Kod parçacığı kasası | Komutlarınız her cihazdan erişilebilir | — |
+| 20 | Geliştirici araç kutusu | uuid · base64 · JWT · cron · JSON · SHA-256 | — |
+| 21 | Webhook yakalayıcı | Gelen isteği olduğu gibi görmek | — |
+
+### 13.1 Servis nöbetçisi (workflow 17)
+
+`local-files/servisler.json` içindeki adresleri **5 dakikada bir** yoklar.
+
+```json
+{ "servisler": [
+  { "ad": "API sağlık", "url": "https://api.ornek.com/health",
+    "beklenenKod": 200, "icerir": "ok", "esik": 2 }
+] }
+```
+
+| Alan | Anlamı |
+|---|---|
+| `beklenenKod` | Bu koddan farklı yanıt gelirse arıza (varsayılan `200`) |
+| `icerir` | Yanıtın içinde geçmesi gereken metin — boşsa kontrol edilmez |
+| `esik` | Kaç üst üste başarısız yoklamadan sonra uyarı (varsayılan `2`) |
+| `zamanAsimi` | Milisaniye (varsayılan `15000`) |
+
+**Uyarı yalnızca durum değişince gider:** servis düşünce bir kez, düzelince bir
+kez ("*3 sa 12 dk kapalı kaldı*"). Aradaki turlarda telefonunuz susar. Anlık ağ
+takılmaları `esik` sayesinde elenir.
+
+```bash
+curl http://localhost:5678/webhook/servisler   # o anki durum (JSON)
+```
+Telegram'dan: `/servis`
+
+### 13.2 GitHub nöbetçisi (workflow 18)
+
+**15 dakikada bir** beş sorgu çalıştırır ve yalnızca **yeni** olanları bildirir:
+
+| | |
+|---|---|
+| 🔍 | İncelemenizi bekleyen PR'lar |
+| 🔴 | CI'ı kırık kendi PR'larınız (`status:failure`) |
+| ✅ | Onaylanmış, birleştirilmeyi bekleyen PR'larınız |
+| 📌 | Size atanmış issue'lar |
+| 📣 | Adınızın geçtiği konular |
+
+**Kurulum.** GitHub → *Settings → Developer settings → Personal access tokens*
+ile **okuma yetkili** bir token üretin (classic için `repo` + `notifications`;
+yalnızca açık depolar için yetkisiz token da yeter), `.env` dosyasına yazın:
+
+```bash
+GITHUB_TOKEN=ghp_...
+GITHUB_KULLANICI=            # boşsa token'ın sahibi (@me) izlenir
+```
+sonra `docker compose up -d`. Token boşsa workflow **sessizce** durur.
+
+İlk tarama bilerek sessizdir (mevcut 40 PR birden telefonunuza düşmesin diye).
+Bir sorgu hata verirse o kategorinin işaretleri korunur — sorun geçince eski
+kayıtlar "yeni" sanılıp tekrar bildirilmez.
+
+Telegram'dan: `/pr` → son taramanın tam dökümü.
+
+### 13.3 Kod parçacığı kasası (workflow 19)
+
+Bir kez yazdığınız komutu bir daha aramayın; `local-files/parcacikalar.json`
+dosyasında durur.
+
+```bash
+# Kaydet (Mac/Linux/WSL)
+curl -X POST http://localhost:5678/webhook/kod \
+  -H 'Content-Type: application/json' \
+  -d '{"baslik":"Portu dinleyeni bul","dil":"bash","etiket":"ağ",
+       "kod":"lsof -i :5678"}'
+
+# Ara — başlık, etiket, dil ve kod içinde arar
+curl 'http://localhost:5678/webhook/kodlar?ara=port'
+
+# Doğrudan panoya (Mac: pbcopy · Windows: clip)
+curl -s 'http://localhost:5678/webhook/kodlar?id=1&sade=1' | pbcopy
+```
+
+Telegram'dan:
+
+```
+/kod docker          → arar, ilk 5 sonucu listeler
+/kodgetir 3          → #3'ü kod bloğu olarak gönderir (dokun-kopyala)
+/kodkaydet Yedek al #pg
+pg_dump -Fc veritabani > yedek.dump
+/kodsil 3
+```
+İlk satır başlık, ikinci satırdan itibaren kodun kendisidir; başlıktaki `#etiket`ler
+ayıklanır. Arama puanlıdır: **başlık > etiket/dil > kod içi**, eşitlikte çok
+kullanılan öne geçer.
+
+### 13.4 Geliştirici araç kutusu (workflow 20)
+
+Telefonda base64 çözmek ya da JWT'nin içine bakmak için "online decoder"
+sitelerine gitmeye gerek yok — hepsi burada, **internetsiz ve saf JavaScript**:
+
+| İşlem | Örnek |
+|---|---|
+| `uuid` | `/arac uuid` |
+| `b64` | `/arac b64 bWVyaGFiYQ==` (kodlamayı/çözmeyi kendi anlar) |
+| `jwt` | `/arac jwt eyJhbGciOi…` → başlık, gövde, `exp` süresi geçmiş mi |
+| `zaman` | `/arac zaman 1735689600` → ISO, yerel saat, "625 gün önce" |
+| `json` | `/arac json {"a":1,}` → hatanın satır ve sütunu |
+| `sha256` | `/arac sha256 merhaba` |
+| `parola` | `/arac parola 24` |
+| `url` | `/arac url merhaba dünya` |
+| `cron` | `/arac cron 30 9 * * 1-5` → *"saat 09:30, Pazartesi-Cuma günleri arası"* + sonraki 3 çalışma |
+| `slug` | `/arac slug Çağrı Günlüğü` → `cagri-gunlugu` |
+| `hex` | `/arac hex 0xff` → onluk, ikilik, sekizlik |
+
+```bash
+curl 'http://localhost:5678/webhook/arac?islem=uuid'
+curl -X POST http://localhost:5678/webhook/arac \
+  -H 'Content-Type: application/json' -d '{"islem":"cron","veri":"0 */4 * * *"}'
+```
+
+> `jwt` **imzayı doğrulamaz** (anahtar gerekir, burada bilerek yok) — içeriği
+> okunur hâle getirir. `parola` mümkünse `crypto.getRandomValues` kullanır,
+> kullanamazsa çıktının altında bunu açıkça söyler.
+
+### 13.5 Webhook yakalayıcı (workflow 21)
+
+Kendi "request bin"iniz: bir servisin gerçekte **ne gönderdiğini** görün.
+
+```bash
+# Test edeceğiniz uygulamaya bu adresi verin
+http://localhost:5678/webhook/yakala
+
+curl -X POST 'http://localhost:5678/webhook/yakala?etiket=stripe' \
+  -H 'X-Imza: abc' -d '{"olay":"odeme.basarili"}'
+
+curl 'http://localhost:5678/webhook/istekler?adet=5'   # son 5 istek
+curl 'http://localhost:5678/webhook/istekler?id=3'     # tek isteğin tamamı
+```
+
+- `?etiket=stripe` → isteği adlandırır, sonra süzebilirsiniz.
+- `?kod=500` → yanıt kodunu seçer (gönderen tarafın hata yolunu denemek için).
+- Son **50** istek tutulur; gövde 4 000 karakterde kırpılır.
+- **Gizli başlıklar maskelenir**: `Authorization`, `Cookie`, `X-Api-Key` ve
+  içinde `token`/`secret`/`imza` geçen başlıklar ilk 6 karakter dışında
+  saklanır — telefona düşen ayrıntıda gerçek anahtarınız görünmez.
+
+Telegram'dan: `/istekler` · `/istek 3` · `/istektemizle`
+
+### 13.6 Telegram bağlantısı (tek seferlik ayar)
+
+`/servis`, `/pr`, `/kod`, `/arac` ve `/istekler` komutlarının çalışması için
+workflow 05'teki beş **… Workflow'una İlet** düğümünü açıp **Workflow**
+listesinden hedefini seçin:
+
+| Düğüm | Hedef |
+|---|---|
+| *Servis Workflow'una İlet* | 17 — Servis Nöbetçisi |
+| *GitHub Workflow'una İlet* | 18 — GitHub Nöbetçisi |
+| *Kod Workflow'una İlet* | 19 — Kod Parçacığı Kasası |
+| *Araç Workflow'una İlet* | 20 — Geliştirici Araç Kutusu |
+| *İstek Workflow'una İlet* | 21 — Webhook Yakalayıcı |
+
+Seçmediğiniz düğümün komutu çalışmaz; bot geri kalan her şeye cevap vermeye
+devam eder. Yalnızca kullanacağınız workflow'lar için yapmanız yeterli —
+hedef workflow'ların da **Active** olması gerekir.
+
+## 14. iPhone, Mac ve Windows'tan kullanmak
+
+Panel `127.0.0.1`'e bağlıdır, yani telefon paneli göremez. Buna rağmen her şeyi
+telefondan kullanabilirsiniz: **Telegram botu dışarıya hiçbir kapı açmadan
+çalışır** (bot, Telegram'ı yoklar; içeriye bağlantı gelmez).
+
+### 14.1 iPhone — Telegram (önerilen, ek ayar yok)
+
+| Komut | Ne yapar |
+|---|---|
+| `/servis` | İzlenen servisler ayakta mı |
+| `/pr` | GitHub: inceleme bekleyen, CI kırık, atanmış |
+| `/kod docker` · `/kodgetir 3` | Kasada arama · kod bloğunu getirme |
+| `/kodkaydet Başlık` ⏎ kod | Kasaya ekleme |
+| `/arac uuid` · `/arac jwt …` | Araç kutusu |
+| `/istekler` · `/istek 3` | Yakalanan webhook istekleri |
+| `/yardim` | Tüm komutlar |
+
+Uyarılar (servis düştü, PR bekliyor) siz bir şey yapmadan gelir.
+Telegram'ı kurmadıysanız aynı uyarılar SMTP ile mail olarak gider.
+
+### 14.2 Mac ve Windows — terminal
+
+Bilgisayarınızın kendisinde panel açık olduğu için uçları doğrudan çağırın.
+Kullandığınız kabuğa birkaç kısayol tanımlamak işi iyice kısaltır:
+
+```bash
+# ~/.zshrc  ya da  ~/.bashrc   (Mac / Linux / WSL)
+kod()  { curl -s "http://localhost:5678/webhook/kodlar?ara=$1" | jq -r '.[] | "#\(.id) \(.baslik)"'; }
+kodal(){ curl -s "http://localhost:5678/webhook/kodlar?id=$1&sade=1" | pbcopy; echo "panoya kopyalandı"; }
+arac() { curl -s "http://localhost:5678/webhook/arac?islem=$1&veri=$2" | jq -r .sonuc; }
+```
+
+```powershell
+# Windows PowerShell profili:  notepad $PROFILE
+function kod  { param($q) (Invoke-RestMethod "http://localhost:5678/webhook/kodlar?ara=$q") |
+                          ForEach-Object { "#$($_.id) $($_.baslik)" } }
+function kodal { param($id) (Invoke-RestMethod "http://localhost:5678/webhook/kodlar?id=$id&sade=1") | Set-Clipboard }
+function arac { param($i,$v) (Invoke-RestMethod "http://localhost:5678/webhook/arac?islem=$i&veri=$v").sonuc }
+```
+
+Tarayıcı da yeter: `localhost:5678/webhook/arac?islem=zaman&veri=1735689600`
+adresini yer imi yapabilirsiniz.
+
+### 14.3 iPhone — Kısayollar (aynı Wi-Fi'da, isteğe bağlı)
+
+Telegram yerine doğrudan HTTP çağırmak isterseniz önce paneli ev ağınıza
+açmanız gerekir (§6'daki adımlar: compose'ta `"5678:5678"` +
+`N8N_SECURE_COOKIE=false`). Sonra:
+
+1. **Kısayollar** → yeni kısayol → *URL İçeriğini Al*
+2. URL: `http://192.168.1.20:5678/webhook/kod` (kendi yerel IP'niz)
+3. Yöntem `POST`, İstek Gövdesi `JSON`, alanlar: `baslik`, `kod`
+   → `baslik` için *Her Seferinde Sor*
+4. Ana ekrana ekleyin; **Paylaş sayfasında göster** seçeneğini açarsanız
+   Safari'de seçtiğiniz metni tek dokunuşla kasaya atabilirsiniz.
+
+> 🔒 Bu adımdan sonra panel ev ağınızdaki herkese açıktır. Ev ağı dışında
+> kullanmayın; dilerseniz Webhook düğümlerine *Authentication → Header Auth*
+> ekleyip aynı başlığı kısayola da koyun.
+
+### 14.4 Hangisi nerede çalışır?
+
+| | iPhone | Mac | Windows |
+|---|:---:|:---:|:---:|
+| Telegram komutları | ✅ | ✅ | ✅ |
+| Uyarı/bildirim almak | ✅ | ✅ | ✅ |
+| `curl` / PowerShell uçları | ⚠️ LAN gerekir (§14.3) | ✅ | ✅ |
+| n8n paneli | ⚠️ LAN gerekir | ✅ | ✅ |
+
+## 15. Verileriniz nerede? Yedekleme
 
 | Veri | Yer |
 |---|---|
@@ -631,7 +900,7 @@ silmek isterseniz: `docker compose down -v` (geri dönüşü yoktur).
 > **durur** (boş liste yazmaz), siz de dosyayı düzeltir veya yedekten
 > dönersiniz. Bu yüzden `local-files/` klasörünü yedeğe dâhil edin.
 
-## 14. Başka uygulamalar bağlamak
+## 16. Başka uygulamalar bağlamak
 
 n8n'de yüzlerce hazır node var — Telegram, Google Takvim, Notion, Todoist,
 Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
@@ -647,7 +916,7 @@ Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
 Hangi servisi bağlarsanız bağlayın, kimlik bilgileri yine yalnızca sizin
 makinenizde (şifreli) durur.
 
-## 15. Sorun giderme
+## 17. Sorun giderme
 
 | Belirti | Çözüm |
 |---|---|
@@ -678,8 +947,16 @@ makinenizde (şifreli) durur.
 | Sayfa takibi sürekli "değişti" diyor | Seçici çok geniş (muhtemelen `body`) ve sayfada her yüklemede değişen bir parça var. Daha dar bir CSS seçici verin (§10.3). |
 | Yedekleme `.json dosyası bulunamadı` diyor | `local-files/` klasöründe hiç veri dosyası yok — §3'teki `cp ... .ornek.json` adımlarını tamamlayın. |
 | Yedekte `workflows.json` yok | `.env` içinde `N8N_API_KEY` boş (isteğe bağlıdır) ya da anahtar geçersiz — §10.2. |
+| Servis nöbetçisi hiç uyarmıyor | Uyarı **durum değişince** gider. Ayrıca `esik` kadar (varsayılan 2) üst üste başarısız yoklama gerekir — yani ~10 dk. Hemen denemek için `esik` değerini `1` yapın ve **Elle Test Et** ile çalıştırın. |
+| Servis "kapalı" diyor ama tarayıcıda açılıyor | Site otomatik isteklere farklı davranıyor olabilir (403/429) ya da `beklenenKod` yanlış. `servisler.json` içindeki `sonHata` alanına bakın; gerekirse `beklenenKod` değerini gerçek yanıtla eşitleyin. |
+| `/pr` "henüz tarama yapılmadı" diyor | Workflow 18 **Active** değil ya da `.env` içindeki `GITHUB_TOKEN` boş. Token yazdıktan sonra `docker compose up -d` gerekir. |
+| GitHub nöbetçisi "GITHUB_TOKEN geçersiz" diyor | Token'ın süresi dolmuş ya da yetkisi yetmiyor. Özel depoları izliyorsanız classic token'da `repo` yetkisi gerekir. |
+| GitHub ilk turda hiçbir şey göndermedi | İlk tarama bilerek sessizdir (mevcut kayıtlar işaretlenir). İkinci turdan sonra yalnızca yenileri gelir — §13.2. |
+| `/kod`, `/arac`, `/servis` komutuna bot sessiz | Workflow 05'teki *… Workflow'una İlet* düğümünde hedef seçilmemiş (§13.6) ya da hedef workflow **Active** değil. |
+| `/webhook/yakala` 404 dönüyor | Workflow 21 **Active** değil. Test modunda `webhook-test/yakala` adresi kullanılır (§5). |
+| Yakalanan istekte `Authorization` görünmüyor | Bilerek: gizli başlıklar ilk 6 karakter dışında maskelenir (§13.5). Gerçek değeri görmek için `local-files/yakalanan-istekler.json` yerine isteği gönderen tarafa bakın. |
 
-## 16. Güncelleme
+## 18. Güncelleme
 
 `docker-compose.yml` içinde n8n sürümü **sabittir** (`n8n:2.35.3`) — böylece
 büyük sürüm atlamaları kurulumunuzu bir sabah habersiz bozamaz. Güncellemek
@@ -696,5 +973,5 @@ Yeni sürümler ve varsa geriye dönük uyumsuzluklar:
 <https://github.com/n8n-io/n8n/releases>
 
 Workflow'larınız ve credential'larınız volume'da olduğu için güncellemeden
-etkilenmez. Yine de büyük sürüm (ör. 2.x → 3.x) geçişinden önce §13'teki
+etkilenmez. Yine de büyük sürüm (ör. 2.x → 3.x) geçişinden önce §15'teki
 yedeklemeyi yapın.

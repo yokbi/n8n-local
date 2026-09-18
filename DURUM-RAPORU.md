@@ -1,6 +1,6 @@
 # Durum Raporu — n8n-local
 
-**Denetim tarihi:** 2026-09-07 · **Güncelleme:** 2026-09-12 · **Depo:** https://github.com/yokbi/n8n-local
+**Denetim tarihi:** 2026-09-07 · **Güncelleme:** 2026-09-18 · **Depo:** https://github.com/yokbi/n8n-local
 **Varsayılan dal:** `main`
 
 ---
@@ -12,15 +12,15 @@
 | Proje | Kendi bilgisayarınızda çalışan, veriyi dışarı göndermeyen kişisel otomasyon merkezi |
 | Teknoloji | **n8n** (Docker) + SQLite · isteğe bağlı **Ollama** (yerel AI) |
 | Kurulum | `docker compose up -d` → http://localhost:5678 |
-| Workflow | **16 adet** hazır, `workflows/` altında JSON olarak |
-| Doküman | `README.md` (16 bölüm) + `RUNNING.md` (adım adım) |
+| Workflow | **21 adet** hazır, `workflows/` altında JSON olarak (17–21: geliştirici paketi) |
+| Doküman | `README.md` (18 bölüm) + `RUNNING.md` (adım adım) |
 | Çalıştırma betiği | Üç platform için **zaten mevcut** ✅ |
 | Olgunluk | **Yüksek.** Bu, denetlenen depolar arasında dokümantasyonu en iyi olanlardan biri. |
 
 **Depoda derlenen bir uygulama yok** — n8n workflow'ları JSON olarak ve Docker
 yapılandırması olarak duruyor. Ancak workflow'ların içindeki Code düğümlerinin
 JavaScript'i artık `node testler/kod-testleri.js` ile n8n başlatmadan
-denenebiliyor (42 test). Uçtan uca deneme için yine *çalıştırmak* gerekiyor.
+denenebiliyor (113 test). Uçtan uca deneme için yine *çalıştırmak* gerekiyor.
 
 ---
 
@@ -44,6 +44,18 @@ denenebiliyor (42 test). Uçtan uca deneme için yine *çalıştırmak* gerekiyo
 | 14 | `14-rss-haber-ozeti.json` | RSS/Atom beslemelerinden yalnızca yeni haberler |
 | 15 | `15-otomatik-yedekleme.json` | `local-files/` klasörünün gecelik tarihli yedeği |
 | 16 | `16-sayfa-degisiklik-takibi.json` | Sayfa içeriği değişince uyarı |
+| 17 | `17-servis-nobetcisi.json` | Servis/uptime nöbetçisi; düşünce ve düzelince haber (`/servis`) |
+| 18 | `18-github-nobetcisi.json` | İnceleme bekleyen PR, kırık CI, atanmış issue (`/pr`) |
+| 19 | `19-kod-parcacik-kasasi.json` | Kod parçacığı kasası: kaydet/ara/getir (`/kod`) |
+| 20 | `20-gelistirici-arac-kutusu.json` | uuid · base64 · JWT · cron · JSON · SHA-256 (`/arac`) |
+| 21 | `21-webhook-yakalayici.json` | Gelen HTTP isteğini kaydeder ve gösterir (`/istekler`) |
+
+**2026-09-18 — geliştirici paketi eklendi (17–21).** Beşi de iPhone (Telegram),
+Mac ve Windows'tan (curl/PowerShell/tarayıcı) kullanılabilir; workflow 05'e
+`/servis`, `/pr`, `/kod`, `/arac`, `/istekler` komutları ve beş yeni
+*… Workflow'una İlet* düğümü eklendi (hedefleri panelden bir kez seçilmeli —
+README §13.6). Çalıştırma betikleri artık `local-files/*.ornek.json`
+dosyalarının **tamamını** kopyalıyor (liste elle güncellenmiyor).
 
 ---
 
@@ -80,7 +92,7 @@ yazıldı.
 | Üç platform için çalıştırma betiği | `run-mac-intel.sh`, `run-mac-apple-silicon.sh`, `run-windows.bat` — üçü de var | ✅ |
 | "Panel yalnızca `127.0.0.1`'e bağlı" | `ports: - "127.0.0.1:5678:5678"` | ✅ |
 | "Telemetri kapalı" | `N8N_DIAGNOSTICS_ENABLED=false` + 4 ayar daha | ✅ |
-| 9 workflow | `workflows/` altında 9 JSON | ✅ |
+| 21 workflow | `workflows/` altında 21 JSON | ✅ |
 | `docker-compose.yml` geçerli | YAML olarak ayrıştırıldı | ✅ |
 | Şifreleme anahtarı `.env`'den | `N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}` | ✅ |
 
@@ -106,10 +118,10 @@ yazıldı.
 
 ### ✅ Yapılanlar
 - `docker-compose.yml` YAML olarak ayrıştırıldı — **geçerli**
-- 16 workflow JSON dosyasının tamamı ayrıştırıldı; düğüm adları ve
+- 21 workflow JSON dosyasının tamamı ayrıştırıldı; düğüm adları ve
   bağlantı hedefleri tutarlı
 - Tüm Code düğümlerinin JavaScript'i sözdizimi denetiminden geçti
-- 42 mantık testi çalıştırıldı ve geçti (`node testler/kod-testleri.js`)
+- 113 mantık testi çalıştırıldı ve geçti (`node testler/kod-testleri.js`)
 - Gizlilik ayarları (127.0.0.1 bağlama, telemetri kapalı) kaynakta doğrulandı
 - Dal envanteri `git` ile ölçüldü, birleştirilmemiş dalın diff'i okundu
 - Çalıştırma betiklerinin üçü de mevcut
@@ -119,6 +131,8 @@ Bu ortamda **Docker çalışmıyor**, bu yüzden:
 - n8n **başlatılmadı**, panel açılmadı
 - Hiçbir workflow içe aktarılmadı veya çalıştırılmadı
 - E-posta, Telegram, fiyat takibi, takvim — hiçbiri denenmedi
+- Geliştirici paketi (17–21): gerçek HTTP yoklaması, GitHub API çağrısı ve
+  webhook uçları çalıştırılmadı; yalnızca Code düğümlerinin mantığı test edildi
 - Ollama profili başlatılmadı
 
 **Kurulabilecek cümle:** *"Yapılandırma tutarlı ve dokümantasyon doğru; ama

@@ -96,10 +96,14 @@ else
 fi
 
 # ── 5) local-files örnek veri dosyaları ───────────────────────────────────
-for f in gorevler fiyat-takibi harcamalar notlar; do
-  if [[ -f "local-files/${f}.ornek.json" && ! -f "local-files/${f}.json" ]]; then
-    cp "local-files/${f}.ornek.json" "local-files/${f}.json"
-    info "local-files/${f}.json oluşturuldu (örnek veriden)."
+# Her ".ornek.json" için karşılığı yoksa bir çalışma kopyası oluşturulur.
+# (Liste elle yazılmaz: yeni workflow'ların dosyaları da kendiliğinden gelir.)
+for ornek in local-files/*.ornek.json; do
+  [[ -e "$ornek" ]] || continue
+  hedef="${ornek%.ornek.json}.json"
+  if [[ ! -f "$hedef" ]]; then
+    cp "$ornek" "$hedef"
+    info "${hedef} oluşturuldu (örnek veriden)."
   fi
 done
 

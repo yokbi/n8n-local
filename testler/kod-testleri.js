@@ -234,6 +234,541 @@ console.log('05 — Telegram bot komutları');
     const t = r.yanitlar[0].text;
     if (!t.includes('/ai ') || !t.includes('/oku ')) throw new Error('yardımda yeni komutlar yok');
   });
+
+  // ── Geliştirici komutları (workflow 17–21) ──
+  dene('/servis ve /pr ilgili workflow\'a iletilir, bot susar', () => {
+    const s = bot('/servis');
+    esit(s.servisIstekleri.length, 1); esit(s.servisIstekleri[0].chat_id, 42);
+    esit(s.yanitlar.length, 0, 'çift mesaj'); esit(s.gorevYazilsin, false);
+    const p = bot('/pr');
+    esit(p.githubIstekleri.length, 1); esit(p.yanitlar.length, 0);
+  });
+  dene('/kod arama, /kodgetir ve /kodkaydet workflow 19\'a gider', () => {
+    const ara = bot('/kod docker');
+    esit(ara.kodIstekleri.length, 1); esit(ara.kodIstekleri[0].komut, 'ara');
+    esit(ara.kodIstekleri[0].metin, 'docker');
+    esit(bot('/kod').kodIstekleri[0].komut, 'liste');
+    esit(bot('/kodgetir 3').kodIstekleri[0].komut, 'getir');
+    esit(bot('/kodsil 3').kodIstekleri[0].komut, 'sil');
+  });
+  dene('/kodkaydet çok satırlı mesajı bozulmadan iletir', () => {
+    const r = bot('/kodkaydet Docker temizlik #docker\ndocker system prune -af');
+    esit(r.kodIstekleri.length, 1); esit(r.kodIstekleri[0].komut, 'kaydet');
+    esit(r.kodIstekleri[0].metin, 'Docker temizlik #docker\ndocker system prune -af');
+  });
+  dene('/kodgetir numarasız → kullanım bilgisi, istek yok', () => {
+    const r = bot('/kodgetir');
+    esit(r.kodIstekleri.length, 0);
+    if (!r.yanitlar[0].text.includes('Kullanım: /kodgetir')) throw new Error('kullanım yok');
+  });
+  dene('/arac işlem ve veriyi workflow 20\'ye iletir', () => {
+    const r = bot('/arac cron 0 */4 * * *');
+    esit(r.aracIstekleri.length, 1); esit(r.aracIstekleri[0].metin, 'cron 0 */4 * * *');
+    esit(bot('/arac').aracIstekleri[0].metin, '', 'argümansız çağrı da iletilmeli (yardım için)');
+  });
+  dene('/istekler, /istek 3 ve /istektemizle workflow 21\'e gider', () => {
+    esit(bot('/istekler').istekIstekleri[0].komut, 'liste');
+    const d = bot('/istek 3').istekIstekleri[0];
+    esit(d.komut, 'detay'); esit(d.id, 3);
+    esit(bot('/istektemizle').istekIstekleri[0].komut, 'temizle');
+    const yanlis = bot('/istek');
+    esit(yanlis.istekIstekleri.length, 0);
+    if (!yanlis.yanitlar[0].text.includes('Kullanım: /istek')) throw new Error('kullanım yok');
+  });
+  dene('geliştirici komutları görev listesine dokunmaz', () => {
+    for (const k of ['/servis', '/pr', '/kod x', '/arac uuid', '/istekler']) {
+      const r = bot(k);
+      esit(r.gorevYazilsin, false, k + ' görev ekledi');
+      esit(r.notYazilsin, false, k + ' not ekledi');
+    }
+  });
+  dene('/yardim geliştirici komutlarını da listeliyor', () => {
+    const t = bot('/yardim').yanitlar[0].text;
+    for (const k of ['/servis', '/pr ', '/kod ', '/arac ', '/istekler']) {
+      if (!t.includes(k)) throw new Error('yardımda eksik: ' + k);
+    }
+  });
+}
+
+// ═══ 17 — Servis nöbetçisi ═══
+console.log('17 — Servis nöbetçisi');
+{
+  const d17 = wf('17-servis-nobetcisi.json');
+  const listele = kodu(d17, 'Servisleri Listele');
+  const degerlendir = kodu(d17, 'Sonuçları Değerlendir');
+  const ozet = kodu(d17, 'Durum Özetini Hazırla');
+
+  const servis = (ek) => ({
+    ad: 'API', url: 'https://api.ornek.com/health', yontem: 'GET', beklenenKod: 200,
+    icerir: '', zamanAsimi: 15000, esik: 2, sonDurum: 'ayakta', sonKod: 200, sonHata: null,
+    sonKontrol: null, ardArda: 0, ilkHata: null, uyarildi: false, ...ek,
+  });
+  const yokla = (servisler, sonuclar) =>
+    calistir(degerlendir, { dugumler: { 'Servisleri Listele': servisler }, girdi: sonuclar })[0].json;
+
+  dene('liste okunur, eksik alanlara varsayılan verilir', () => {
+    const d = { 'Servisleri Oku': [{}], 'Servisleri Çıkar': [{ data: { servisler: [{ url: 'https://a.com' }] } }] };
+    const r = calistir(listele, { dugumler: d, girdi: [{ data: { servisler: [{ url: 'https://a.com' }] } }] });
+    esit(r.length, 1); esit(r[0].json.esik, 2); esit(r[0].json.beklenenKod, 200); esit(r[0].json.ad, 'https://a.com');
+  });
+  dene('servisler.json bozuk → hiç yoklamaya başlamaz', () => {
+    const d = { 'Servisleri Oku': [{}], 'Servisleri Çıkar': [{ error: { message: 'Unexpected token }' } }] };
+    let attı = false;
+    try { calistir(listele, { dugumler: d, girdi: [{}] }); } catch (e) { attı = /servisler\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk dosyada durmadı');
+  });
+  dene('dosya yoksa kurulum komutunu söyler', () => {
+    const yok = { message: 'ENOENT: no such file or directory' };
+    const d = { 'Servisleri Oku': [{ error: yok }], 'Servisleri Çıkar': [{ error: yok }] };
+    let mesaj = '';
+    try { calistir(listele, { dugumler: d, girdi: [{ error: yok }] }); } catch (e) { mesaj = e.message; }
+    if (!mesaj.includes('servisler.ornek.json')) throw new Error('kurulum ipucu yok: ' + mesaj);
+  });
+  dene('ayakta servis sessiz kalır ama durumu yazılır', () => {
+    const r = yokla([servis()], [{ statusCode: 200, body: 'ok' }]);
+    esit(r.gonderilecek, false); esit(r.yazilsin, true);
+    esit(r.servisler[0].sonDurum, 'ayakta'); esit(r.ayakta, 1);
+  });
+  dene('tek seferlik hata eşiğin altında: uyarı yok, sayaç artar', () => {
+    const r = yokla([servis()], [{ error: { message: 'connect ECONNREFUSED 10.0.0.1:443' } }]);
+    esit(r.gonderilecek, false, 'tek hatada uyarı gitti');
+    esit(r.servisler[0].ardArda, 1); esit(r.servisler[0].uyarildi, false);
+    if (!r.servisler[0].ilkHata) throw new Error('ilk hata zamanı yazılmadı');
+  });
+  dene('eşiğe ulaşınca bir kez uyarı gider', () => {
+    const onceki = servis({ ardArda: 1, sonDurum: 'kapali', ilkHata: new Date(Date.now() - 300000).toISOString() });
+    const r = yokla([onceki], [{ error: { message: 'connect ECONNREFUSED 10.0.0.1:443' } }]);
+    esit(r.gonderilecek, true); esit(r.dusen, 1);
+    if (!r.text.includes('KAPALI')) throw new Error('uyarı metni yok: ' + r.text);
+    if (!r.text.includes('bağlantı reddedildi')) throw new Error('hata açıklaması yok: ' + r.text);
+    esit(r.servisler[0].uyarildi, true);
+  });
+  dene('kapalı servis her turda tekrar uyarı göndermez', () => {
+    const r = yokla([servis({ ardArda: 7, uyarildi: true, sonDurum: 'kapali' })], [{ error: { message: 'ETIMEDOUT' } }]);
+    esit(r.gonderilecek, false, 'ikinci kez uyardı');
+    esit(r.servisler[0].ardArda, 8);
+  });
+  dene('düzelince ne kadar kapalı kaldığını söyler', () => {
+    const onceki = servis({ uyarildi: true, ardArda: 4, sonDurum: 'kapali', ilkHata: new Date(Date.now() - 1800000).toISOString() });
+    const r = yokla([onceki], [{ statusCode: 200, body: 'ok' }]);
+    esit(r.gonderilecek, true); esit(r.duzelen, 1);
+    if (!r.text.includes('yeniden ayakta')) throw new Error('düzelme mesajı yok');
+    if (!r.text.includes('30 dk')) throw new Error('süre yok: ' + r.text);
+    esit(r.servisler[0].uyarildi, false); esit(r.servisler[0].ardArda, 0);
+  });
+  dene('beklenmeyen HTTP kodu arıza sayılır', () => {
+    const r = yokla([servis({ esik: 1 })], [{ statusCode: 502, body: 'Bad Gateway' }]);
+    esit(r.gonderilecek, true);
+    if (!r.text.includes('HTTP 502')) throw new Error('kod bildirilmedi: ' + r.text);
+  });
+  dene('beklenen metin yanıtta yoksa arıza sayılır', () => {
+    const r = yokla([servis({ esik: 1, icerir: 'ok' })], [{ statusCode: 200, body: 'bakımdayız' }]);
+    esit(r.gonderilecek, true);
+    if (!r.text.includes('metni yanıtta yok')) throw new Error('içerik denetimi çalışmadı: ' + r.text);
+  });
+  dene('/servis komutu son durumu özetler', () => {
+    const dosya = { data: { servisler: [
+      { ad: 'API', sonDurum: 'kapali', sonHata: 'HTTP 502 döndü', ardArda: 2, sonKontrol: new Date().toISOString() },
+      { ad: 'Site', sonDurum: 'ayakta', sonKod: 200, sonKontrol: new Date().toISOString() },
+    ] } };
+    const d = { "Workflow 05'ten Çağrı (Servis)": [{ chat_id: '42' }], 'Servisleri Oku (Durum)': [{}], 'Servisleri Çıkar (Durum)': [dosya] };
+    const r = calistir(ozet, { dugumler: d, girdi: [dosya] })[0].json;
+    esit(r.chat_id, '42');
+    if (!r.text.includes('🔴 API') || !r.text.includes('✅ Site')) throw new Error('özet hatalı: ' + r.text);
+  });
+  dene('chat_id yoksa mesaj gönderilmez', () => {
+    const d = { "Workflow 05'ten Çağrı (Servis)": [{}], 'Servisleri Oku (Durum)': [{}], 'Servisleri Çıkar (Durum)': [{ data: { servisler: [] } }] };
+    esit(calistir(ozet, { dugumler: d, girdi: [{}] }).length, 0);
+  });
+}
+
+// ═══ 18 — GitHub nöbetçisi ═══
+console.log('18 — GitHub nöbetçisi');
+{
+  const d18 = wf('18-github-nobetcisi.json');
+  const sorgular = kodu(d18, 'Sorguları Hazırla');
+  const yenileri = kodu(d18, 'Yenileri Bul');
+  const rapor = kodu(d18, 'Rapor Hazırla (GitHub)');
+
+  const durumDosya = (durum) => ({ data: durum });
+  const hazirla = (env, durum = { gorulen: [], sonCalisma: null }, elle = false) => {
+    const d = { 'Durumu Oku (GitHub)': [{}], 'Durumu Çıkar (GitHub)': [durumDosya(durum)] };
+    if (elle) d['Elle Test Et (GitHub)'] = [{}];
+    return calistir(sorgular, { dugumler: d, girdi: [durumDosya(durum)], env });
+  };
+  const pr = (no, baslik, ek) => ({
+    number: no, title: baslik, html_url: 'https://github.com/a/b/pull/' + no,
+    repository_url: 'https://api.github.com/repos/a/b', user: { login: 'biri' },
+    updated_at: '2026-09-01T00:00:00Z', ...ek,
+  });
+  const tara = (sonuclar, durum) => {
+    const q = hazirla({ GITHUB_TOKEN: 't' }, durum).map((x) => x.json);
+    const d = { 'Sorguları Hazırla': q, 'Durumu Çıkar (GitHub)': [durumDosya(durum)] };
+    return calistir(yenileri, { dugumler: d, girdi: sonuclar })[0].json;
+  };
+  const bos = { total_count: 0, items: [] };
+
+  dene('token yoksa zamanlanmış tur sessizce hiçbir şey yapmaz', () => {
+    esit(hazirla({}).length, 0);
+  });
+  dene('token yoksa elle çalıştırmada anlaşılır hata verir', () => {
+    let mesaj = '';
+    try { hazirla({}, { gorulen: [], sonCalisma: null }, true); } catch (e) { mesaj = e.message; }
+    if (!/GITHUB_TOKEN/.test(mesaj)) throw new Error('uyarı yok: ' + mesaj);
+  });
+  dene('5 sorgu hazırlanır; kullanıcı adı ayarlanabilir', () => {
+    const r = hazirla({ GITHUB_TOKEN: 't', GITHUB_KULLANICI: 'yokbi' });
+    esit(r.length, 5);
+    if (!r[0].json.url.includes('review-requested%3Ayokbi')) throw new Error('kullanıcı adı geçmedi: ' + r[0].json.url);
+    if (!r.every((x) => x.json.url.startsWith('https://api.github.com/search/issues?'))) throw new Error('adres hatalı');
+  });
+  dene('github-durum.json bozuk → taramaya başlamaz', () => {
+    const d = { 'Durumu Oku (GitHub)': [{}], 'Durumu Çıkar (GitHub)': [{ error: { message: 'Unexpected end of JSON input' } }] };
+    let attı = false;
+    try { calistir(sorgular, { dugumler: d, girdi: [{}], env: { GITHUB_TOKEN: 't' } }); }
+    catch (e) { attı = /github-durum\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk dosyada durmadı');
+  });
+  dene('ilk tarama sessizdir (eski kayıtlar bildirilmez)', () => {
+    const r = tara([{ total_count: 1, items: [pr(1, 'Eski PR')] }, bos, bos, bos, bos], { gorulen: [], sonCalisma: null });
+    esit(r.gonderilecek, false, 'ilk turda bildirim gitti');
+    esit(r.gorulen.length, 1); esit(r.yazilsin, true);
+  });
+  dene('ikinci turda yalnızca yeni kayıt bildirilir', () => {
+    const durum = { gorulen: ['inceleme|https://github.com/a/b/pull/1'], sonCalisma: '2026-09-01T00:00:00Z' };
+    const r = tara([{ total_count: 2, items: [pr(1, 'Eski PR'), pr(2, 'Yeni PR')] }, bos, bos, bos, bos], durum);
+    esit(r.gonderilecek, true); esit(r.yeniSayisi, 1);
+    if (r.text.includes('Eski PR')) throw new Error('görülen kayıt tekrar bildirildi');
+    if (!r.text.includes('Yeni PR')) throw new Error('yeni kayıt yok: ' + r.text);
+  });
+  dene('taslak PR CI kategorisinde bildirilmez', () => {
+    const durum = { gorulen: [], sonCalisma: '2026-09-01T00:00:00Z' };
+    const r = tara([bos, { total_count: 1, items: [pr(9, 'Yarım iş', { draft: true })] }, bos, bos, bos], durum);
+    esit(r.gonderilecek, false, 'taslak bildirildi');
+    esit(r.gorulen.length, 1, 'taslak yine de işaretlenmeli');
+  });
+  dene('geçersiz token bir kez uyarır, sonra susar', () => {
+    const durum = { gorulen: [], sonCalisma: '2026-09-01T00:00:00Z' };
+    const hata = [{ error: { message: '401 - {"message":"Bad credentials"}' } }, bos, bos, bos, bos];
+    const ilk = tara(hata, durum);
+    esit(ilk.gonderilecek, true);
+    if (!ilk.text.includes('GITHUB_TOKEN geçersiz')) throw new Error('uyarı metni yok: ' + ilk.text);
+    const ikinci = tara(hata, { gorulen: ilk.gorulen, sonCalisma: '2026-09-02T00:00:00Z' });
+    esit(ikinci.gonderilecek, false, 'aynı uyarı tekrar gitti');
+  });
+  dene('sorgu hata verirse o kategorinin işaretleri KORUNUR', () => {
+    const anahtar = 'inceleme|https://github.com/a/b/pull/1';
+    const durum = { gorulen: [anahtar], sonCalisma: '2026-09-01T00:00:00Z' };
+    const r = tara([{ error: { message: 'API rate limit exceeded' } }, bos, bos, bos, bos], durum);
+    if (!r.gorulen.includes(anahtar)) throw new Error('işaret kayboldu → sorun geçince tekrar bildirilirdi');
+  });
+  dene('/pr raporu son taramayı özetler', () => {
+    const durum = { gorulen: [], sonCalisma: new Date().toISOString(), ozet: {
+      inceleme: { ad: 'İncelemeni bekleyen PR', ikon: '🔍', kayitlar: [{ repo: 'a/b', no: 5, baslik: 'Şunu düzelt', url: 'u' }] },
+    } };
+    const d = { "Workflow 05'ten Çağrı (GitHub)": [{ chat_id: '42' }], 'Durumu Oku (Rapor)': [{}], 'Durumu Çıkar (Rapor)': [durumDosya(durum)] };
+    const r = calistir(rapor, { dugumler: d, girdi: [durumDosya(durum)] })[0].json;
+    if (!r.text.includes('a/b#5')) throw new Error('rapor eksik: ' + r.text);
+    if (!r.text.includes('az önce')) throw new Error('tarama zamanı yok: ' + r.text);
+  });
+  dene('/pr bekleyen iş yoksa bunu söyler', () => {
+    const durum = { gorulen: [], sonCalisma: new Date().toISOString(), ozet: {} };
+    const d = { "Workflow 05'ten Çağrı (GitHub)": [{ chat_id: '42' }], 'Durumu Oku (Rapor)': [{}], 'Durumu Çıkar (Rapor)': [durumDosya(durum)] };
+    const r = calistir(rapor, { dugumler: d, girdi: [durumDosya(durum)] })[0].json;
+    if (!r.text.includes('bekleyen bir şey yok')) throw new Error('boş rapor hatalı: ' + r.text);
+  });
+}
+
+// ═══ 19 — Kod parçacığı kasası ═══
+console.log('19 — Kod parçacığı kasası');
+{
+  const d19 = wf('19-kod-parcacik-kasasi.json');
+  const alKod = kodu(d19, 'İsteği Al (Kod)');
+  const uygula = kodu(d19, 'İşlemi Uygula');
+  const suz = kodu(d19, 'Listeyi Süz (Kod)');
+
+  const kasa = (liste) => ({ data: { parcacikalar: liste || [] } });
+  const cagir = (girdi, liste) => {
+    const istek = calistir(alKod, { girdi: [girdi] })[0].json;
+    const d = { 'İsteği Al (Kod)': [istek], 'Parçacıkları Oku': [{}], 'Parçacıkları Çıkar': [kasa(liste)] };
+    return calistir(uygula, { dugumler: d, girdi: [kasa(liste)] })[0].json;
+  };
+  const ornek = [
+    { id: 1, baslik: 'Docker temizlik', dil: 'bash', etiketler: ['docker'], kod: 'docker system prune -af', kullanim: 0 },
+    { id: 2, baslik: 'Git geri al', dil: 'bash', etiketler: ['git'], kod: 'git reset --soft HEAD~1', kullanim: 5 },
+  ];
+
+  dene('webhook ile kaydedilir', () => {
+    const r = cagir({ body: { baslik: 'Portu dinleyeni bul', dil: 'bash', etiket: 'ağ,port', kod: 'lsof -i :5678' } });
+    esit(r.yazilsin, true); esit(r.parcacikalar.length, 1);
+    esit(r.parcacikalar[0].etiketler.join(','), 'ağ,port');
+    esit(r.webhooktan, true);
+  });
+  dene('Telegram\'dan çok satırlı kayıt: ilk satır başlık, gerisi kod', () => {
+    const r = cagir({ komut: 'kaydet', chat_id: '42', metin: 'Docker temizlik #docker #bash\ndocker system prune -af\ndocker volume ls' }, []);
+    const p = r.parcacikalar[0];
+    esit(p.baslik, 'Docker temizlik');
+    esit(p.etiketler.join(','), 'docker,bash');
+    esit(p.kod, 'docker system prune -af\ndocker volume ls');
+    esit(r.webhooktan, false); esit(r.chat_id, '42');
+  });
+  dene('başlıksız/kodsuz kayıt reddedilir, dosyaya yazılmaz', () => {
+    const r = cagir({ komut: 'kaydet', chat_id: '42', metin: 'sadece başlık' }, []);
+    esit(r.yazilsin, false); esit(r.hata, true);
+  });
+  dene('arama: başlık eşleşmesi kod içi eşleşmeden önce gelir', () => {
+    const liste = [
+      { id: 1, baslik: 'Rastgele not', dil: '', etiketler: [], kod: 'echo docker', kullanim: 0 },
+      { id: 2, baslik: 'Docker temizlik', dil: 'bash', etiketler: ['docker'], kod: 'prune', kullanim: 0 },
+    ];
+    const r = cagir({ komut: 'ara', metin: 'docker', chat_id: '42' }, liste);
+    esit(r.sonuc[0].id, 2, 'sıralama hatalı');
+    esit(r.sonuc.length, 2);
+    esit(r.yazilsin, false);
+  });
+  dene('getir: kodu kod bloğu olarak verir ve kullanım sayacını artırır', () => {
+    const r = cagir({ komut: 'getir', metin: '1', chat_id: '42' }, ornek);
+    esit(r.yazilsin, true);
+    esit(r.parcacikalar[0].kullanim, 1);
+    if (!r.telegramText.includes('<pre><code>')) throw new Error('kod bloğu yok: ' + r.telegramText);
+    if (!r.mesaj.includes('docker system prune -af')) throw new Error('kod yok');
+  });
+  dene('getir: HTML işaretleri kaçırılır (mesaj bozulmaz)', () => {
+    const liste = [{ id: 1, baslik: 'XML', dil: 'xml', etiketler: [], kod: '<a href="x">&y</a>', kullanim: 0 }];
+    const r = cagir({ komut: 'getir', metin: '1' }, liste);
+    if (r.telegramText.includes('<a href')) throw new Error('ham HTML sızdı');
+    if (!r.telegramText.includes('&lt;a href=')) throw new Error('kaçırma yapılmadı: ' + r.telegramText);
+  });
+  dene('olmayan numara: hata verir, kasaya dokunmaz', () => {
+    const r = cagir({ komut: 'getir', metin: '99' }, ornek);
+    esit(r.hata, true); esit(r.yazilsin, false); esit(r.parcacikalar.length, 2);
+  });
+  dene('sil: kayıt gider, liste yazılır', () => {
+    const r = cagir({ komut: 'sil', metin: '2' }, ornek);
+    esit(r.yazilsin, true); esit(r.parcacikalar.length, 1); esit(r.parcacikalar[0].id, 1);
+  });
+  dene('liste: en çok kullanılan önce', () => {
+    const r = cagir({ komut: 'liste' }, ornek);
+    const satirlar = r.mesaj.split('\n');
+    if (!satirlar[1].includes('#2')) throw new Error('sıralama hatalı: ' + r.mesaj);
+  });
+  dene('parcacikalar.json bozuk → durur (kasayı silmez)', () => {
+    const istek = calistir(alKod, { girdi: [{ komut: 'liste' }] })[0].json;
+    const d = { 'İsteği Al (Kod)': [istek], 'Parçacıkları Oku': [{}], 'Parçacıkları Çıkar': [{ error: { message: 'Unexpected token' } }] };
+    let attı = false;
+    try { calistir(uygula, { dugumler: d, girdi: [{}] }); } catch (e) { attı = /parcacikalar\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk dosyada durmadı');
+  });
+  dene('GET /webhook/kodlar?id=1&sade=1 yalnızca kodu döndürür', () => {
+    const d = { 'Parçacık Listesi (Webhook GET)': [{ query: { id: '1', sade: '1' } }],
+                'Parçacıkları Oku (Liste)': [{}], 'Parçacıkları Çıkar (Liste)': [kasa(ornek)] };
+    const r = calistir(suz, { dugumler: d, girdi: [kasa(ornek)] })[0].json;
+    esit(r.sade, true); esit(r.govde, 'docker system prune -af');
+  });
+  dene('GET /webhook/kodlar?ara=git süzer', () => {
+    const d = { 'Parçacık Listesi (Webhook GET)': [{ query: { ara: 'git' } }],
+                'Parçacıkları Oku (Liste)': [{}], 'Parçacıkları Çıkar (Liste)': [kasa(ornek)] };
+    const r = calistir(suz, { dugumler: d, girdi: [kasa(ornek)] })[0].json;
+    esit(r.govde.length, 1); esit(r.govde[0].id, 2);
+  });
+}
+
+// ═══ 20 — Geliştirici araç kutusu ═══
+console.log('20 — Geliştirici araç kutusu');
+{
+  const d20 = wf('20-gelistirici-arac-kutusu.json');
+  const alArac = kodu(d20, 'İsteği Al (Araç)');
+  const calistirArac = kodu(d20, 'Aracı Çalıştır');
+  const arac = (girdi) => {
+    const istek = calistir(alArac, { girdi: [girdi] })[0].json;
+    return calistir(calistirArac, { girdi: [istek] })[0].json;
+  };
+  const telegram = (metin) => arac({ metin, chat_id: '42' });
+
+  dene('SHA-256 bilinen değerle uyuşuyor', () => {
+    esit(telegram('sha256 abc').sonuc, 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+  });
+  dene('base64 Türkçe karakterlerle gidip geliyor', () => {
+    const kodlu = telegram('b64kodla merhaba dünya').sonuc;
+    esit(kodlu, 'bWVyaGFiYSBkw7xueWE=');
+    esit(telegram('b64coz ' + kodlu).sonuc, 'merhaba dünya');
+    if (!telegram('b64 ' + kodlu).sonuc.includes('merhaba dünya')) throw new Error('otomatik çözme çalışmadı');
+  });
+  dene('JWT açılır ve süresi geçmişse söylenir', () => {
+    const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const token = b64({ alg: 'HS256' }) + '.' + b64({ sub: '1', exp: Math.floor(Date.now() / 1000) - 60 }) + '.imza';
+    const r = telegram('jwt ' + token);
+    esit(r.basarili, true);
+    if (!r.sonuc.includes('⛔ Süresi GEÇMİŞ')) throw new Error('süre denetimi yok: ' + r.sonuc);
+    if (!r.sonuc.includes('imza doğrulanmadı')) throw new Error('imza uyarısı yok');
+  });
+  dene('JWT olmayan girdi anlaşılır hata verir', () => {
+    const r = telegram('jwt selam');
+    esit(r.basarili, false);
+    if (!r.sonuc.includes('JWT değil')) throw new Error('hata metni: ' + r.sonuc);
+  });
+  dene('cron Türkçe açıklanır ve sonraki çalışmalar hesaplanır', () => {
+    const r = telegram('cron 0 */4 * * *');
+    if (!r.sonuc.includes('her 4 saatte bir')) throw new Error('açıklama: ' + r.sonuc);
+    esit(r.sonuc.split('•').length - 1, 3, 'sonraki çalışma sayısı');
+    const haftaici = telegram('cron 30 9 * * 1-5').sonuc;
+    if (!haftaici.includes('09:30') || !haftaici.includes('Pazartesi-Cuma')) throw new Error('hafta içi: ' + haftaici);
+  });
+  dene('geçersiz cron alanı reddedilir', () => {
+    const r = telegram('cron 99 * * * *');
+    esit(r.basarili, false);
+    if (!r.sonuc.includes('0-59')) throw new Error('aralık uyarısı yok: ' + r.sonuc);
+    esit(telegram('cron 0 9 * *').basarili, false, '4 alanlı ifade kabul edildi');
+  });
+  dene('bozuk JSON satır ve sütun bildirir', () => {
+    const r = telegram('json {"a":1,}');
+    esit(r.basarili, false);
+    if (!r.sonuc.includes('Satır 1')) throw new Error('konum yok: ' + r.sonuc);
+  });
+  dene('geçerli JSON biçimlendirilir', () => {
+    const r = telegram('json {"a":[1,2]}');
+    esit(r.basarili, true);
+    if (!r.sonuc.includes('"a": [')) throw new Error('biçimlendirme yok');
+  });
+  dene('zaman: epoch → ISO ve yerel saat', () => {
+    const r = telegram('zaman 1735689600');
+    if (!r.sonuc.includes('2025-01-01T00:00:00.000Z')) throw new Error('ISO yok: ' + r.sonuc);
+    if (!r.sonuc.includes('epoch (ms): 1735689600000')) throw new Error('ms yok');
+  });
+  dene('slug Türkçe karakterleri çevirir', () => {
+    esit(telegram('slug Çağrı Günlüğü — İlk Adım!').sonuc, 'cagri-gunlugu-ilk-adim');
+  });
+  dene('uuid v4 biçiminde üretilir', () => {
+    const uuid = telegram('uuid').sonuc.split('\n')[0];
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(uuid)) {
+      throw new Error('biçim hatalı: ' + uuid);
+    }
+  });
+  dene('parola istenen uzunlukta üretilir', () => {
+    esit(telegram('parola 24').sonuc.split('\n')[0].length, 24);
+  });
+  dene('bilinmeyen işlem yardım listesi döndürür', () => {
+    const r = telegram('şapşal');
+    esit(r.basarili, false);
+    if (!r.sonuc.includes('kullanılabilir işlemler')) throw new Error('yardım yok');
+  });
+  dene('webhook isteği (body/query) de çalışır', () => {
+    esit(arac({ body: { islem: 'sha256', veri: 'abc' } }).webhooktan, true);
+    const q = arac({ query: { islem: 'slug', veri: 'Merhaba Dünya' }, body: {} });
+    esit(q.sonuc, 'merhaba-dunya'); esit(q.webhooktan, true);
+  });
+  dene('Telegram yanıtı kod bloğu olarak kaçırılır', () => {
+    const r = telegram('json {"a":"<b>"}');
+    if (!r.telegramText.startsWith('<pre>')) throw new Error('kod bloğu yok');
+    if (r.telegramText.includes('"<b>"')) throw new Error('ham HTML sızdı: ' + r.telegramText);
+  });
+}
+
+// ═══ 21 — Webhook yakalayıcı ═══
+console.log('21 — Webhook yakalayıcı');
+{
+  const d21 = wf('21-webhook-yakalayici.json');
+  const gelen = kodu(d21, 'Gelen İsteği Al');
+  const kaydet = kodu(d21, 'İsteği Kaydet');
+  const rapor = kodu(d21, 'İstek Raporu');
+  const suz = kodu(d21, 'Listeyi Süz (İstek)');
+
+  const istekDosya = (liste) => ({ data: { istekler: liste || [] } });
+  const yakala = (girdi, getMi) => {
+    const dugumler = getMi ? { 'İstek Yakala (GET)': [{}] } : {};
+    return calistir(gelen, { dugumler, girdi: [girdi] })[0].json;
+  };
+  const kaydetIstek = (g, liste) => {
+    const d = { 'Gelen İsteği Al': [g], 'Yakalananları Oku': [{}], 'Yakalananları Çıkar': [istekDosya(liste)] };
+    return calistir(kaydet, { dugumler: d, girdi: [istekDosya(liste)] })[0].json;
+  };
+
+  dene('POST isteği çözülür, gövde JSON olarak saklanır', () => {
+    const g = yakala({ headers: { 'content-type': 'application/json' }, query: { etiket: 'stripe' }, body: { olay: 'odeme' } });
+    esit(g.yontem, 'POST'); esit(g.etiket, 'stripe'); esit(g.govdeTipi, 'json');
+    if (!g.govde.includes('"olay": "odeme"')) throw new Error('gövde yok: ' + g.govde);
+  });
+  dene('GET webhook\'u tetiklerse yöntem GET olur', () => {
+    esit(yakala({ headers: {}, query: {}, body: {} }, true).yontem, 'GET');
+  });
+  dene('gizli başlıklar maskelenir (telefona düşen metinde anahtar olmaz)', () => {
+    const g = yakala({ headers: {
+      authorization: 'Bearer sk_live_1234567890abcdef',
+      'x-api-key': 'gizli-anahtar-degeri',
+      'x-stripe-signature': 't=1,v1=abcdef1234567890',
+      'user-agent': 'curl/8.0',
+    }, query: {}, body: {} });
+    if (JSON.stringify(g.basliklar).includes('sk_live_1234567890abcdef')) throw new Error('token sızdı');
+    if (JSON.stringify(g.basliklar).includes('gizli-anahtar-degeri')) throw new Error('api anahtarı sızdı');
+    if (JSON.stringify(g.basliklar).includes('v1=abcdef1234567890')) throw new Error('imza sızdı');
+    esit(g.basliklar['user-agent'], 'curl/8.0', 'zararsız başlık maskelenmiş');
+  });
+  dene('yanıt kodu ?kod= ile seçilir ve sınırlanır', () => {
+    esit(yakala({ headers: {}, query: { kod: '500' }, body: {} }).kod, 500);
+    esit(yakala({ headers: {}, query: { kod: '9999' }, body: {} }).kod, 599);
+    esit(yakala({ headers: {}, query: {}, body: {} }).kod, 200);
+  });
+  dene('uzun gövde kırpılır ama boyutu kaydedilir', () => {
+    const g = yakala({ headers: {}, query: {}, body: 'x'.repeat(5000) });
+    esit(g.boyut, 5000);
+    if (g.govde.length > 4100) throw new Error('kırpılmadı');
+    if (!g.govde.includes('kırpıldı')) throw new Error('kırpma bildirilmedi');
+  });
+  dene('istek listeye eklenir, numara verilir', () => {
+    const r = kaydetIstek(yakala({ headers: {}, query: {}, body: { a: 1 } }), []);
+    esit(r.id, 1); esit(r.istekler.length, 1); esit(r.yazilsin, true);
+  });
+  dene('yalnızca son 50 istek tutulur', () => {
+    const eski = Array.from({ length: 50 }, (_, i) => ({ id: i + 1, zaman: '2026-01-01T00:00:00Z', yontem: 'POST', boyut: 0 }));
+    const r = kaydetIstek(yakala({ headers: {}, query: {}, body: {} }), eski);
+    esit(r.istekler.length, 50);
+    esit(r.istekler[0].id, 2, 'en eski kayıt düşmedi');
+    esit(r.id, 51);
+  });
+  dene('yakalanan-istekler.json bozuk → yazmaz, durur', () => {
+    const d = { 'Gelen İsteği Al': [yakala({ headers: {}, query: {}, body: {} })], 'Yakalananları Oku': [{}],
+                'Yakalananları Çıkar': [{ error: { message: 'Unexpected token' } }] };
+    let attı = false;
+    try { calistir(kaydet, { dugumler: d, girdi: [{}] }); } catch (e) { attı = /yakalanan-istekler\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk dosyada durmadı');
+  });
+  const kayitlar = [
+    { id: 1, zaman: new Date().toISOString(), yontem: 'POST', etiket: 'stripe', sorgu: { etiket: 'stripe' },
+      basliklar: { 'content-type': 'application/json' }, govdeTipi: 'json', boyut: 20, govde: '{"a":1}' },
+    { id: 2, zaman: new Date().toISOString(), yontem: 'GET', etiket: '', sorgu: {}, basliklar: {}, govdeTipi: 'yok', boyut: 0, govde: '' },
+  ];
+  const raporla = (cagri, liste) => {
+    const d = { "Workflow 05'ten Çağrı (İstek)": [cagri], 'Yakalananları Oku (Rapor)': [{}],
+                'Yakalananları Çıkar (Rapor)': [istekDosya(liste)] };
+    const r = calistir(rapor, { dugumler: d, girdi: [istekDosya(liste)] });
+    return r.length ? r[0].json : null;
+  };
+  dene('/istekler son istekleri özetler (yeni en üstte)', () => {
+    const r = raporla({ chat_id: '42', komut: 'liste' }, kayitlar);
+    if (!r.text.includes('#2')) throw new Error('liste yok: ' + r.text);
+    if (r.text.indexOf('#2') > r.text.indexOf('#1')) throw new Error('sıralama ters');
+    esit(r.yazilsin, false);
+  });
+  dene('/istek 1 ayrıntıyı kod bloğunda verir', () => {
+    const r = raporla({ chat_id: '42', komut: 'detay', id: 1 }, kayitlar);
+    if (!r.text.includes('<pre>')) throw new Error('kod bloğu yok');
+    if (!r.text.includes('content-type')) throw new Error('başlıklar yok');
+    esit(r.yazilsin, false);
+  });
+  dene('/istektemizle listeyi boşaltır ve dosyaya yazar', () => {
+    const r = raporla({ chat_id: '42', komut: 'temizle' }, kayitlar);
+    esit(r.yazilsin, true); esit(r.istekler.length, 0);
+    if (!r.text.includes('2 kayıt silindi')) throw new Error('mesaj: ' + r.text);
+  });
+  dene('chat_id yoksa mesaj gönderilmez', () => {
+    esit(raporla({ komut: 'liste' }, kayitlar), null);
+  });
+  dene('GET /webhook/istekler süzme ve adet çalışır', () => {
+    const d = { 'İstek Listesi (Webhook GET)': [{ query: { etiket: 'stripe' } }], 'Yakalananları Oku (Liste)': [{}],
+                'Yakalananları Çıkar (Liste)': [istekDosya(kayitlar)] };
+    const r = calistir(suz, { dugumler: d, girdi: [istekDosya(kayitlar)] })[0].json;
+    esit(r.govde.length, 1); esit(r.govde[0].id, 1);
+  });
 }
 
 // ═══ 12 — Yerel AI sohbet ═══
