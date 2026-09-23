@@ -84,6 +84,7 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 │  │ ── kişisel takip paketi ───────────  │                            │
 │  │ 22 Alışkanlık takibi — 21:00         │                            │
 │  │ 23 Bütçe nöbetçisi — 20:00           │                            │
+│  │ 24 Abonelik ve ödemeler — 09:30      │                            │
 │  └──────┬──────────────────┬────────────┘                            │
 │         │                  │                                         │
 │   n8n_data volume    local-files/*.json (görev, fiyat, harcama, not) │
@@ -118,6 +119,7 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 | `21-webhook-yakalayici` | Gelen HTTP isteğini olduğu gibi kaydeder ve gösterir; kendi request-bin'iniz (`/istekler`) | — (§13.5) |
 | `22-aliskanlik-takibi` | Her gün tekrarlanan işler için "yaptım" işareti ve 🔥 seri; akşam 21:00'de eksikleri hatırlatır (`/yaptim`) | — veya SMTP (§14.1) |
 | `23-butce-nobetcisi` | Aylık ve kategori bazlı harcama limiti; %80 ve %100'de ayda bir kez uyarır, günlük harcanabilir tutarı söyler (`/butce`) | — veya SMTP (§14.2) |
+| `24-abonelik-takibi` | Her ay/her yıl tekrarlanan ödemeleri (Netflix, kira, alan adı) günü gelmeden hatırlatır, aylık yükü gösterir (`/abonelik`) | — veya SMTP (§14.3) |
 
 Her workflow'un tuvalinde, kurulum adımlarını anlatan Türkçe **sarı not kutuları** vardır.
 
@@ -158,6 +160,7 @@ cp local-files/yakalanan-istekler.ornek.json local-files/yakalanan-istekler.json
 # Kişisel takip paketi (workflow 22–26):
 cp local-files/aliskanliklar.ornek.json local-files/aliskanliklar.json
 cp local-files/butce.ornek.json local-files/butce.json
+cp local-files/abonelikler.ornek.json local-files/abonelikler.json
 
 # 3) n8n'i başlatın
 docker compose up -d
@@ -821,6 +824,7 @@ olarak gider. Tasarım ayrıntıları: [`YENI-OZELLIKLER.md`](YENI-OZELLIKLER.md
 |---|---|---|---|
 | 22 | Alışkanlık takibi | 🔥 Seri, son 7 gün, akşam hatırlatması | `/aliskanlik` · `/yaptim 2` |
 | 23 | Bütçe nöbetçisi | Limit, kalan, günlük harcanabilir, %80/%100 uyarısı | `/butce` · `/butce limit 20000` |
+| 24 | Abonelik ve düzenli ödemeler | Ödemeden 3 gün önce hatırlatma, aylık yük | `/abonelik` · `/abonelik ekle …` |
 <!-- paket-tablosu -->
 
 Telegram komutları için workflow 05'teki ilgili **… Workflow'una İlet**
@@ -908,6 +912,44 @@ curl -X POST http://localhost:5678/webhook/butce \
   -H 'Content-Type: application/json' -d '{"metin":"limit 20000"}'
 ```
 
+### 14.3 Abonelik ve düzenli ödemeler (workflow 24)
+
+Workflow 09'daki hatırlatma **tek seferliktir**; her ay tekrarlanan ödeme için
+her ay yeniden kurmak gerekir. Bu workflow'da ödemeyi bir kez tanımlarsınız.
+
+```
+/abonelik ekle Netflix 229,99 15          → her ayın 15'i
+/abonelik ekle Kira 15.000 1              → her ayın 1'i
+/abonelik ekle Alan adı 450 yillik 14.03  → her yıl 14 Mart
+/abonelik                                 → liste
+/abonelik sil 3
+```
+
+`/abonelik` çıktısı (sıradaki ödemeye göre sıralı):
+
+```
+💳 Düzenli ödemeler — aylık yük 15.267 TL (yıllık 183.210 TL)
+• #2 Kira — 15.000 TL · her ayın 1. günü → 8 gün sonra (1 Ekim)
+• #1 Netflix — 229,99 TL · her ayın 15. günü → 22 gün sonra (15 Ekim)
+• #3 Alan adı — 450 TL · her yıl 14 Mart → 172 gün sonra (14 Mart)
+```
+
+- **Her sabah 09:30**, sıradaki ödemesine 3 gün ya da daha az kalanları tek
+  mesajda hatırlatır; gününde "💳 **Bugün**" diye tekrar yazar. Her ödeme
+  tarihi için hatırlatma bir kez gider.
+- **Ayın son günü kuralı:** `31` girilen ödeme 30 çeken ayda 30'unda,
+  Şubat'ta 28/29'unda sayılır — hiçbir ay atlanmaz.
+- Kaç gün önceden hatırlatılacağı (`onceden`) ve ödemeyi silmeden durdurmak
+  (`"aktif": false`) `local-files/abonelikler.json` dosyasından ayarlanır.
+- **Bilerek yok:** ödeme günü harcamalara otomatik kayıt. Çekim tarihi ve
+  tutarı bankaya göre kayabiliyor; ödedikten sonra `/harcama` ile kaydedin —
+  böylece bütçe nöbetçisi (§14.2) de görür.
+
+```bash
+curl -X POST http://localhost:5678/webhook/abonelik \
+  -H 'Content-Type: application/json' -d '{"metin":"ekle Spotify 59,99 1"}'
+```
+
 <!-- paket-bolumleri -->
 
 ## 15. iPhone, Mac ve Windows'tan kullanmak
@@ -928,6 +970,7 @@ telefondan kullanabilirsiniz: **Telegram botu dışarıya hiçbir kapı açmadan
 | `/istekler` · `/istek 3` | Yakalanan webhook istekleri |
 | `/aliskanlik` · `/yaptim 2` | Alışkanlık serileri · bugünü işaretleme |
 | `/butce` · `/butce limit 20000` | Bütçe durumu · limit koyma |
+| `/abonelik` · `/abonelik ekle Netflix 229,99 15` | Düzenli ödemeler · aylık yük |
 | `/yardim` | Tüm komutlar |
 
 Uyarılar (servis düştü, PR bekliyor) siz bir şey yapmadan gelir.
@@ -1071,6 +1114,7 @@ makinenizde (şifreli) durur.
 | Yakalanan istekte `Authorization` görünmüyor | Bilerek: gizli başlıklar ilk 6 karakter dışında maskelenir (§13.5). Gerçek değeri görmek için `local-files/yakalanan-istekler.json` yerine isteği gönderen tarafa bakın. |
 | `/yaptim` "bulunamadı" diyor | Numara yerine adın bir parçasını da yazabilirsiniz (`/yaptim kitap`); numaraları `/aliskanlik` gösterir. Aynı kelime birden çok alışkanlıkta geçiyorsa ilk eşleşen seçilir — numara kullanın. |
 | Bütçede harcama "Diğer"e düşüyor | Kategorinin anahtar kelimesi harcamanın açıklamasında geçmiyor. `/butce anahtar Market <kelime>` ile ekleyin (§14.2). |
+| `/abonelik ekle` "Kullanım" diyor | Sıra önemli: **ad, tutar, gün** (`Netflix 229,99 15`). Yıllık için gün.ay: `Alan adı 450 yillik 14.03`. Tutarda nokta binlik, virgül kuruş ayırıcıdır. |
 
 ## 19. Güncelleme
 

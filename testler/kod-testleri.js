@@ -41,6 +41,18 @@ const dene = (ad, fn) => {
   catch (e) { console.log('  ✗', ad, '→', e.message); hata++; }
 };
 const esit = (a, b, m) => { if (a !== b) throw new Error((m||'') + ' beklenen ' + JSON.stringify(b) + ', gelen ' + JSON.stringify(a)); };
+// Saati sabitler: argümansız new Date() ve Date.now() verilen anı döndürür.
+// Ay sonu, artık yıl gibi takvime bağlı kuralları her gün aynı sonuçla denemek için.
+const sabitZaman = (iso, fn) => {
+  const Gercek = Date;
+  const an = new Gercek(iso).getTime();
+  class Sahte extends Gercek {
+    constructor(...a) { if (a.length === 0) super(an); else super(...a); }
+    static now() { return an; }
+  }
+  global.Date = Sahte;
+  try { return fn(); } finally { global.Date = Gercek; }
+};
 
 // ═══ 10 — Brifingi Hazırla ═══
 console.log('10 — Günaydın brifingi');
@@ -307,6 +319,12 @@ console.log('05 — Telegram bot komutları');
     esit(r.butceIstekleri.length, 1); esit(r.butceIstekleri[0].metin, 'limit Market 6000');
     esit(r.yanitlar.length, 0); esit(r.harcamaYazilsin, false);
     esit(bot('/bütçe').butceIstekleri[0].metin, '');
+  });
+  dene('/abonelik workflow 24\'e iletilir', () => {
+    const r = bot('/abonelik ekle Netflix 229,99 15');
+    esit(r.abonelikIstekleri.length, 1); esit(r.abonelikIstekleri[0].metin, 'ekle Netflix 229,99 15');
+    esit(r.yanitlar.length, 0); esit(r.gorevYazilsin, false);
+    esit(bot('/odemeler').abonelikIstekleri.length, 1);
   });
 }
 
@@ -1163,6 +1181,98 @@ console.log('23 — Bütçe nöbetçisi');
     const e = esik({ aylikLimit: 1000, uyarilar: { ay, gonderilen: [] } }, [H(10, 'x')], true);
     esit(e.gonderilecek, true);
     if (!e.text.startsWith('🎯 Bütçe —')) throw new Error(e.text);
+  });
+}
+
+// ═══ 24 — Abonelik ve düzenli ödemeler ═══
+console.log('24 — Abonelik ve düzenli ödemeler');
+{
+  const d24 = wf('24-abonelik-takibi.json');
+  const istekKod = kodu(d24, 'İsteği Al (Abonelik)');
+  const islemKod = kodu(d24, 'İşlemi Uygula (Abonelik)');
+  const sabahKod = kodu(d24, 'Yaklaşan Ödemeleri Bul');
+  const islem = (metin, abonelikler, ek = {}) => {
+    const d = {
+      'İsteği Al (Abonelik)': [calistir(istekKod, { girdi: [{ chat_id: 42, metin }] })[0].json],
+      'Abonelikleri Oku': [ek.yok ? { error: { message: 'ENOENT: no such file' } } : {}],
+      'Abonelikleri Çıkar': [ek.bozuk ? { error: { message: 'Unexpected token' } } : {}],
+    };
+    return calistir(islemKod, { dugumler: d, girdi: [{ data: { abonelikler } }] })[0].json;
+  };
+  const sabah = (abonelikler, elle) => {
+    const d = { 'Abonelikleri Oku (Sabah)': [{}], 'Abonelikleri Çıkar (Sabah)': [{}] };
+    if (elle) d['Elle Test Et (Abonelik)'] = [{}];
+    return calistir(sabahKod, { dugumler: d, girdi: [{ data: { abonelikler } }] })[0].json;
+  };
+  const A = (id, gun, ek = {}) => ({ id, ad: 'Abonelik ' + id, tutar: 100, periyot: 'aylik', gun, ...ek });
+
+  dene('ekle: aylık, yıllık, adında sayı olan, "TL" yazılan', () => {
+    const a = islem('ekle Netflix 229,99 15', []).abonelikler[0];
+    esit(a.ad, 'Netflix'); esit(a.tutar, 229.99); esit(a.periyot, 'aylik'); esit(a.gun, 15);
+    const y = islem('ekle Alan adı 450 yillik 14.03', []).abonelikler[0];
+    esit(y.ad, 'Alan adı'); esit(y.periyot, 'yillik'); esit(y.gun, 14); esit(y.ay, 3);
+    esit(islem('ekle Netflix 4K 229 15', []).abonelikler[0].ad, 'Netflix 4K');
+    esit(islem('ekle Kira 15.000 TL 1', []).abonelikler[0].tutar, 15000);
+  });
+  dene('ekle: hatalı biçim → kullanım, yazma yok', () => {
+    for (const m of ['ekle Netflix', 'ekle Netflix abc 15', 'ekle X 100 32', 'ekle X 100 yillik 31.13']) {
+      const r = islem(m, []);
+      esit(r.hata, true, m); esit(r.yazilsin, false, m);
+    }
+  });
+  dene('dosya yokken ekle → #1; BOZUK dosyada durur', () => {
+    const r = islem('ekle Spotify 59,99 1', [], { yok: true });
+    esit(r.abonelikler.length, 1); esit(r.abonelikler[0].id, 1); esit(r.yazilsin, true);
+    let attı = false;
+    try { islem('ekle x 1 1', [], { bozuk: true }); } catch (e) { attı = /abonelikler\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk dosyada durmadı');
+  });
+  dene('ayın 31\'i: Şubat\'ta 28, artık yılda 29, ayın 31\'inde bugün', () => {
+    sabitZaman('2026-02-10T09:00:00', () => {
+      const s = islem('', [A(1, 31)]).sonuc[0];
+      esit(s.sonrakiOdeme, '2026-02-28'); esit(s.kalanGun, 18);
+    });
+    sabitZaman('2028-02-10T09:00:00', () => esit(islem('', [A(1, 31)]).sonuc[0].sonrakiOdeme, '2028-02-29'));
+    sabitZaman('2026-01-31T23:00:00', () => esit(islem('', [A(1, 31)]).sonuc[0].kalanGun, 0));
+  });
+  dene('günü geçen ödeme sonraki aya / sonraki yıla kayar', () => {
+    sabitZaman('2026-09-23T09:00:00', () => {
+      const r = islem('', [A(1, 15), A(2, 14, { periyot: 'yillik', ay: 3 }), A(3, 1, { periyot: 'yillik', ay: 12 })]);
+      esit(r.sonuc[0].sonrakiOdeme, '2026-10-15');
+      esit(r.sonuc[1].sonrakiOdeme, '2027-03-14');
+      esit(r.sonuc[2].sonrakiOdeme, '2026-12-01');
+    });
+    sabitZaman('2026-12-20T09:00:00', () => esit(islem('', [A(1, 5)]).sonuc[0].sonrakiOdeme, '2027-01-05'));
+  });
+  dene('aylık yük: yıllıkların 1/12\'si eklenir, pasifler sayılmaz', () => {
+    const r = islem('', [A(1, 1), A(2, 1, { tutar: 1200, periyot: 'yillik', ay: 5 }), A(3, 1, { aktif: false })]);
+    esit(r.aylikYuk, 200);
+    if (!r.mesaj.includes('aylık yük 200 TL (yıllık 2.400 TL)')) throw new Error(r.mesaj);
+  });
+  dene('sil', () => {
+    const r = islem('sil 2', [A(1, 1), A(2, 1)]);
+    esit(r.abonelikler.map((a) => a.id).join(), '1'); esit(r.yazilsin, true);
+    esit(islem('sil 9', [A(1, 1)]).hata, true);
+  });
+  dene('sabah: "onceden" penceresindekiler bir kez; bugün olan öne', () => {
+    sabitZaman('2026-09-13T09:30:00', () => {
+      const liste = [A(1, 15), A(2, 13), A(3, 20), A(4, 14, { aktif: false })];
+      const r = sabah(liste);
+      esit(r.gonderilecek, true);
+      const satirlar = r.text.split('\n');
+      if (!satirlar[1].startsWith('💳 Bugün: Abonelik 2')) throw new Error(r.text);
+      if (!r.text.includes('⏰ 2 gün sonra (15 Eylül): Abonelik 1')) throw new Error(r.text);
+      if (r.text.includes('Abonelik 3') || r.text.includes('Abonelik 4')) throw new Error('pencere dışı/pasif gönderildi');
+      if (!r.text.includes('Toplam: 200 TL')) throw new Error(r.text);
+      const isaretli = r.govde.abonelikler;
+      esit(isaretli[0].sonHatirlatilan, '2026-09-15'); esit(isaretli[1].sonHatirlatilan, '2026-09-13');
+      esit(sabah(isaretli).gonderilecek, false, 'ikinci kez gönderildi');
+      esit(sabah(isaretli, true).gonderilecek, true, 'elle test göndermeli');
+    });
+  });
+  dene('sabah: gelecek ayın ödemesi için yeniden hatırlatılır', () => {
+    const r = sabitZaman('2026-10-13T09:30:00', () => sabah([A(1, 15, { sonHatirlatilan: '2026-09-15' })]));
+    esit(r.gonderilecek, true); esit(r.govde.abonelikler[0].sonHatirlatilan, '2026-10-15');
   });
 }
 

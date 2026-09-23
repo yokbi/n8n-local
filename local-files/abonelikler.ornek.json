@@ -1,0 +1,16 @@
+{
+  "abonelikler": [
+    {
+      "id": 1,
+      "ad": "Örnek — Netflix (beni düzenleyin ya da silin)",
+      "tutar": 229.99,
+      "paraBirimi": "TL",
+      "periyot": "aylik",
+      "gun": 15,
+      "ay": null,
+      "onceden": 3,
+      "aktif": true,
+      "sonHatirlatilan": null
+    }
+  ]
+}
