@@ -1,0 +1,654 @@
+{
+  "name": "24 — Abonelik ve Düzenli Ödemeler",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 💳 Abonelik ve düzenli ödemeler\n\nNetflix, kira, telefon, alan adı, sigorta… Her ay ya da her yıl\ntekrarlanan ödemeleri bir kez tanımlayın; sıradaki ödeme tarihi her\ngün hesaplanır ve birkaç gün önceden hatırlatılır.\n\n### Kurulum\n1. `cp local-files/abonelikler.ornek.json local-files/abonelikler.json`\n   (isterseniz atlayın — ilk eklemede dosya kendiliğinden oluşur)\n2. Workflow'u **Active** yapın. Credential gerekmez.\n3. Telegram kurulu değilse **Ödeme Hatırlatmasını Mail At** düğümünde\n   SMTP credential'ını seçip iki adres alanını değiştirin.\n4. Telegram komutları için workflow 05'teki\n   **Abonelik Workflow'una İlet** düğümünde bu workflow'u seçin.\n\n### Kullanım\n```\n/abonelik                                 → liste + aylık yük\n/abonelik ekle Netflix 229,99 15          → her ayın 15'i\n/abonelik ekle Kira 15.000 1\n/abonelik ekle Alan adı 450 yillik 14.03  → her yıl 14 Mart\n/abonelik sil 3\n```\n```bash\ncurl -X POST http://localhost:5678/webhook/abonelik \\\n  -H 'Content-Type: application/json' -d '{\"metin\":\"ekle Spotify 59,99 1\"}'\n```",
+        "width": 540,
+        "height": 860
+      },
+      "id": "b73d4bf7-7ece-5f4e-8d23-177ecf4e36e6",
+      "name": "Not a1f24",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- **09:30 kontrolü:** sıradaki ödemesine `onceden` (varsayılan 3) gün\n  ya da daha az kalanlar tek mesajda. Her ödeme tarihi için **bir kez**\n  (`sonHatirlatilan`). *Elle Test Et* bu işarete bakmaz.\n- `gun: 31` olan ödeme 30 çeken ayda 30'unda, Şubat'ta 28/29'unda\n  sayılır — hiçbir ay atlanmaz.\n- Aylık yük = aylıklar + yıllıkların 1/12'si.\n- Bir ödemeyi silmeden durdurmak için dosyada `\"aktif\": false` yazın;\n  hatırlatma için kaç gün önce: `\"onceden\": 5`.\n- **Bilerek yok:** ödeme günü harcamalar.json'a otomatik kayıt. Çekim\n  tarihi/tutarı kayabilir; ödedikten sonra `/harcama` ile kaydedin.\n- Dosya bozuksa workflow **durur**, boş liste yazmaz.",
+        "width": 540,
+        "height": 380
+      },
+      "id": "98aaa40b-fe6a-5aa3-9c50-6b01d9ab97ef",
+      "name": "Not b2f24",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "abonelik",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "0d1f3b45-6fa1-5846-ad02-e4612da6aada",
+      "name": "Abonelik İsteği (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        0
+      ],
+      "webhookId": "e166e8be-111e-5083-a9e2-aa553efa79cc"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "c41938b3-a347-59dc-8a42-81d0fc833b53",
+      "name": "Workflow 05'ten Çağrı (Abonelik)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İki giriş de buradan geçer:\n//  • Webhook ile gelen istekte alanlar \"body\" içindedir,\n//  • Workflow 05'in /abonelik komutunda alanlar doğrudan gelir.\n// Sözdizimi Telegram ile aynı: {\"metin\": \"ekle Netflix 229,99 15\"}\nconst j = $input.first().json || {};\nconst webhooktan = Object.prototype.hasOwnProperty.call(j, 'body');\nconst govde = webhooktan ? (j.body && typeof j.body === 'object' ? j.body : {}) : j;\n\nconst chat_id = govde.chat_id ? String(govde.chat_id) : '';\nconst ISLEMLER = { liste: 'liste', ekle: 'ekle', sil: 'sil' };\nconst metin = String(govde.metin || '').trim();\nconst ilk = metin.split(/\\s+/)[0].toLowerCase();\nlet islem = 'liste';\nlet arg = '';\nif (metin) {\n  islem = ISLEMLER[ilk] || 'bilinmeyen';\n  arg = ISLEMLER[ilk] ? metin.slice(ilk.length).trim() : metin;\n}\n\nreturn [{ json: { islem, arg, chat_id, webhooktan } }];\n"
+      },
+      "id": "2ce61230-5150-5e27-8d6a-773a92ce5289",
+      "name": "İsteği Al (Abonelik)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/abonelikler.json",
+        "options": {}
+      },
+      "id": "64065d6a-f36c-5ead-a566-455e08846ab8",
+      "name": "Abonelikleri Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "b057a7b2-99a9-582e-9b1a-cb1a18e90137",
+      "name": "Abonelikleri Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        560,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Ortak: sıradaki ödeme tarihi ve biçimlendirme ───────────────────────────\n// Tarihler yerel saatle (GENERIC_TIMEZONE). \"gun: 31\" olan ödeme kısa ayda\n// ayın son gününe çekilir — hiçbir ay atlanmaz.\nconst iki = (n) => String(n).padStart(2, '0');\nconst anahtar = (d) => d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate());\nconst tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) + ' TL';\nconst bugun = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();\n\nconst aboneligiDuzenle = (a) => ({\n  ...a,\n  id: Number(a.id) || 0,\n  ad: String(a.ad || '').trim(),\n  tutar: typeof a.tutar === 'number' ? a.tutar : null,\n  periyot: a.periyot === 'yillik' ? 'yillik' : 'aylik',\n  gun: Math.min(31, Math.max(1, Number(a.gun) || 1)),\n  ay: a.periyot === 'yillik' ? Math.min(12, Math.max(1, Number(a.ay) || 1)) : null,\n  onceden: Number.isFinite(Number(a.onceden)) && a.onceden !== null ? Math.max(0, Number(a.onceden)) : 3,\n  aktif: a.aktif !== false,\n  sonHatirlatilan: a.sonHatirlatilan || null,\n});\n\nconst sonrakiOdeme = (a) => {\n  const gunIcin = (yil, ay) => new Date(yil, ay, Math.min(a.gun, new Date(yil, ay + 1, 0).getDate()));\n  const y = bugun.getFullYear();\n  if (a.periyot === 'yillik') {\n    let d = gunIcin(y, a.ay - 1);\n    if (d < bugun) d = gunIcin(y + 1, a.ay - 1);\n    return d;\n  }\n  let d = gunIcin(y, bugun.getMonth());\n  if (d < bugun) d = gunIcin(y, bugun.getMonth() + 1);\n  return d;\n};\nconst kalanGun = (d) => Math.round((d.getTime() - bugun.getTime()) / 86400000);\nconst neZaman = (n) => (n === 0 ? 'bugün' : n === 1 ? 'yarın' : n + ' gün sonra');\nconst tarihMetni = (d) => d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });\nconst periyotMetni = (a) => (a.periyot === 'yillik'\n  ? 'her yıl ' + tarihMetni(new Date(2000, a.ay - 1, a.gun))\n  : 'her ayın ' + a.gun + '. günü');\nconst aylikYuk = (liste) => liste\n  .filter((a) => a.aktif && typeof a.tutar === 'number')\n  .reduce((t, a) => t + (a.periyot === 'yillik' ? a.tutar / 12 : a.tutar), 0);\n// ─────────────────────────────────────────────────────────────────────────────\n// Liste / ekle / sil. Dosya bozuksa durur — aksi hâlde liste boş sanılıp\n// üzerine yazılır ve tüm ödeme tanımları kaybolur.\nconst okuHata = $('Abonelikleri Oku').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Abonelikleri Çıkar').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('abonelikler.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\n\nconst istek = $('İsteği Al (Abonelik)').first().json;\nconst okunan = dosyaYok ? {} : ($input.first().json || {});\nconst veri = okunan.data || okunan;\nconst abonelikler = (Array.isArray(veri.abonelikler) ? veri.abonelikler : [])\n  .filter((a) => a && a.ad)\n  .map(aboneligiDuzenle);\n\n// \"149,90\" · \"1.250\" · \"15000\" → sayı\nconst sayiyaCevir = (ham) => {\n  let t = String(ham).trim();\n  const sonNokta = t.lastIndexOf('.');\n  const sonVirgul = t.lastIndexOf(',');\n  if (sonVirgul > sonNokta) t = t.replace(/\\./g, '').replace(',', '.');\n  else if (sonVirgul === -1 && /^\\d{1,3}(\\.\\d{3})+$/.test(t)) t = t.replace(/\\./g, '');\n  else t = t.replace(/,/g, '');\n  const n = Number(t);\n  return /^[0-9.]+$/.test(t) && Number.isFinite(n) ? n : null;\n};\n\n// \"Netflix 229,99 15\" · \"Kira 15.000 TL aylik 1\" · \"Alan adı 450 yillik 14.03\"\n// Sondan çözülür, böylece adın içinde sayı olabilir (\"Netflix 4K 229 15\").\nconst ekleCoz = (metin) => {\n  const t = metin.split(/\\s+/).filter((x) => !/^(tl|₺|try)$/i.test(x));\n  if (t.length < 3) return null;\n  let periyot = 'aylik';\n  let gun;\n  let ay = null;\n  const son = t.pop();\n  const tarih = son.match(/^(\\d{1,2})[./](\\d{1,2})$/);\n  if (tarih) {\n    periyot = 'yillik';\n    gun = Number(tarih[1]);\n    ay = Number(tarih[2]);\n    if (/^(yillik|yıllık|yilda|yılda)$/i.test(t[t.length - 1] || '')) t.pop();\n  } else if (/^\\d{1,2}$/.test(son)) {\n    gun = Number(son);\n    if (/^(aylik|aylık|ayda)$/i.test(t[t.length - 1] || '')) t.pop();\n  } else {\n    return null;\n  }\n  const tutar = sayiyaCevir(t.pop() || '');\n  const ad = t.join(' ').trim();\n  if (!ad || tutar === null || tutar <= 0 || gun < 1 || gun > 31 || (ay !== null && (ay < 1 || ay > 12))) return null;\n  return { ad: ad.slice(0, 60), tutar, periyot, gun, ay };\n};\n\nconst liste = () => {\n  const aktif = abonelikler.filter((a) => a.aktif);\n  if (aktif.length === 0) return 'Düzenli ödeme yok.\\nEklemek için: /abonelik ekle Netflix 229,99 15';\n  const yuk = aylikYuk(aktif);\n  const satirlar = aktif\n    .map((a) => ({ a, d: sonrakiOdeme(a) }))\n    .sort((x, y) => x.d - y.d)\n    .map(({ a, d }) => {\n      const n = kalanGun(d);\n      return (n <= a.onceden ? '⏰' : '•') + ' #' + a.id + ' ' + a.ad + ' — ' +\n        (a.tutar !== null ? tl(a.tutar) : '?') + ' · ' + periyotMetni(a) + ' → ' + neZaman(n) +\n        (n > 1 ? ' (' + tarihMetni(d) + ')' : '');\n    });\n  return '💳 Düzenli ödemeler — aylık yük ' + tl(Math.round(yuk)) + ' (yıllık ' + tl(Math.round(yuk * 12)) + ')\\n' +\n    satirlar.join('\\n');\n};\n\nlet mesaj = '';\nlet yazilsin = false;\nlet hata = false;\n\nif (istek.islem === 'liste') {\n  mesaj = liste();\n} else if (istek.islem === 'ekle') {\n  const c = ekleCoz(istek.arg);\n  if (!c) {\n    hata = true;\n    mesaj = [\n      'Kullanım:',\n      '• /abonelik ekle Netflix 229,99 15        → her ayın 15\\'i',\n      '• /abonelik ekle Alan adı 450 yillik 14.03 → her yıl 14 Mart',\n    ].join('\\n');\n  } else {\n    const id = abonelikler.reduce((mx, a) => Math.max(mx, a.id), 0) + 1;\n    const yeni = aboneligiDuzenle({ id, ...c, paraBirimi: 'TL', onceden: 3, olusturulma: new Date().toISOString() });\n    abonelikler.push(yeni);\n    yazilsin = true;\n    const d = sonrakiOdeme(yeni);\n    mesaj = '➕ Eklendi: #' + id + ' ' + yeni.ad + ' — ' + tl(yeni.tutar) + ' · ' + periyotMetni(yeni) +\n      '\\nSıradaki ödeme: ' + tarihMetni(d) + ' (' + neZaman(kalanGun(d)) + '). ' + yeni.onceden + ' gün önceden hatırlatırım.';\n  }\n} else if (istek.islem === 'sil') {\n  const id = Number((istek.arg.match(/#?(\\d+)/) || [])[1]) || 0;\n  const a = abonelikler.find((x) => x.id === id);\n  if (!a) {\n    hata = true;\n    mesaj = (id ? '#' + id + ' bulunamadı.' : 'Kullanım: /abonelik sil 3') + '\\n\\n' + liste();\n  } else {\n    abonelikler.splice(abonelikler.indexOf(a), 1);\n    yazilsin = true;\n    mesaj = '🗑 Silindi: #' + a.id + ' ' + a.ad;\n  }\n} else {\n  hata = true;\n  mesaj = [\n    'Düzenli ödeme komutları:',\n    '• /abonelik → liste ve aylık yük',\n    '• /abonelik ekle Netflix 229,99 15',\n    '• /abonelik ekle Alan adı 450 yillik 14.03',\n    '• /abonelik sil 3',\n  ].join('\\n');\n}\n\nconst sonuc = abonelikler.map((a) => {\n  const d = sonrakiOdeme(a);\n  return { id: a.id, ad: a.ad, tutar: a.tutar, periyot: a.periyot, gun: a.gun, ay: a.ay,\n           aktif: a.aktif, sonrakiOdeme: anahtar(d), kalanGun: kalanGun(d) };\n});\n\nreturn [{\n  json: {\n    islem: istek.islem, chat_id: istek.chat_id, webhooktan: istek.webhooktan,\n    mesaj, hata, sonuc, aylikYuk: Math.round(aylikYuk(abonelikler) * 100) / 100, yazilsin, abonelikler,\n  },\n}];\n"
+      },
+      "id": "f2d4963a-b6c4-5cc9-bbdc-d378db34ecf0",
+      "name": "İşlemi Uygula (Abonelik)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yanıt düğümü yalnızca webhook ile gelen isteklerde çalışmalı;\n// workflow 05'ten gelen çağrıda yanıtlanacak bir HTTP isteği yoktur.\nconst j = $input.first().json;\nreturn j.webhooktan ? [{ json: j }] : [];"
+      },
+      "id": "19fbd77c-08c9-5ced-a077-90c12b6124ff",
+      "name": "Webhook'a mı Yanıtlanacak? (Abonelik)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: !$json.hata, islem: $json.islem, mesaj: $json.mesaj, aylikYuk: $json.aylikYuk, abonelikler: $json.sonuc }) }}",
+        "options": {}
+      },
+      "id": "a2e85bf2-0254-599d-8b3a-9242d6acd5fe",
+      "name": "Yanıt Ver (Abonelik)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İstek Telegram'dan geldiyse sonuç oraya gider.\nconst j = $input.first().json;\nif (!j.chat_id) return [];\nreturn [{ json: { chat_id: j.chat_id, text: String(j.mesaj).slice(0, 3900) } }];"
+      },
+      "id": "a7611d93-398f-5d34-a54a-fc76e3ada462",
+      "name": "Telegram'a Bildir (Abonelik)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "ab1fbc0a-0ab5-5411-aada-71b2a536e823",
+      "name": "Abonelik Yanıtını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca ödeme listesi yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { abonelikler: j.abonelikler } }];"
+      },
+      "id": "213c99b0-544d-51f0-a375-022d222f3b8c",
+      "name": "Abonelik Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "abonelikler.json"
+        }
+      },
+      "id": "fc31e81d-9a4e-5c94-b00b-0cbbbeade6db",
+      "name": "Abonelikleri Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/abonelikler.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "4650e615-b76a-5920-bcd9-50e672043282",
+      "name": "Abonelikleri Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 9,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "0a8d9391-6183-593f-ae50-d26d2a24a482",
+      "name": "Her Sabah 09:30 (Abonelik)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "3bf2205a-3d44-59cd-9293-89acea36700b",
+      "name": "Elle Test Et (Abonelik)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/abonelikler.json",
+        "options": {}
+      },
+      "id": "34df5136-c8d1-5bb2-bd8e-e2bf38ec6d6e",
+      "name": "Abonelikleri Oku (Sabah)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        160,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "2f7cba52-241c-52af-90b7-d8ab857d6963",
+      "name": "Abonelikleri Çıkar (Sabah)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Ortak: sıradaki ödeme tarihi ve biçimlendirme ───────────────────────────\n// Tarihler yerel saatle (GENERIC_TIMEZONE). \"gun: 31\" olan ödeme kısa ayda\n// ayın son gününe çekilir — hiçbir ay atlanmaz.\nconst iki = (n) => String(n).padStart(2, '0');\nconst anahtar = (d) => d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate());\nconst tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 2 }) + ' TL';\nconst bugun = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();\n\nconst aboneligiDuzenle = (a) => ({\n  ...a,\n  id: Number(a.id) || 0,\n  ad: String(a.ad || '').trim(),\n  tutar: typeof a.tutar === 'number' ? a.tutar : null,\n  periyot: a.periyot === 'yillik' ? 'yillik' : 'aylik',\n  gun: Math.min(31, Math.max(1, Number(a.gun) || 1)),\n  ay: a.periyot === 'yillik' ? Math.min(12, Math.max(1, Number(a.ay) || 1)) : null,\n  onceden: Number.isFinite(Number(a.onceden)) && a.onceden !== null ? Math.max(0, Number(a.onceden)) : 3,\n  aktif: a.aktif !== false,\n  sonHatirlatilan: a.sonHatirlatilan || null,\n});\n\nconst sonrakiOdeme = (a) => {\n  const gunIcin = (yil, ay) => new Date(yil, ay, Math.min(a.gun, new Date(yil, ay + 1, 0).getDate()));\n  const y = bugun.getFullYear();\n  if (a.periyot === 'yillik') {\n    let d = gunIcin(y, a.ay - 1);\n    if (d < bugun) d = gunIcin(y + 1, a.ay - 1);\n    return d;\n  }\n  let d = gunIcin(y, bugun.getMonth());\n  if (d < bugun) d = gunIcin(y, bugun.getMonth() + 1);\n  return d;\n};\nconst kalanGun = (d) => Math.round((d.getTime() - bugun.getTime()) / 86400000);\nconst neZaman = (n) => (n === 0 ? 'bugün' : n === 1 ? 'yarın' : n + ' gün sonra');\nconst tarihMetni = (d) => d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });\nconst periyotMetni = (a) => (a.periyot === 'yillik'\n  ? 'her yıl ' + tarihMetni(new Date(2000, a.ay - 1, a.gun))\n  : 'her ayın ' + a.gun + '. günü');\nconst aylikYuk = (liste) => liste\n  .filter((a) => a.aktif && typeof a.tutar === 'number')\n  .reduce((t, a) => t + (a.periyot === 'yillik' ? a.tutar / 12 : a.tutar), 0);\n// ─────────────────────────────────────────────────────────────────────────────\n// Sabah kontrolü: sıradaki ödemesine \"onceden\" gün ya da daha az kalanlar.\n// Her ödeme tarihi için BİR KEZ hatırlatılır (sonHatirlatilan). \"Elle Test Et\"\n// ile çalıştırılınca işaretlere bakılmaz, pencere içindeki her şey gösterilir.\nconst okuHata = $('Abonelikleri Oku (Sabah)').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Abonelikleri Çıkar (Sabah)').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('abonelikler.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\nif (dosyaYok) return [{ json: { gonderilecek: false, yazilsin: false } }];\n\nlet elle = false;\ntry { elle = $('Elle Test Et (Abonelik)').all().length > 0; } catch (e) { elle = false; }\n\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst okunan = $input.first().json || {};\nconst veri = okunan.data || okunan;\nconst abonelikler = (Array.isArray(veri.abonelikler) ? veri.abonelikler : [])\n  .filter((a) => a && a.ad)\n  .map(aboneligiDuzenle);\n\nconst yaklasan = [];\nfor (const a of abonelikler) {\n  if (!a.aktif) continue;\n  const d = sonrakiOdeme(a);\n  const n = kalanGun(d);\n  if (n > a.onceden) continue;\n  if (!elle && a.sonHatirlatilan === anahtar(d)) continue;\n  a.sonHatirlatilan = anahtar(d);\n  yaklasan.push({ a, d, n });\n}\nif (yaklasan.length === 0) return [{ json: { gonderilecek: false, yazilsin: false } }];\n\nyaklasan.sort((x, y) => x.n - y.n);\nconst toplam = yaklasan.reduce((t, x) => t + (x.a.tutar || 0), 0);\nconst satirlar = yaklasan.map(({ a, d, n }) =>\n  (n === 0 ? '💳 Bugün: ' : '⏰ ' + neZaman(n).replace(/^./, (c) => c.toUpperCase()) + ' (' + tarihMetni(d) + '): ') +\n  a.ad + ' — ' + (a.tutar !== null ? tl(a.tutar) : 'tutar yok'));\nconst text = '💳 Yaklaşan ödemeler\\n' + satirlar.join('\\n') +\n  (yaklasan.length > 1 ? '\\n\\nToplam: ' + tl(toplam) : '') +\n  '\\nÖdedikten sonra kaydetmek için: /harcama <tutar> <açıklama>';\n\nreturn [{\n  json: {\n    gonderilecek: true,\n    yazilsin: true,\n    text,\n    konu: '💳 Yaklaşan ödeme: ' + yaklasan.map((x) => x.a.ad).join(', '),\n    html: '<h3>💳 Yaklaşan ödemeler</h3><ul>' + satirlar.map((s) => '<li>' + esc(s) + '</li>').join('') + '</ul>',\n    govde: { abonelikler },\n  },\n}];\n"
+      },
+      "id": "a5646b4a-9894-5a02-8888-dd7b851eb077",
+      "name": "Yaklaşan Ödemeleri Bul",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa hatırlatma oraya gider; değilse bu dal boş döner.\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "f1804abb-cc88-5462-9e97-e830120633d0",
+      "name": "Telegram Kurulu mu? (Abonelik)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "df6cbfa6-614e-5a68-8df5-add0ac767b46",
+      "name": "Ödeme Hatırlatmasını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        520
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE hatırlatma mail olarak gider (çift bildirim olmasın).\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "041e6fcd-a6a3-52e5-ba30-b4bb687aca72",
+      "name": "Telegram Yoksa Mail (Abonelik)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "2d7fa72e-50ce-5b25-93cb-4eb4356e9d35",
+      "name": "Ödeme Hatırlatmasını Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1000,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hatırlatılan ödeme tarihleri işaretlenir: aynı ödeme için ikinci kez yazılmaz.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: j.govde }];"
+      },
+      "id": "d287c5ec-4ec1-510c-a0c0-ba04b91aa825",
+      "name": "Abonelik Gövdesi (Sabah)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "abonelikler.json"
+        }
+      },
+      "id": "738e58c6-3739-5bac-9bd9-df12b35f234c",
+      "name": "Abonelikleri Dosyaya Çevir (Sabah)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/abonelikler.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "26108451-2e80-540e-9bf1-59c51c46611d",
+      "name": "Abonelikleri Yaz (Sabah)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        840
+      ]
+    }
+  ],
+  "connections": {
+    "Abonelik İsteği (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Abonelik)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (Abonelik)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Abonelik)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İsteği Al (Abonelik)": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelikleri Oku": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelikleri Çıkar": {
+      "main": [
+        [
+          {
+            "node": "İşlemi Uygula (Abonelik)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İşlemi Uygula (Abonelik)": {
+      "main": [
+        [
+          {
+            "node": "Webhook'a mı Yanıtlanacak? (Abonelik)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram'a Bildir (Abonelik)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Abonelik Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook'a mı Yanıtlanacak? (Abonelik)": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Ver (Abonelik)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram'a Bildir (Abonelik)": {
+      "main": [
+        [
+          {
+            "node": "Abonelik Yanıtını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelik Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelikleri Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her Sabah 09:30 (Abonelik)": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Oku (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (Abonelik)": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Oku (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelikleri Oku (Sabah)": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Çıkar (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelikleri Çıkar (Sabah)": {
+      "main": [
+        [
+          {
+            "node": "Yaklaşan Ödemeleri Bul",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yaklaşan Ödemeleri Bul": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (Abonelik)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Abonelik)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Abonelik Gövdesi (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Kurulu mu? (Abonelik)": {
+      "main": [
+        [
+          {
+            "node": "Ödeme Hatırlatmasını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Abonelik)": {
+      "main": [
+        [
+          {
+            "node": "Ödeme Hatırlatmasını Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelik Gövdesi (Sabah)": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Dosyaya Çevir (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelikleri Dosyaya Çevir (Sabah)": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Yaz (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

@@ -1,0 +1,654 @@
+{
+  "name": "22 — Alışkanlık Takibi",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🔥 Alışkanlık takibi — seriyi kırma\n\n\"Her gün su iç\", \"10 dk kitap\" gibi tekrarlanan işler için. Görev\nlistesinden farkı: alışkanlık tamamlanınca kaybolmaz, her gün için\n\"yaptım\" işareti tutulur ve kaç gündür aralıksız yaptığınız sayılır.\n\n### Kurulum\n1. `cp local-files/aliskanliklar.ornek.json local-files/aliskanliklar.json`\n   (isterseniz atlayın — ilk eklemede dosya kendiliğinden oluşur)\n2. Workflow'u **Active** yapın. Credential gerekmez.\n3. Telegram kurulu değilse **Hatırlatmayı Mail At** düğümünde SMTP\n   credential'ını seçip iki adres alanını değiştirin.\n4. Telegram komutları için workflow 05'teki\n   **Alışkanlık Workflow'una İlet** düğümünde bu workflow'u seçin.\n\n### iPhone — Telegram\n```\n/aliskanlik                → liste, bugün ✅/⬜, son 7 gün, 🔥 seri\n/aliskanlik ekle Su iç\n/yaptim 2   ·   /yaptim su   ·   /yaptim 2 dün\n/aliskanlik geri 2  ·  /aliskanlik sil 2\n```\n\n### Mac / Windows — terminal\n```bash\ncurl -X POST http://localhost:5678/webhook/aliskanlik \\\n  -H 'Content-Type: application/json' -d '{\"metin\":\"yaptim 2\"}'\n```\nBoş gövde (`{}`) listeyi JSON olarak döndürür.",
+        "width": 540,
+        "height": 880
+      },
+      "id": "b4fc4d43-f3a3-5029-9e65-d7df6fce3b6f",
+      "name": "Not a1f22",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- **Seri kuralı:** bugün işaretliyse bugünden, değilse dünden geriye\n  kesintisiz gün sayısı. Akşam henüz yapmadığınız alışkanlığın serisi\n  gün bitene kadar bozulmuş görünmez.\n- **21:00 hatırlatması** yalnızca eksik varsa gider; hepsi tamamsa sessiz.\n  Aynı gün ikinci kez gitmez (`sonHatirlatma`). *Elle Test Et* bu\n  kontrolü atlar, istediğiniz kadar deneyebilirsiniz.\n- Gün, `GENERIC_TIMEZONE` saat dilimine göre hesaplanır.\n- Alışkanlık başına en fazla 400 gün tutulur.\n- Dosya bozuksa workflow **durur**, boş liste yazıp serileri silmez.\n- 🔒 Hiçbir şey dışarı gitmez (Telegram mesajının kendisi hariç).",
+        "width": 540,
+        "height": 340
+      },
+      "id": "4ea9d378-5d2d-5f61-9d75-80cf282b88fc",
+      "name": "Not b2f22",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aliskanlik",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f974225b-5366-5fa9-8a31-f2924afdc03e",
+      "name": "Alışkanlık İsteği (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        0
+      ],
+      "webhookId": "767e2091-1511-5d02-9df8-406cd9f2110b"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "f519a0c4-0396-52ae-8301-804f2980df5b",
+      "name": "Workflow 05'ten Çağrı (Alışkanlık)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İki giriş de buradan geçer:\n//  • Webhook ile gelen istekte alanlar \"body\" içindedir,\n//  • Workflow 05'in /aliskanlik ve /yaptim komutlarında alanlar doğrudan gelir.\n// Telegram ile aynı sözdizimi: {\"metin\": \"ekle Su iç\"} · {\"metin\": \"yaptim 2 dün\"}\n// Yapılandırılmış alanlar da olur: {\"islem\": \"yaptim\", \"id\": 2, \"gun\": \"dun\"}\nconst j = $input.first().json || {};\nconst webhooktan = Object.prototype.hasOwnProperty.call(j, 'body');\nconst govde = webhooktan ? (j.body || {}) : j;\n\nconst chat_id = govde.chat_id ? String(govde.chat_id) : '';\nconst ISLEMLER = { ekle: 'ekle', sil: 'sil', geri: 'geri', yaptim: 'yaptim', 'yaptım': 'yaptim', liste: 'liste' };\n\nlet islem = String(govde.islem || '').trim().toLowerCase();\nlet arg = '';\nconst metin = String(govde.metin || '').trim();\nif (metin) {\n  const ilk = metin.split(/\\s+/)[0].toLowerCase();\n  if (ISLEMLER[ilk]) {\n    islem = ISLEMLER[ilk];\n    arg = metin.slice(ilk.length).trim();\n  } else {\n    islem = 'bilinmeyen';\n    arg = metin;\n  }\n} else {\n  islem = ISLEMLER[islem] || (islem ? 'bilinmeyen' : 'liste');\n  arg = [govde.id || govde.ad || '', govde.gun || ''].join(' ').trim();\n}\n\n// \"dün\" yalnızca yaptim için anlamlı: argümanın sonunda aranır.\nlet dun = false;\nif (islem === 'yaptim' && /\\s*\\b(dün|dun)$/i.test(arg)) {\n  dun = true;\n  arg = arg.replace(/\\s*\\b(dün|dun)$/i, '').trim();\n}\n\nreturn [{ json: { islem, arg, dun, chat_id, webhooktan } }];\n"
+      },
+      "id": "d50f3445-9539-5767-a707-905b5e8e2085",
+      "name": "İsteği Al (Alışkanlık)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/aliskanliklar.json",
+        "options": {}
+      },
+      "id": "b4e4afec-2fb6-536c-98ae-d8c05acaf759",
+      "name": "Alışkanlıkları Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "7479fead-8f90-57d8-a2b4-4b885bbe6e58",
+      "name": "Alışkanlıkları Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        560,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ekle / yaptım / geri al / sil / liste işlemlerini uygular.\n// Okuma zinciri hata verdiyse: dosya bozuk/erişilemez ise çalışma durdurulur —\n// aksi hâlde liste boş sanılıp üzerine yazılır ve tüm seriler kaybolur.\nconst okuHata = $('Alışkanlıkları Oku').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Alışkanlıkları Çıkar').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('aliskanliklar.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\n\nconst istek = $('İsteği Al (Alışkanlık)').first().json;\nconst okunan = dosyaYok ? {} : ($input.first().json || {});\nconst veri = okunan.data || okunan;\nconst ham = veri.aliskanliklar || [];\nconst aliskanliklar = (Array.isArray(ham) ? ham : [])\n  .filter((a) => a && a.ad)\n  .map((a) => ({ ...a, gunler: Array.isArray(a.gunler) ? [...a.gunler] : [] }));\nconst sonHatirlatma = veri.sonHatirlatma || null;\n\n// Tarihler yerel saatle (GENERIC_TIMEZONE): \"bugün\" sizin gününüzdür.\nconst iki = (n) => String(n).padStart(2, '0');\nconst anahtar = (d) => d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate());\nconst gunEkle = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };\nconst bugun = new Date();\nconst bugunA = anahtar(bugun);\nconst kucuk = (s) => String(s || '').toLocaleLowerCase('tr-TR');\n\n// Seri: bugün işaretliyse bugünden, değilse dünden geriye kesintisiz gün sayısı.\nconst seri = (a) => {\n  const set = new Set(a.gunler);\n  let d = set.has(bugunA) ? bugun : gunEkle(bugun, -1);\n  let n = 0;\n  while (set.has(anahtar(d))) { n++; d = gunEkle(d, -1); }\n  return n;\n};\nconst rekor = (a) => {\n  const gunler = [...new Set(a.gunler)].sort();\n  let en = 0, su = 0, onceki = null;\n  for (const g of gunler) {\n    const t = Date.UTC(+g.slice(0, 4), +g.slice(5, 7) - 1, +g.slice(8, 10));\n    su = onceki !== null && t - onceki === 86400000 ? su + 1 : 1;\n    en = Math.max(en, su);\n    onceki = t;\n  }\n  return en;\n};\nconst son7 = (a) => {\n  const set = new Set(a.gunler);\n  let s = '';\n  for (let i = 6; i >= 0; i--) s += set.has(anahtar(gunEkle(bugun, -i))) ? '●' : '○';\n  return s;\n};\nconst satir = (a) => {\n  const n = seri(a);\n  return (a.gunler.includes(bugunA) ? '✅' : '⬜') + ' #' + a.id + ' ' + a.ad +\n    '  ' + son7(a) + (n > 0 ? '  🔥' + n : '');\n};\nconst liste = () => {\n  if (aliskanliklar.length === 0) return 'Henüz alışkanlık yok.\\nEklemek için: /aliskanlik ekle Su iç';\n  const tamam = aliskanliklar.filter((a) => a.gunler.includes(bugunA)).length;\n  return '🔥 Alışkanlıklar — bugün ' + tamam + '/' + aliskanliklar.length + '\\n' +\n    aliskanliklar.map(satir).join('\\n') +\n    '\\n\\nSon 7 gün soldan sağa: ● yapıldı ○ yapılmadı\\nİşaretlemek için: /yaptim <numara>';\n};\nconst bul = (arg) => {\n  const m = String(arg).match(/^#?(\\d+)$/);\n  if (m) return aliskanliklar.find((a) => Number(a.id) === Number(m[1])) || null;\n  const q = kucuk(arg).trim();\n  if (!q) return null;\n  return aliskanliklar.find((a) => kucuk(a.ad) === q) ||\n         aliskanliklar.find((a) => kucuk(a.ad).includes(q)) || null;\n};\n\nlet mesaj = '';\nlet yazilsin = false;\nlet hata = false;\n\nif (istek.islem === 'liste') {\n  mesaj = liste();\n} else if (istek.islem === 'ekle') {\n  const ad = istek.arg.replace(/\\s+/g, ' ').trim().slice(0, 80);\n  if (!ad) {\n    hata = true;\n    mesaj = 'Kullanım: /aliskanlik ekle Su iç (2 L)';\n  } else if (aliskanliklar.some((a) => kucuk(a.ad) === kucuk(ad))) {\n    hata = true;\n    mesaj = '\"' + ad + '\" zaten listede.';\n  } else {\n    const id = aliskanliklar.reduce((mx, a) => Math.max(mx, Number(a.id) || 0), 0) + 1;\n    aliskanliklar.push({ id, ad, olusturulma: new Date().toISOString(), gunler: [] });\n    yazilsin = true;\n    mesaj = '➕ Eklendi: #' + id + ' ' + ad + '\\nYaptığınız gün: /yaptim ' + id;\n  }\n} else if (istek.islem === 'yaptim' || istek.islem === 'geri' || istek.islem === 'sil') {\n  const a = bul(istek.arg);\n  if (!a) {\n    hata = true;\n    mesaj = (istek.arg ? '\"' + istek.arg + '\" bulunamadı.' : 'Hangi alışkanlık? Numarasını ya da adını yazın.') +\n      '\\n\\n' + liste();\n  } else if (istek.islem === 'sil') {\n    aliskanliklar.splice(aliskanliklar.indexOf(a), 1);\n    yazilsin = true;\n    mesaj = '🗑 Silindi: #' + a.id + ' ' + a.ad;\n  } else {\n    const gun = istek.dun ? anahtar(gunEkle(bugun, -1)) : bugunA;\n    const ne = istek.dun ? 'dün' : 'bugün';\n    if (istek.islem === 'geri') {\n      if (!a.gunler.includes(gun)) {\n        mesaj = a.ad + ' ' + ne + ' zaten işaretli değil.';\n      } else {\n        a.gunler = a.gunler.filter((g) => g !== gun);\n        yazilsin = true;\n        mesaj = '↩️ Geri alındı: ' + a.ad + ' (' + ne + ')';\n      }\n    } else if (a.gunler.includes(gun)) {\n      mesaj = '✅ ' + a.ad + ' ' + ne + ' zaten işaretli. 🔥 Seri: ' + seri(a) + ' gün';\n    } else {\n      // En fazla 400 gün tutulur; dosya yıllarca şişmesin.\n      a.gunler = [...a.gunler, gun].sort().slice(-400);\n      yazilsin = true;\n      const n = seri(a);\n      const r = rekor(a);\n      mesaj = '✅ ' + a.ad + ' — ' + ne + ' işaretlendi. 🔥 Seri: ' + n + ' gün' +\n        (n > 1 && n === r ? ' (rekor!)' : '');\n      const kalan = aliskanliklar.filter((x) => !x.gunler.includes(bugunA));\n      if (!istek.dun) {\n        mesaj += kalan.length ? '\\nBugün kalan: ' + kalan.map((x) => x.ad).join(', ') : '\\n🎉 Bugünkü hepsi tamam!';\n      }\n    }\n  }\n} else {\n  hata = true;\n  mesaj = [\n    'Alışkanlık komutları:',\n    '• /aliskanlik → liste ve seriler',\n    '• /aliskanlik ekle Su iç',\n    '• /yaptim 2 · /yaptim su · /yaptim 2 dün',\n    '• /aliskanlik geri 2 · /aliskanlik sil 2',\n  ].join('\\n');\n}\n\nconst sonuc = aliskanliklar.map((a) => ({\n  id: a.id, ad: a.ad, bugun: a.gunler.includes(bugunA), seri: seri(a), rekor: rekor(a), son7: son7(a),\n}));\n\nreturn [{\n  json: {\n    islem: istek.islem, chat_id: istek.chat_id, webhooktan: istek.webhooktan,\n    mesaj, hata, sonuc, yazilsin, aliskanliklar, sonHatirlatma,\n  },\n}];\n"
+      },
+      "id": "c34a83d0-83ef-5dc4-a0ff-9cfaff59bc76",
+      "name": "İşlemi Uygula (Alışkanlık)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yanıt düğümü yalnızca webhook ile gelen isteklerde çalışmalı;\n// workflow 05'ten gelen çağrıda yanıtlanacak bir HTTP isteği yoktur.\nconst j = $input.first().json;\nreturn j.webhooktan ? [{ json: j }] : [];"
+      },
+      "id": "16a9df88-4482-5b5a-a5ac-2cfab60c9234",
+      "name": "Webhook'a mı Yanıtlanacak? (Alışkanlık)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: !$json.hata, islem: $json.islem, mesaj: $json.mesaj, aliskanliklar: $json.sonuc }) }}",
+        "options": {}
+      },
+      "id": "91d16153-9d1b-51ab-b3d4-ce1452e12c22",
+      "name": "Yanıt Ver (Alışkanlık)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İstek Telegram'dan geldiyse sonuç oraya gider.\nconst j = $input.first().json;\nif (!j.chat_id) return [];\nreturn [{ json: { chat_id: j.chat_id, text: String(j.mesaj).slice(0, 3900) } }];"
+      },
+      "id": "cff45566-94f3-5813-8793-cc78cfca5fd1",
+      "name": "Telegram'a Bildir (Alışkanlık)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "fb99f533-82cb-5218-adb2-6472bbaae77a",
+      "name": "Alışkanlık Yanıtını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca alışkanlık listesi ve son hatırlatma günü yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { aliskanliklar: j.aliskanliklar, sonHatirlatma: j.sonHatirlatma } }];"
+      },
+      "id": "bd3e7ce8-6282-5162-9fe0-fecdf0d8d8a1",
+      "name": "Alışkanlık Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "aliskanliklar.json"
+        }
+      },
+      "id": "87c39306-6b1b-55a7-a042-73caf9c6d40f",
+      "name": "Alışkanlıkları Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/aliskanliklar.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "88be16b5-f639-54a3-80fd-7db1e5930697",
+      "name": "Alışkanlıkları Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 21,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "f38f5c17-495a-5c40-b49c-3fb1f52d93bf",
+      "name": "Her Akşam 21:00 (Alışkanlık)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "48eafa23-59bf-5eee-a0ad-307e9e1f3466",
+      "name": "Elle Test Et (Alışkanlık)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/aliskanliklar.json",
+        "options": {}
+      },
+      "id": "3fc3111a-afe0-5b6f-a56a-e072e079ec64",
+      "name": "Alışkanlıkları Oku (Akşam)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        160,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "28f6567b-e3d7-5208-a98f-ea0f2f61a267",
+      "name": "Alışkanlıkları Çıkar (Akşam)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Akşam kontrolü: bugün işaretlenmemiş alışkanlık varsa tek mesajda hatırlatır.\n// Hepsi yapıldıysa ya da liste boşsa sessiz kalır. Aynı gün ikinci kez\n// göndermez (sonHatirlatma) — \"Elle Test Et\" ile çalıştırıldığında hariç.\nconst okuHata = $('Alışkanlıkları Oku (Akşam)').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Alışkanlıkları Çıkar (Akşam)').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('aliskanliklar.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\nif (dosyaYok) return [{ json: { gonderilecek: false, yazilsin: false } }];\n\nlet elle = false;\ntry { elle = $('Elle Test Et (Alışkanlık)').all().length > 0; } catch (e) { elle = false; }\n\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst okunan = $input.first().json || {};\nconst veri = okunan.data || okunan;\nconst aliskanliklar = (Array.isArray(veri.aliskanliklar) ? veri.aliskanliklar : [])\n  .filter((a) => a && a.ad)\n  .map((a) => ({ ...a, gunler: Array.isArray(a.gunler) ? a.gunler : [] }));\n\nconst iki = (n) => String(n).padStart(2, '0');\nconst anahtar = (d) => d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate());\nconst bugun = new Date();\nconst bugunA = anahtar(bugun);\nconst seri = (a) => {\n  const set = new Set(a.gunler);\n  const d = new Date(bugun);\n  d.setDate(d.getDate() - 1);\n  let n = 0;\n  while (set.has(anahtar(d))) { n++; d.setDate(d.getDate() - 1); }\n  return n;\n};\n\nconst eksik = aliskanliklar.filter((a) => !a.gunler.includes(bugunA));\nif (eksik.length === 0 || (!elle && veri.sonHatirlatma === bugunA)) {\n  return [{ json: { gonderilecek: false, yazilsin: false } }];\n}\n\nconst tamam = aliskanliklar.length - eksik.length;\nconst satirlar = eksik.map((a) => {\n  const n = seri(a);\n  return '⬜ #' + a.id + ' ' + a.ad + (n > 0 ? ' — 🔥 ' + n + ' günlük seri bozulmasın' : '');\n});\nconst text = '🌙 Bugün henüz yapılmayanlar:\\n' + satirlar.join('\\n') +\n  '\\n\\n✅ ' + tamam + '/' + aliskanliklar.length + ' tamam. İşaretlemek için: /yaptim ' + eksik[0].id;\nconst html = '<h3>🌙 Bugün henüz yapılmayanlar</h3><ul>' +\n  satirlar.map((s) => '<li>' + esc(s.slice(2)) + '</li>').join('') + '</ul><p>✅ ' + tamam + '/' +\n  aliskanliklar.length + ' tamam.</p>';\n\nreturn [{\n  json: {\n    gonderilecek: true,\n    yazilsin: true,\n    text,\n    konu: '🌙 Alışkanlık: ' + eksik.length + ' tanesi bugün yapılmadı',\n    html,\n    govde: { aliskanliklar: veri.aliskanliklar, sonHatirlatma: bugunA },\n  },\n}];\n"
+      },
+      "id": "1e30ced9-aa3a-5236-9d2c-2e3087346a0a",
+      "name": "Eksikleri Bul",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa hatırlatma oraya gider; değilse bu dal boş döner.\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "1970d803-a809-5060-98e7-a52f373209b8",
+      "name": "Telegram Kurulu mu? (Alışkanlık)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "c8b43ce6-dea5-576b-9be8-dd7885833a69",
+      "name": "Hatırlatmayı Telegrama Gönder (Alışkanlık)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        520
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE hatırlatma mail olarak gider (çift bildirim olmasın).\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "0ec1b304-2ce1-57fb-883a-ba80a8a6b569",
+      "name": "Telegram Yoksa Mail (Alışkanlık)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "6f34d3ca-cc64-5bcd-ae36-f28ca9e25f4d",
+      "name": "Hatırlatmayı Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1000,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hatırlatma gittiyse günü işaretle: aynı gün ikinci kez gönderilmez.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: j.govde }];"
+      },
+      "id": "1322268b-f457-5424-8720-d2bec49cab22",
+      "name": "Alışkanlık Gövdesi (Akşam)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "aliskanliklar.json"
+        }
+      },
+      "id": "af956b52-f277-5cbe-bed9-492eefdb6f8c",
+      "name": "Alışkanlıkları Dosyaya Çevir (Akşam)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/aliskanliklar.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "1a0374f5-3cfd-56ba-8831-9bc26e0e7abe",
+      "name": "Alışkanlıkları Yaz (Akşam)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        840
+      ]
+    }
+  ],
+  "connections": {
+    "Alışkanlık İsteği (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Alışkanlık)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (Alışkanlık)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Alışkanlık)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İsteği Al (Alışkanlık)": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlıkları Oku": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlıkları Çıkar": {
+      "main": [
+        [
+          {
+            "node": "İşlemi Uygula (Alışkanlık)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İşlemi Uygula (Alışkanlık)": {
+      "main": [
+        [
+          {
+            "node": "Webhook'a mı Yanıtlanacak? (Alışkanlık)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram'a Bildir (Alışkanlık)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alışkanlık Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook'a mı Yanıtlanacak? (Alışkanlık)": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Ver (Alışkanlık)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram'a Bildir (Alışkanlık)": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlık Yanıtını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlık Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlıkları Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her Akşam 21:00 (Alışkanlık)": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Oku (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (Alışkanlık)": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Oku (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlıkları Oku (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Çıkar (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlıkları Çıkar (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Eksikleri Bul",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eksikleri Bul": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (Alışkanlık)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Alışkanlık)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alışkanlık Gövdesi (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Kurulu mu? (Alışkanlık)": {
+      "main": [
+        [
+          {
+            "node": "Hatırlatmayı Telegrama Gönder (Alışkanlık)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Alışkanlık)": {
+      "main": [
+        [
+          {
+            "node": "Hatırlatmayı Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlık Gövdesi (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Dosyaya Çevir (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlıkları Dosyaya Çevir (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Yaz (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

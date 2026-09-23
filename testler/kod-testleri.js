@@ -41,12 +41,26 @@ const dene = (ad, fn) => {
   catch (e) { console.log('  ✗', ad, '→', e.message); hata++; }
 };
 const esit = (a, b, m) => { if (a !== b) throw new Error((m||'') + ' beklenen ' + JSON.stringify(b) + ', gelen ' + JSON.stringify(a)); };
+// Saati sabitler: argümansız new Date() ve Date.now() verilen anı döndürür.
+// Ay sonu, artık yıl gibi takvime bağlı kuralları her gün aynı sonuçla denemek için.
+const sabitZaman = (iso, fn) => {
+  const Gercek = Date;
+  const an = new Gercek(iso).getTime();
+  class Sahte extends Gercek {
+    constructor(...a) { if (a.length === 0) super(an); else super(...a); }
+    static now() { return an; }
+  }
+  global.Date = Sahte;
+  try { return fn(); } finally { global.Date = Gercek; }
+};
 
 // ═══ 10 — Brifingi Hazırla ═══
 console.log('10 — Günaydın brifingi');
 {
   const kod = kodu(wf('10-gunaydin-brifingi.json'), 'Brifingi Hazırla');
-  const dun = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
+  // Dün öğlen: testin günün hangi saatinde çalıştığından bağımsız olarak "dün".
+  const dunD = new Date(); dunD.setDate(dunD.getDate() - 1); dunD.setHours(12, 0, 0, 0);
+  const dun = dunD.toISOString();
   const bugunSaat = new Date(); bugunSaat.setHours(23, 0, 0, 0);
   const temel = {
     'Görevleri Oku (Brifing)': [{}], 'Notları Oku (Brifing)': [{}], 'Harcamaları Oku (Brifing)': [{}],
@@ -287,6 +301,52 @@ console.log('05 — Telegram bot komutları');
     for (const k of ['/servis', '/pr ', '/kod ', '/arac ', '/istekler']) {
       if (!t.includes(k)) throw new Error('yardımda eksik: ' + k);
     }
+  });
+
+  // ── Kişisel takip komutları (workflow 22–26) ──
+  dene('/aliskanlik ve /yaptim workflow 22\'ye iletilir', () => {
+    const l = bot('/aliskanlik ekle Su iç');
+    esit(l.aliskanlikIstekleri.length, 1); esit(l.aliskanlikIstekleri[0].metin, 'ekle Su iç');
+    esit(l.yanitlar.length, 0, 'çift mesaj'); esit(l.gorevYazilsin, false);
+    esit(bot('/aliskanlik').aliskanlikIstekleri[0].metin, '');
+    esit(bot('/yaptim 2 dün').aliskanlikIstekleri[0].metin, 'yaptim 2 dün');
+    const y = bot('/yaptim');
+    esit(y.aliskanlikIstekleri.length, 0);
+    if (!y.yanitlar[0].text.includes('Kullanım: /yaptim')) throw new Error('kullanım yok');
+  });
+  dene('/butce workflow 23\'e iletilir', () => {
+    const r = bot('/butce limit Market 6000');
+    esit(r.butceIstekleri.length, 1); esit(r.butceIstekleri[0].metin, 'limit Market 6000');
+    esit(r.yanitlar.length, 0); esit(r.harcamaYazilsin, false);
+    esit(bot('/bütçe').butceIstekleri[0].metin, '');
+  });
+  dene('/abonelik workflow 24\'e iletilir', () => {
+    const r = bot('/abonelik ekle Netflix 229,99 15');
+    esit(r.abonelikIstekleri.length, 1); esit(r.abonelikIstekleri[0].metin, 'ekle Netflix 229,99 15');
+    esit(r.yanitlar.length, 0); esit(r.gorevYazilsin, false);
+    esit(bot('/odemeler').abonelikIstekleri.length, 1);
+  });
+  dene('/tarih ve /tarihler workflow 25\'e iletilir', () => {
+    const r = bot('/tarih ekle 14.03.1964 Annemin doğum günü');
+    esit(r.tarihIstekleri.length, 1); esit(r.tarihIstekleri[0].metin, 'ekle 14.03.1964 Annemin doğum günü');
+    esit(r.yanitlar.length, 0); esit(r.gorevYazilsin, false);
+    esit(bot('/tarihler').tarihIstekleri[0].metin, '');
+  });
+  dene('/hafta workflow 26\'ya iletilir', () => {
+    const r = bot('/hafta');
+    esit(r.raporIstekleri.length, 1); esit(r.raporIstekleri[0].chat_id, 42);
+    esit(r.yanitlar.length, 0); esit(r.gorevYazilsin, false);
+  });
+  dene('kişisel takip komutları görev/not/harcama dosyalarına dokunmaz; /yardim hepsini listeler', () => {
+    for (const k of ['/aliskanlik', '/yaptim 1', '/butce', '/abonelik', '/tarihler', '/hafta']) {
+      const r = bot(k);
+      esit(r.gorevYazilsin, false, k); esit(r.notYazilsin, false, k); esit(r.harcamaYazilsin, false, k);
+    }
+    const t = bot('/yardim').yanitlar[0].text;
+    for (const k of ['/aliskanlik', '/yaptim', '/butce', '/abonelik', '/tarihler', '/hafta']) {
+      if (!t.includes(k)) throw new Error('yardımda eksik: ' + k);
+    }
+    if (t.length > 3900) throw new Error('yardım metni Telegram sınırını aşıyor: ' + t.length);
   });
 }
 
@@ -924,6 +984,521 @@ console.log('11 — Hata nöbetçisi');
     const d = { 'Hata Yakalandı': [olay], 'Hataları Oku': [{}], 'Hataları Çıkar': [{ data: { hatalar: eski } }] };
     const r = calistir(kod, { dugumler: d, girdi: [{}] })[0].json;
     esit(r.hatalar.length, 200);
+  });
+}
+
+// ═══ 22 — Alışkanlık takibi ═══
+console.log('22 — Alışkanlık takibi');
+{
+  const d22 = wf('22-aliskanlik-takibi.json');
+  const istekKod = kodu(d22, 'İsteği Al (Alışkanlık)');
+  const islemKod = kodu(d22, 'İşlemi Uygula (Alışkanlık)');
+  const aksamKod = kodu(d22, 'Eksikleri Bul');
+  const iki = (n) => String(n).padStart(2, '0');
+  const gun = (fark) => { const d = new Date(); d.setDate(d.getDate() + fark); return d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate()); };
+  const istek = (govde) => calistir(istekKod, { girdi: [govde] })[0].json;
+  const islem = (metin, aliskanliklar, ek = {}) => {
+    const d = {
+      'İsteği Al (Alışkanlık)': [istek({ chat_id: 42, metin })],
+      'Alışkanlıkları Oku': [ek.okuHata ? { error: ek.okuHata } : {}],
+      'Alışkanlıkları Çıkar': [ek.cikarHata ? { error: ek.cikarHata } : {}],
+    };
+    return calistir(islemKod, { dugumler: d, girdi: [{ data: { aliskanliklar, sonHatirlatma: 'x' } }] })[0].json;
+  };
+
+  dene('istek: "yaptim 2 dün" → işlem, numara ve dün ayrışır', () => {
+    const r = istek({ chat_id: 1, metin: 'yaptim 2 dün' });
+    esit(r.islem, 'yaptim'); esit(r.arg, '2'); esit(r.dun, true); esit(r.webhooktan, false);
+  });
+  dene('istek: webhook boş gövde → liste; yapılandırılmış alanlar da olur', () => {
+    esit(istek({ body: {} }).islem, 'liste');
+    const r = istek({ body: { islem: 'yaptim', id: 2, gun: 'dun' } });
+    esit(r.islem, 'yaptim'); esit(r.arg, '2'); esit(r.dun, true); esit(r.webhooktan, true);
+  });
+  dene('dosya yokken ekle → #1 oluşur, yazılır', () => {
+    const r = islem('ekle Su iç', [], { okuHata: { message: 'ENOENT: no such file' } });
+    esit(r.yazilsin, true); esit(r.aliskanliklar.length, 1);
+    esit(r.aliskanliklar[0].id, 1); esit(r.aliskanliklar[0].ad, 'Su iç');
+  });
+  dene('aliskanliklar.json BOZUK → durur (üzerine yazmaz)', () => {
+    let attı = false;
+    try { islem('ekle x', [], { cikarHata: { message: 'Unexpected token' } }); }
+    catch (e) { attı = /aliskanliklar\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk dosyada durmadı');
+  });
+  dene('yaptim → bugün işaretlenir, seri dünden devam eder', () => {
+    const r = islem('yaptim 1', [{ id: 1, ad: 'Kitap', gunler: [gun(-2), gun(-1)] }]);
+    esit(r.yazilsin, true);
+    if (!r.aliskanliklar[0].gunler.includes(gun(0))) throw new Error('bugün işaretlenmedi');
+    esit(r.sonuc[0].seri, 3);
+    if (!r.mesaj.includes('Seri: 3 gün')) throw new Error('mesaj: ' + r.mesaj);
+  });
+  dene('bugün işaretsizken seri dünden sayılır (gün bitmeden bozulmaz)', () => {
+    const r = islem('', [{ id: 1, ad: 'Kitap', gunler: [gun(-3), gun(-2), gun(-1)] }]);
+    esit(r.sonuc[0].seri, 3); esit(r.sonuc[0].bugun, false); esit(r.yazilsin, false);
+    if (!r.mesaj.includes('⬜ #1 Kitap')) throw new Error('liste: ' + r.mesaj);
+  });
+  dene('arada boşluk varsa seri kırılır, rekor korunur', () => {
+    const r = islem('', [{ id: 1, ad: 'Kitap', gunler: [gun(-6), gun(-5), gun(-4), gun(-3), gun(-1)] }]);
+    esit(r.sonuc[0].seri, 1); esit(r.sonuc[0].rekor, 4); esit(r.sonuc[0].son7, '●●●●○●○');
+  });
+  dene('"yaptim su dün" adla bulur ve dünü işaretler', () => {
+    const r = islem('yaptim su dün', [{ id: 1, ad: 'Kitap', gunler: [] }, { id: 2, ad: 'Su iç', gunler: [] }]);
+    esit(r.aliskanliklar[1].gunler.join(), gun(-1)); esit(r.aliskanliklar[0].gunler.length, 0);
+  });
+  dene('aynı gün iki kez yaptim → dosyaya yazılmaz', () => {
+    const r = islem('yaptim 1', [{ id: 1, ad: 'Kitap', gunler: [gun(0)] }]);
+    esit(r.yazilsin, false);
+    if (!r.mesaj.includes('zaten işaretli')) throw new Error(r.mesaj);
+  });
+  dene('geri ve sil', () => {
+    const g = islem('geri 1', [{ id: 1, ad: 'Kitap', gunler: [gun(-1), gun(0)] }]);
+    esit(g.aliskanliklar[0].gunler.join(), gun(-1)); esit(g.yazilsin, true);
+    const s = islem('sil 1', [{ id: 1, ad: 'Kitap', gunler: [] }]);
+    esit(s.aliskanliklar.length, 0); esit(s.yazilsin, true);
+  });
+  dene('bulunamayan alışkanlık → hata, yazma yok', () => {
+    const r = islem('yaptim 9', [{ id: 1, ad: 'Kitap', gunler: [] }]);
+    esit(r.hata, true); esit(r.yazilsin, false);
+  });
+  dene('en fazla 400 gün tutulur', () => {
+    const cok = Array.from({ length: 450 }, (_, i) => gun(-450 + i));
+    const r = islem('yaptim 1', [{ id: 1, ad: 'Kitap', gunler: cok }]);
+    esit(r.aliskanliklar[0].gunler.length, 400);
+    esit(r.aliskanliklar[0].gunler[399], gun(0));
+  });
+
+  const aksam = (aliskanliklar, sonHatirlatma, elle) => {
+    const d = { 'Alışkanlıkları Oku (Akşam)': [{}], 'Alışkanlıkları Çıkar (Akşam)': [{}] };
+    if (elle) d['Elle Test Et (Alışkanlık)'] = [{}];
+    return calistir(aksamKod, { dugumler: d, girdi: [{ data: { aliskanliklar, sonHatirlatma } }] })[0].json;
+  };
+  dene('akşam: eksik varsa hatırlatır, seriyi söyler, günü işaretler', () => {
+    const r = aksam([{ id: 1, ad: 'Kitap', gunler: [gun(-2), gun(-1)] }, { id: 2, ad: 'Su', gunler: [gun(0)] }], null);
+    esit(r.gonderilecek, true); esit(r.yazilsin, true);
+    if (!r.text.includes('#1 Kitap — 🔥 2 günlük seri')) throw new Error(r.text);
+    if (r.text.includes('#2 Su')) throw new Error('yapılan alışkanlık listelendi');
+    esit(r.govde.sonHatirlatma, gun(0));
+  });
+  dene('akşam: hepsi tamamsa sessiz', () => {
+    esit(aksam([{ id: 1, ad: 'Kitap', gunler: [gun(0)] }], null).gonderilecek, false);
+    esit(aksam([], null).gonderilecek, false);
+  });
+  dene('akşam: aynı gün ikinci kez göndermez, elle testte gönderir', () => {
+    const l = [{ id: 1, ad: 'Kitap', gunler: [] }];
+    esit(aksam(l, gun(0)).gonderilecek, false);
+    esit(aksam(l, gun(0), true).gonderilecek, true);
+  });
+}
+
+// ═══ 23 — Bütçe nöbetçisi ═══
+console.log('23 — Bütçe nöbetçisi');
+{
+  const d23 = wf('23-butce-nobetcisi.json');
+  const istekKod = kodu(d23, 'İsteği Al (Bütçe)');
+  const islemKod = kodu(d23, 'İşlemi Uygula (Bütçe)');
+  const esikKod = kodu(d23, 'Eşikleri Kontrol Et');
+  // Bu ayın ortasından bir an: ay başı/sonu kaymalarından etkilenmesin.
+  const buAy = (gun = 1) => { const d = new Date(); d.setDate(gun); d.setHours(12, 0, 0, 0); return d.toISOString(); };
+  const gecenAy = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); d.setHours(12); return d.toISOString(); };
+  const iki = (n) => String(n).padStart(2, '0');
+  const ay = (() => { const d = new Date(); return d.getFullYear() + '-' + iki(d.getMonth() + 1); })();
+  const H = (tutar, konu, kimden = 'Elle (Telegram)', tarih = buAy()) => ({ tarih, tutar, konu, kimden, paraBirimi: 'TL' });
+  const kat = [{ ad: 'Market', limit: 1000, anahtarlar: ['migros', 'a101'] }, { ad: 'Yeme içme', limit: null, anahtarlar: ['kafe'] }];
+
+  const istek = (govde) => calistir(istekKod, { girdi: [govde] })[0].json;
+  const islem = (metin, butce, harcamalar, ek = {}) => {
+    const d = {
+      'İsteği Al (Bütçe)': [istek({ chat_id: 42, metin })],
+      'Bütçeyi Oku': [ek.butceYok ? { error: { message: 'ENOENT' } } : {}],
+      'Bütçeyi Çıkar': [ek.butceBozuk ? { error: { message: 'Unexpected token' } } : { data: butce }],
+      'Harcamaları Oku (Bütçe)': [{}],
+      'Harcamaları Çıkar (Bütçe)': [ek.harcamaBozuk ? { error: { message: 'Unexpected end' } } : { data: { harcamalar } }],
+    };
+    return calistir(islemKod, { dugumler: d, girdi: [{}] })[0].json;
+  };
+  const esik = (butce, harcamalar, elle) => {
+    const d = {
+      'Bütçeyi Oku (Akşam)': [{}], 'Bütçeyi Çıkar (Akşam)': [{ data: butce }],
+      'Harcamaları Oku (Akşam)': [{}], 'Harcamaları Çıkar (Akşam)': [{ data: { harcamalar } }],
+    };
+    if (elle) d['Elle Test Et (Bütçe)'] = [{}];
+    return calistir(esikKod, { dugumler: d, girdi: [{}] })[0].json;
+  };
+
+  dene('istek: GET (gövdesiz) → durum; POST metin → alt komut', () => {
+    const g = istek({ query: {}, body: {} });
+    esit(g.islem, 'durum'); esit(g.webhooktan, true);
+    const p = istek({ body: { metin: 'limit Market 6000' } });
+    esit(p.islem, 'limit'); esit(p.arg, 'Market 6000');
+  });
+  dene('durum: kategoriye göre toplar, eşleşmeyen "Diğer"e düşer, geçen ay sayılmaz', () => {
+    const r = islem('', { aylikLimit: 5000, kategoriler: kat },
+      [H(300, 'Migros alışveriş'), H(200, 'x', 'A101 Mağazacılık'), H(150, 'kafe'), H(400, 'kitap'), H(999, 'Migros', 'x', gecenAy()),
+       { tarih: buAy(), tutar: null, konu: 'tutarsız' }]);
+    const m = r.durum.kategoriler.find((k) => k.ad === 'Market');
+    esit(m.harcanan, 500); esit(m.oran, 50);
+    esit(r.durum.kategoriler.find((k) => k.ad === 'Yeme içme').harcanan, 150);
+    esit(r.durum.diger, 400); esit(r.durum.genel.harcanan, 1050); esit(r.durum.genel.kalan, 3950);
+    esit(r.yazilsin, false);
+    if (!r.mesaj.includes('Market ▓▓▓▓▓░░░░░ %50')) throw new Error(r.mesaj);
+  });
+  dene('limit: genel ve yeni kategori; 0 limiti kaldırır', () => {
+    const g = islem('limit 20.000', { kategoriler: [] }, []);
+    esit(g.butce.aylikLimit, 20000); esit(g.yazilsin, true);
+    const k = islem('limit Kira 15000', { kategoriler: [] }, []);
+    esit(k.butce.kategoriler[0].ad, 'Kira'); esit(k.butce.kategoriler[0].limit, 15000);
+    esit(k.butce.kategoriler[0].anahtarlar.join(), 'kira');
+    esit(islem('limit 0', { aylikLimit: 5 }, []).butce.aylikLimit, null);
+  });
+  dene('anahtar: çok kelimeli kategori adı ve virgüllü liste', () => {
+    const r = islem('anahtar Yeme içme yemeksepeti, restoran', { kategoriler: kat }, []);
+    esit(r.butce.kategoriler[1].anahtarlar.join(), 'kafe,yemeksepeti,restoran'); esit(r.yazilsin, true);
+    esit(islem('anahtar Yok x', { kategoriler: kat }, []).hata, true);
+  });
+  dene('sil kategori; bilinmeyen komut yazmaz', () => {
+    const r = islem('sil market', { kategoriler: kat }, []);
+    esit(r.butce.kategoriler.length, 1); esit(r.yazilsin, true);
+    const b = islem('zzz', { kategoriler: kat }, []);
+    esit(b.hata, true); esit(b.yazilsin, false);
+  });
+  dene('butce.json BOZUK → durur; harcamalar bozuksa yalnızca uyarır', () => {
+    let attı = false;
+    try { islem('limit 5', {}, [], { butceBozuk: true }); } catch (e) { attı = /butce\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk bütçede durmadı');
+    const r = islem('', { aylikLimit: 100 }, [], { harcamaBozuk: true });
+    if (!r.mesaj.includes('harcamalar.json okunamadı')) throw new Error('uyarı yok');
+  });
+  dene('eşik: %80 ve %100 bir kez; aynı ay tekrar gönderilmez', () => {
+    const b = { aylikLimit: 1000, kategoriler: [], uyarilar: { ay: null, gonderilen: [] } };
+    const r = esik(b, [H(850, 'x')]);
+    esit(r.gonderilecek, true); esit(r.govde.uyarilar.ay, ay);
+    esit(r.govde.uyarilar.gonderilen.join(), 'genel-80');
+    if (!r.text.includes('🟠 Genel: %85 doldu')) throw new Error(r.text);
+    const r2 = esik({ ...b, uyarilar: r.govde.uyarilar }, [H(850, 'x')]);
+    esit(r2.gonderilecek, false); esit(r2.yazilsin, false);
+    const r3 = esik({ ...b, uyarilar: r.govde.uyarilar }, [H(1200, 'x')]);
+    esit(r3.gonderilecek, true);
+    if (!r3.text.includes('🔴 Genel: limit aşıldı')) throw new Error(r3.text);
+    esit(r3.govde.uyarilar.gonderilen.join(), 'genel-80,genel-100');
+  });
+  dene('eşik: ay değişince işaretler sıfırlanır', () => {
+    const b = { aylikLimit: 1000, uyarilar: { ay: '2000-01', gonderilen: ['genel-80', 'genel-100'] } };
+    const r = esik(b, [H(900, 'x')]);
+    esit(r.gonderilecek, true); esit(r.govde.uyarilar.gonderilen.join(), 'genel-80');
+    const sessiz = esik(b, [H(10, 'x')]);
+    esit(sessiz.gonderilecek, false); esit(sessiz.yazilsin, true, 'eski ayın işaretleri silinmeli');
+    esit(sessiz.govde.uyarilar.gonderilen.length, 0);
+  });
+  dene('eşik: kategori limiti ayrı izlenir; birden %100\'e çıkınca tek satır', () => {
+    const r = esik({ kategoriler: kat }, [H(1500, 'migros')]);
+    const satirlar = r.text.split('\n').filter((s) => s.includes('Market:'));
+    esit(satirlar.length, 1); esit(r.govde.uyarilar.gonderilen.join(), 'kat:market-80,kat:market-100');
+  });
+  dene('eşik: dosya yoksa sessiz, dosya oluşturmaz; elle testte tam durum', () => {
+    const d = { 'Bütçeyi Oku (Akşam)': [{ error: { message: 'ENOENT' } }], 'Bütçeyi Çıkar (Akşam)': [{}],
+                'Harcamaları Oku (Akşam)': [{}], 'Harcamaları Çıkar (Akşam)': [{ data: { harcamalar: [] } }] };
+    const r = calistir(esikKod, { dugumler: d, girdi: [{}] })[0].json;
+    esit(r.gonderilecek, false); esit(r.yazilsin, false);
+    const e = esik({ aylikLimit: 1000, uyarilar: { ay, gonderilen: [] } }, [H(10, 'x')], true);
+    esit(e.gonderilecek, true);
+    if (!e.text.startsWith('🎯 Bütçe —')) throw new Error(e.text);
+  });
+}
+
+// ═══ 24 — Abonelik ve düzenli ödemeler ═══
+console.log('24 — Abonelik ve düzenli ödemeler');
+{
+  const d24 = wf('24-abonelik-takibi.json');
+  const istekKod = kodu(d24, 'İsteği Al (Abonelik)');
+  const islemKod = kodu(d24, 'İşlemi Uygula (Abonelik)');
+  const sabahKod = kodu(d24, 'Yaklaşan Ödemeleri Bul');
+  const islem = (metin, abonelikler, ek = {}) => {
+    const d = {
+      'İsteği Al (Abonelik)': [calistir(istekKod, { girdi: [{ chat_id: 42, metin }] })[0].json],
+      'Abonelikleri Oku': [ek.yok ? { error: { message: 'ENOENT: no such file' } } : {}],
+      'Abonelikleri Çıkar': [ek.bozuk ? { error: { message: 'Unexpected token' } } : {}],
+    };
+    return calistir(islemKod, { dugumler: d, girdi: [{ data: { abonelikler } }] })[0].json;
+  };
+  const sabah = (abonelikler, elle) => {
+    const d = { 'Abonelikleri Oku (Sabah)': [{}], 'Abonelikleri Çıkar (Sabah)': [{}] };
+    if (elle) d['Elle Test Et (Abonelik)'] = [{}];
+    return calistir(sabahKod, { dugumler: d, girdi: [{ data: { abonelikler } }] })[0].json;
+  };
+  const A = (id, gun, ek = {}) => ({ id, ad: 'Abonelik ' + id, tutar: 100, periyot: 'aylik', gun, ...ek });
+
+  dene('ekle: aylık, yıllık, adında sayı olan, "TL" yazılan', () => {
+    const a = islem('ekle Netflix 229,99 15', []).abonelikler[0];
+    esit(a.ad, 'Netflix'); esit(a.tutar, 229.99); esit(a.periyot, 'aylik'); esit(a.gun, 15);
+    const y = islem('ekle Alan adı 450 yillik 14.03', []).abonelikler[0];
+    esit(y.ad, 'Alan adı'); esit(y.periyot, 'yillik'); esit(y.gun, 14); esit(y.ay, 3);
+    esit(islem('ekle Netflix 4K 229 15', []).abonelikler[0].ad, 'Netflix 4K');
+    esit(islem('ekle Kira 15.000 TL 1', []).abonelikler[0].tutar, 15000);
+  });
+  dene('ekle: hatalı biçim → kullanım, yazma yok', () => {
+    for (const m of ['ekle Netflix', 'ekle Netflix abc 15', 'ekle X 100 32', 'ekle X 100 yillik 31.13']) {
+      const r = islem(m, []);
+      esit(r.hata, true, m); esit(r.yazilsin, false, m);
+    }
+  });
+  dene('dosya yokken ekle → #1; BOZUK dosyada durur', () => {
+    const r = islem('ekle Spotify 59,99 1', [], { yok: true });
+    esit(r.abonelikler.length, 1); esit(r.abonelikler[0].id, 1); esit(r.yazilsin, true);
+    let attı = false;
+    try { islem('ekle x 1 1', [], { bozuk: true }); } catch (e) { attı = /abonelikler\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk dosyada durmadı');
+  });
+  dene('ayın 31\'i: Şubat\'ta 28, artık yılda 29, ayın 31\'inde bugün', () => {
+    sabitZaman('2026-02-10T09:00:00', () => {
+      const s = islem('', [A(1, 31)]).sonuc[0];
+      esit(s.sonrakiOdeme, '2026-02-28'); esit(s.kalanGun, 18);
+    });
+    sabitZaman('2028-02-10T09:00:00', () => esit(islem('', [A(1, 31)]).sonuc[0].sonrakiOdeme, '2028-02-29'));
+    sabitZaman('2026-01-31T23:00:00', () => esit(islem('', [A(1, 31)]).sonuc[0].kalanGun, 0));
+  });
+  dene('günü geçen ödeme sonraki aya / sonraki yıla kayar', () => {
+    sabitZaman('2026-09-23T09:00:00', () => {
+      const r = islem('', [A(1, 15), A(2, 14, { periyot: 'yillik', ay: 3 }), A(3, 1, { periyot: 'yillik', ay: 12 })]);
+      esit(r.sonuc[0].sonrakiOdeme, '2026-10-15');
+      esit(r.sonuc[1].sonrakiOdeme, '2027-03-14');
+      esit(r.sonuc[2].sonrakiOdeme, '2026-12-01');
+    });
+    sabitZaman('2026-12-20T09:00:00', () => esit(islem('', [A(1, 5)]).sonuc[0].sonrakiOdeme, '2027-01-05'));
+  });
+  dene('aylık yük: yıllıkların 1/12\'si eklenir, pasifler sayılmaz', () => {
+    const r = islem('', [A(1, 1), A(2, 1, { tutar: 1200, periyot: 'yillik', ay: 5 }), A(3, 1, { aktif: false })]);
+    esit(r.aylikYuk, 200);
+    if (!r.mesaj.includes('aylık yük 200 TL (yıllık 2.400 TL)')) throw new Error(r.mesaj);
+  });
+  dene('sil', () => {
+    const r = islem('sil 2', [A(1, 1), A(2, 1)]);
+    esit(r.abonelikler.map((a) => a.id).join(), '1'); esit(r.yazilsin, true);
+    esit(islem('sil 9', [A(1, 1)]).hata, true);
+  });
+  dene('sabah: "onceden" penceresindekiler bir kez; bugün olan öne', () => {
+    sabitZaman('2026-09-13T09:30:00', () => {
+      const liste = [A(1, 15), A(2, 13), A(3, 20), A(4, 14, { aktif: false })];
+      const r = sabah(liste);
+      esit(r.gonderilecek, true);
+      const satirlar = r.text.split('\n');
+      if (!satirlar[1].startsWith('💳 Bugün: Abonelik 2')) throw new Error(r.text);
+      if (!r.text.includes('⏰ 2 gün sonra (15 Eylül): Abonelik 1')) throw new Error(r.text);
+      if (r.text.includes('Abonelik 3') || r.text.includes('Abonelik 4')) throw new Error('pencere dışı/pasif gönderildi');
+      if (!r.text.includes('Toplam: 200 TL')) throw new Error(r.text);
+      const isaretli = r.govde.abonelikler;
+      esit(isaretli[0].sonHatirlatilan, '2026-09-15'); esit(isaretli[1].sonHatirlatilan, '2026-09-13');
+      esit(sabah(isaretli).gonderilecek, false, 'ikinci kez gönderildi');
+      esit(sabah(isaretli, true).gonderilecek, true, 'elle test göndermeli');
+    });
+  });
+  dene('sabah: gelecek ayın ödemesi için yeniden hatırlatılır', () => {
+    const r = sabitZaman('2026-10-13T09:30:00', () => sabah([A(1, 15, { sonHatirlatilan: '2026-09-15' })]));
+    esit(r.gonderilecek, true); esit(r.govde.abonelikler[0].sonHatirlatilan, '2026-10-15');
+  });
+}
+
+// ═══ 25 — Önemli tarihler ═══
+console.log('25 — Önemli tarihler');
+{
+  const d25 = wf('25-onemli-tarihler.json');
+  const istekKod = kodu(d25, 'İsteği Al (Tarih)');
+  const islemKod = kodu(d25, 'İşlemi Uygula (Tarih)');
+  const sabahKod = kodu(d25, 'Yaklaşan Tarihleri Bul');
+  const islem = (metin, tarihler, ek = {}) => {
+    const d = {
+      'İsteği Al (Tarih)': [calistir(istekKod, { girdi: [{ chat_id: 42, metin }] })[0].json],
+      'Tarihleri Oku': [ek.yok ? { error: { message: 'ENOENT: no such file' } } : {}],
+      'Tarihleri Çıkar': [ek.bozuk ? { error: { message: 'Unexpected token' } } : {}],
+    };
+    return calistir(islemKod, { dugumler: d, girdi: [{ data: { tarihler } }] })[0].json;
+  };
+  const sabah = (tarihler, elle) => {
+    const d = { 'Tarihleri Oku (Sabah)': [{}], 'Tarihleri Çıkar (Sabah)': [{}] };
+    if (elle) d['Elle Test Et (Tarih)'] = [{}];
+    return calistir(sabahKod, { dugumler: d, girdi: [{ data: { tarihler } }] })[0].json;
+  };
+  const T = (id, tarih, ad, tur = 'dogumgunu', ek = {}) => ({ id, ad, tarih, tur, ...ek });
+
+  dene('ekle: yıllı doğum günü → tür ve yaş; yılsız yıl dönümü', () => {
+    sabitZaman('2026-09-23T10:00:00', () => {
+      const r = islem('ekle 14.03.1964 Annemin doğum günü', [], { yok: true });
+      const t = r.tarihler[0];
+      esit(t.tarih, '1964-03-14'); esit(t.tur, 'dogumgunu'); esit(t.id, 1); esit(r.yazilsin, true);
+      if (!r.mesaj.includes('63 yaşına giriyor')) throw new Error(r.mesaj);
+      const y = islem('ekle 02.06 Evlilik yıl dönümü', []).tarihler[0];
+      esit(y.tarih, '--06-02'); esit(y.tur, 'yildonumu');
+      esit(islem('ekle 1.1 Sınav', []).tarihler[0].tur, 'diger');
+    });
+  });
+  dene('ekle: geçersiz tarih ve gelecek yıl reddedilir', () => {
+    for (const m of ['ekle 31.02 x', 'ekle 29.02.1990 x', 'ekle 10.13 x', 'ekle 14.03', 'ekle 01.01.2999 x']) {
+      const r = islem(m, []);
+      esit(r.hata, true, m); esit(r.yazilsin, false, m);
+    }
+    esit(islem('ekle 29.02 Artık gün', []).hata, false, 'yılsız 29 Şubat geçerli olmalı');
+  });
+  dene('tarihler.json BOZUK → durur', () => {
+    let attı = false;
+    try { islem('ekle 1.1 x', [], { bozuk: true }); } catch (e) { attı = /tarihler\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk dosyada durmadı');
+  });
+  dene('liste: yakından uzağa sıralı, geçen tarih gelecek yıla kayar', () => {
+    sabitZaman('2026-09-23T10:00:00', () => {
+      const r = islem('', [T(1, '1964-03-14', 'Annem'), T(2, '--09-30', 'Yıl dönümü', 'yildonumu'), T(3, '2020-09-23', 'Kızım')]);
+      const s = r.mesaj.split('\n');
+      if (!s[1].includes('#3 Kızım') || !s[1].includes('bugün, 6 yaşına giriyor')) throw new Error(r.mesaj);
+      if (!s[2].includes('#2 Yıl dönümü — 30 Eylül (7 gün)')) throw new Error(r.mesaj);
+      if (!s[3].includes('14 Mart (172 gün, 63 yaşına giriyor)')) throw new Error(r.mesaj);
+      esit(r.sonuc[0].siradaki, '2027-03-14');
+    });
+  });
+  dene('29 Şubat: artık olmayan yılda 28 Şubat', () => {
+    sabitZaman('2027-02-20T10:00:00', () => esit(islem('', [T(1, '2000-02-29', 'Artık')]).sonuc[0].siradaki, '2027-02-28'));
+    sabitZaman('2028-02-20T10:00:00', () => esit(islem('', [T(1, '2000-02-29', 'Artık')]).sonuc[0].siradaki, '2028-02-29'));
+  });
+  dene('sil', () => {
+    const r = islem('sil 1', [T(1, '--01-01', 'a'), T(2, '--01-02', 'b')]);
+    esit(r.tarihler.length, 1); esit(r.yazilsin, true);
+    esit(islem('sil 7', [T(1, '--01-01', 'a')]).hata, true);
+  });
+  dene('sabah: gününde, 7 ve 1 gün önce; arada sessiz', () => {
+    sabitZaman('2026-09-23T08:30:00', () => {
+      const r = sabah([T(1, '1964-09-23', 'Annemin doğum günü'), T(2, '--09-30', 'Evlilik yıl dönümü', 'yildonumu'),
+                       T(3, '--09-24', 'Sınav', 'diger'), T(4, '--09-26', 'Arada')]);
+      esit(r.gonderilecek, true);
+      const s = r.text.split('\n');
+      esit(s[0], '🎂 Bugün: Annemin doğum günü — 62 yaşına giriyor!');
+      esit(s[1], '📅 Yarın: Sınav');
+      esit(s[2], '💍 7 gün sonra (30 Eylül): Evlilik yıl dönümü');
+      if (r.text.includes('Arada')) throw new Error('3 gün kala bildirilmemeli');
+      esit(r.govde.tarihler[0].sonBildirim, '2026-09-23|0');
+      esit(sabah(r.govde.tarihler).gonderilecek, false, 'aynı gün ikinci kez');
+      esit(sabah(r.govde.tarihler, true).gonderilecek, true, 'elle test');
+    });
+  });
+  dene('sabah: kişiye özel "onceden" listesi', () => {
+    sabitZaman('2026-09-23T08:30:00', () => {
+      esit(sabah([T(1, '--10-07', 'x', 'diger', { onceden: [14] })]).gonderilecek, true);
+      esit(sabah([T(1, '--09-30', 'x', 'diger', { onceden: [14] })]).gonderilecek, false);
+    });
+  });
+}
+
+// ═══ 26 — Haftalık rapor ═══
+console.log('26 — Haftalık rapor');
+{
+  const d26 = wf('26-haftalik-rapor.json');
+  const kaynakKod = kodu(d26, 'Kaynağı Belirle');
+  const raporKod = kodu(d26, 'Raporu Hazırla');
+  const ADLAR = { gorevler: 'Görevleri', harcamalar: 'Harcamaları', butce: 'Bütçeyi', aliskanliklar: 'Alışkanlıkları',
+                  notlar: 'Notları', abonelikler: 'Abonelikleri', tarihler: 'Tarihleri', servisler: 'Servisleri' };
+  // veriler: { gorevler: {...dosya içeriği} | 'yok' | 'bozuk' } — verilmeyen dosya "yok" sayılır.
+  const rapor = (veriler, kaynak = { kaynak: 'zaman', chat_id: '' }) => {
+    const d = { 'Kaynağı Belirle': [kaynak] };
+    for (const [dosya, ad] of Object.entries(ADLAR)) {
+      const v = dosya in veriler ? veriler[dosya] : 'yok';
+      d[ad + ' Oku (Rapor)'] = [v === 'yok' ? { error: { message: 'ENOENT: no such file' } } : {}];
+      d[ad + ' Çıkar (Rapor)'] = [v === 'bozuk' ? { error: { message: 'Unexpected token' } } : v === 'yok' ? {} : { data: v }];
+    }
+    return calistir(raporKod, { dugumler: d, girdi: [{}] })[0].json;
+  };
+  const once = (gun) => new Date(Date.now() - gun * 86400000).toISOString();
+
+  dene('kaynak: webhook, bot ve zamanlama ayırt edilir', () => {
+    esit(calistir(kaynakKod, { girdi: [{ query: {}, headers: {} }] })[0].json.kaynak, 'webhook');
+    const b = calistir(kaynakKod, { girdi: [{ chat_id: 42 }] })[0].json;
+    esit(b.kaynak, 'bot'); esit(b.chat_id, '42');
+    esit(calistir(kaynakKod, { girdi: [{}] })[0].json.kaynak, 'zaman');
+  });
+  dene('hiç dosya yok → "raporlanacak veri yok", hata yok', () => {
+    const r = rapor({});
+    if (!r.text.includes('Raporlanacak veri yok')) throw new Error(r.text);
+    esit(r.bolumler.length, 0);
+  });
+  dene('görevler: bu hafta biten/eklenen, eski bitenler sayılmaz', () => {
+    const r = rapor({ gorevler: { gorevler: [
+      { id: 1, baslik: 'Rapor yaz', durum: 'tamam', tamamlanma: once(2), olusturulma: once(3) },
+      { id: 2, baslik: 'Eski iş', durum: 'tamam', tamamlanma: once(20), olusturulma: once(30) },
+      { id: 3, baslik: 'Açık iş', durum: 'acik', olusturulma: once(1) }] } });
+    const g = r.bolumler.find((b) => b.baslik === '✅ Görevler');
+    esit(g.satirlar[0], '1 tamamlandı · 2 eklendi · 1 açık');
+    esit(g.satirlar[1], '✓ Rapor yaz');
+  });
+  dene('harcama: toplam, geçen haftaya göre değişim, en büyük 3', () => {
+    const H = (t, g, konu) => ({ tarih: once(g), tutar: t, konu, paraBirimi: 'TL' });
+    const r = rapor({ harcamalar: { harcamalar: [H(100, 1, 'a'), H(500, 2, 'b'), H(50, 3, 'c'), H(10, 4, 'd'), H(400, 10, 'eski')] } });
+    const h = r.bolumler.find((b) => b.baslik === '💸 Harcama').satirlar;
+    esit(h[0], '660 TL, 4 kayıt (geçen hafta 400 TL, ▲ %65)');
+    esit(h[1], '• 500 TL — b'); esit(h.length, 4);
+  });
+  dene('bütçe: bu ayın limit yüzdesi', () => {
+    const r = rapor({ harcamalar: { harcamalar: [{ tarih: new Date().toISOString(), tutar: 850 }] }, butce: { aylikLimit: 1000 } });
+    const b = r.bolumler.find((x) => x.baslik === '🎯 Bütçe');
+    if (!b.satirlar[0].startsWith('🟠 Bu ay %85 — 850 TL / 1.000 TL')) throw new Error(b.satirlar[0]);
+  });
+  dene('alışkanlık: 7 günde kaç gün ve seri', () => {
+    const iki = (n) => String(n).padStart(2, '0');
+    const gun = (f) => { const d = new Date(); d.setDate(d.getDate() - f); return d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate()); };
+    const r = rapor({ aliskanliklar: { aliskanliklar: [
+      { id: 1, ad: 'Su', gunler: [0, 1, 2, 3, 4, 5, 6].map(gun) },
+      { id: 2, ad: 'Kitap', gunler: [1, 2, 5].map(gun) }] } });
+    const a = r.bolumler.find((x) => x.baslik === '🔥 Alışkanlık').satirlar;
+    esit(a[0], '🏆 Su: 7/7 · 🔥7'); esit(a[1], '• Kitap: 3/7 · 🔥2');
+  });
+  dene('önümüzdeki 7 gün: hatırlatma, ödeme, doğum günü tarih sırasıyla', () => {
+    sabitZaman('2026-09-20T20:00:00', () => {
+      const r = rapor({
+        notlar: { notlar: [{ id: 1, metin: 'Dişçi', hatirlat: '2026-09-22T10:00:00', durum: 'acik' },
+                           { id: 2, metin: 'Gitti', hatirlat: '2026-09-21T10:00:00', durum: 'gonderildi' },
+                           { id: 3, metin: 'Uzak', hatirlat: '2026-10-20T10:00:00', durum: 'acik' }] },
+        abonelikler: { abonelikler: [{ id: 1, ad: 'Kira', tutar: 15000, periyot: 'aylik', gun: 1 },
+                                     { id: 2, ad: 'Netflix', tutar: 230, periyot: 'aylik', gun: 25 }] },
+        tarihler: { tarihler: [{ id: 1, ad: 'Annem', tarih: '1964-09-21', tur: 'dogumgunu' }] },
+      });
+      const y = r.bolumler.find((x) => x.baslik === '📅 Önümüzdeki 7 gün').satirlar;
+      esit(y.length, 3, JSON.stringify(y));
+      if (!y[0].includes('🎂 Annem (62 yaş)')) throw new Error(y[0]);
+      if (!y[1].includes('⏰ Dişçi')) throw new Error(y[1]);
+      if (!y[2].includes('💳 Netflix — 230 TL')) throw new Error(y[2]);
+    });
+  });
+  dene('bozuk dosya raporu durdurmaz, bölümde uyarı olur; kapalı servis listelenir', () => {
+    const r = rapor({ gorevler: 'bozuk', servisler: { servisler: [{ ad: 'API', sonDurum: 'kapali', sonHata: 'HTTP 500' }, { ad: 'Site', sonDurum: 'ayakta' }] } });
+    const g = r.bolumler.find((x) => x.baslik === '✅ Görevler');
+    if (!g.satirlar[0].includes('gorevler.json okunamadı')) throw new Error(g.satirlar[0]);
+    const s = r.bolumler.find((x) => x.baslik === '🩺 Servisler').satirlar;
+    esit(s.join(), '🔴 API — HTTP 500');
+  });
+}
+
+// ═══ Yapı — tüm workflow dosyaları ═══
+// Code düğümü dışındaki hataları yakalar: bozuk konum, dosya yolu yerine sayı
+// yazılmış okuma düğümü (ifade "=" ile başlarsa serbest), var olmayan düğüme giden bağlantı, tekrarlanan ad.
+console.log('Yapı — tüm workflow dosyaları');
+for (const dosya of fs.readdirSync('workflows').filter((f) => f.endsWith('.json')).sort()) {
+  dene(dosya, () => {
+    const d = wf(dosya);
+    const adlar = new Set();
+    for (const n of d.nodes) {
+      if (adlar.has(n.name)) throw new Error('aynı ad iki kez: ' + n.name);
+      adlar.add(n.name);
+      if (!Array.isArray(n.position) || n.position.length !== 2 || !n.position.every(Number.isFinite)) {
+        throw new Error(n.name + ': konum bozuk ' + JSON.stringify(n.position));
+      }
+      if (n.type === 'n8n-nodes-base.readWriteFile') {
+        const yol = n.parameters.operation === 'write' ? n.parameters.fileName : n.parameters.fileSelector;
+        if (typeof yol !== 'string' || !(yol.startsWith('/files/') || yol.startsWith('='))) {
+          throw new Error(n.name + ': dosya yolu /files/ ile başlamıyor → ' + JSON.stringify(yol));
+        }
+      }
+    }
+    for (const [kaynak, c] of Object.entries(d.connections || {})) {
+      if (!adlar.has(kaynak)) throw new Error('bağlantı kaynağı yok: ' + kaynak);
+      for (const cikis of c.main || []) for (const h of cikis || []) {
+        if (!adlar.has(h.node)) throw new Error('bağlantı hedefi yok: ' + kaynak + ' → ' + h.node);
+      }
+    }
   });
 }
 

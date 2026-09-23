@@ -80,10 +80,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          340,
-          50
-        ],
+        "fileSelector": "/files/yakalanan-istekler.json",
         "options": {}
       },
       "id": "db21d9d3-9347-4324-9eb3-2401be13ef7b",
@@ -91,8 +88,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        340,
+        50
       ],
       "onError": "continueRegularOutput"
     },
@@ -207,10 +204,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          140,
-          360
-        ],
+        "fileSelector": "/files/yakalanan-istekler.json",
         "options": {}
       },
       "id": "0d0d7189-d6c6-4ba0-b295-81f3e6f38861",
@@ -218,8 +212,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        140,
+        360
       ],
       "onError": "continueRegularOutput"
     },
@@ -281,10 +275,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          140,
-          600
-        ],
+        "fileSelector": "/files/yakalanan-istekler.json",
         "options": {}
       },
       "id": "4635dd09-2cf5-4797-a088-a7fb2616f8ed",
@@ -292,8 +283,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        140,
+        600
       ],
       "onError": "continueRegularOutput"
     },

@@ -64,10 +64,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          160,
-          120
-        ],
+        "fileSelector": "/files/github-durum.json",
         "options": {}
       },
       "id": "37ac2172-30fe-47cc-9600-01e75e2080f0",
@@ -75,8 +72,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        160,
+        120
       ],
       "onError": "continueRegularOutput"
     },
@@ -318,10 +315,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          160,
-          520
-        ],
+        "fileSelector": "/files/github-durum.json",
         "options": {}
       },
       "id": "62e7a1c5-bf85-42a9-ba22-af110160bb89",
@@ -329,8 +323,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        160,
+        520
       ],
       "onError": "continueRegularOutput"
     },

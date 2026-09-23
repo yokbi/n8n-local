@@ -3,7 +3,7 @@
 Öncelik: 🔴 kritik · 🟡 orta · 🟢 düşük
 
 Bu depo iyi durumda: dokümantasyon doğru, çalıştırma betikleri üç platform için
-mevcut, 21 workflow hazır ve dayanıklılık düzeltmeleri birleştirildi. Kalan
+mevcut, 26 workflow hazır ve dayanıklılık düzeltmeleri birleştirildi. Kalan
 maddeler ağırlıklı olarak **doğrulama** ve **tek seferlik panel ayarları** ile
 ilgili.
 
@@ -29,7 +29,7 @@ güncellenmez.
 ## N2 🟡 Hiçbir workflow uçtan uca çalıştırılarak doğrulanmadı
 
 **Durum.** Docker bu ortamda çalışmadığı için n8n hiç başlatılmadı. 21
-workflow'un JSON'u ayrıştırıldı ve Code düğümlerinin mantığı 113 testle
+workflow'un JSON'u ayrıştırıldı ve Code düğümlerinin mantığı 195 testle
 denendi (`node testler/kod-testleri.js` — hepsi geçiyor), ama **hiçbir
 workflow gerçekten çalıştırılmadı**: e-posta gönderilmedi, Telegram'a mesaj
 düşmedi, hiçbir sayfa indirilmedi.
@@ -79,6 +79,20 @@ API'si, zamanlayıcılar, n8n'in kendi düğüm davranışları.
       adres + bilerek bozuk bir adres yazın, `esik: 1` yapıp **Elle Test Et**
 - [ ] **Workflow 18 (GitHub nöbetçisi)** — `.env` içine `GITHUB_TOKEN` yazın,
       **iki kez** çalıştırın (ilk tur bilerek sessizdir)
+- [ ] **Workflow 17, 18, 19, 21** — 2026-09-23'te bu workflow'lardaki dosya
+      okuma düğümleri düzeltildi (yol ile tuval konumu yer değiştirmişti,
+      dosya hiç okunamıyordu). **Yeniden içe aktarın**; eski kopyalar bozuk.
+- [ ] **Workflow 22 (alışkanlık)** — `/aliskanlik ekle Su iç`, `/yaptim 1`;
+      21:00 hatırlatmasını *Elle Test Et* ile deneyin
+- [ ] **Workflow 23 (bütçe)** — `/butce limit 1000` koyup `/harcama 900 test`
+      girin; *Elle Test Et* → %80 uyarısı gelmeli, ikinci çalıştırmada gelmemeli
+- [ ] **Workflow 24 (abonelik)** — yarının gününü girin
+      (`/abonelik ekle Deneme 10 <yarının günü>`), *Elle Test Et* → "Yarın"
+- [ ] **Workflow 25 (önemli tarihler)** — bugünün tarihiyle bir kayıt
+      ekleyip *Elle Test Et* → "🎂 Bugün"
+- [ ] **Workflow 26 (haftalık rapor)** — en kolayı:
+      `curl http://localhost:5678/webhook/hafta`. Zamanlama **Pazar 20:00**
+      olarak görünmeli (tetikleyiciyi açıp kontrol edin)
 
 Her birinin sonucunu bu dosyaya not edin; hangisinin gerçekten çalıştığı
 şu anda **hiçbir yerde yazılı değil.**
@@ -168,6 +182,11 @@ ekleyin:
 | 19 Kod parçacığı kasası | ⬜ | | |
 | 20 Geliştirici araç kutusu | ⬜ | | |
 | 21 Webhook yakalayıcı | ⬜ | | |
+| 22 Alışkanlık takibi | ⬜ | | |
+| 23 Bütçe nöbetçisi | ⬜ | | |
+| 24 Abonelik ve ödemeler | ⬜ | | |
+| 25 Önemli tarihler | ⬜ | | |
+| 26 Haftalık rapor | ⬜ | | |
 
 Altı ay sonra "bu çalışıyor muydu?" diye düşünmemek için.
 
@@ -175,7 +194,7 @@ Altı ay sonra "bu çalışıyor muydu?" diye düşünmemek için.
 
 ## N7 🟡 Yeni workflow'ların tek seferlik ayarları
 
-21 workflow'un birkaçı, içe aktarmanın ötesinde panelde birer ayar ister.
+26 workflow'un birkaçı, içe aktarmanın ötesinde panelde birer ayar ister.
 Atlanırsa **sessizce** çalışmazlar:
 
 - [ ] **Workflow 11 (hata nöbetçisi)** — kullandığınız her workflow'da
@@ -194,6 +213,13 @@ Atlanırsa **sessizce** çalışmazlar:
       Seçilmeyenin yalnızca kendi komutu çalışmaz.
 - [ ] **Workflow 18 için token** — `.env` içine okuma yetkili `GITHUB_TOKEN`
       yazıp `docker compose up -d`. Boş bırakılırsa workflow sessizce durur.
+- [ ] **Workflow 05 → 22/23/24/25/26 bağlantısı** — `/aliskanlik`, `/yaptim`,
+      `/butce`, `/abonelik`, `/tarihler` ve `/hafta` için workflow 05'teki
+      *Alışkanlık / Bütçe / Abonelik / Tarih / Rapor Workflow'una İlet*
+      düğümlerinde hedefi seçin (README §14).
+- [ ] **Telegram'sız kullanım** — 22–26 bildirimleri Telegram yoksa mail ile
+      gider; her birinin *… Mail At (SMTP)* düğümünde credential ve adres
+      alanlarını doldurun.
 
 ---
 

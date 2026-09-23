@@ -8,7 +8,11 @@ not/hatırlatma ve isterseniz tamamen yerel AI (Ollama).
 Yazılım geliştiriyorsanız **geliştirici paketi** (workflow 17–21) da hazır:
 servis/uptime nöbetçisi, GitHub inceleme ve CI takibi, kod parçacığı kasası,
 internetsiz araç kutusu (uuid · base64 · JWT · cron · JSON) ve kendi webhook
-yakalayıcınız. Hepsi **iPhone, Mac ve Windows'tan** kullanılabilir — §13 ve §14.
+yakalayıcınız. Hepsi **iPhone, Mac ve Windows'tan** kullanılabilir — §13 ve §15.
+
+Günlük hayat için **kişisel takip paketi** (workflow 22–26): alışkanlık
+serileri, aylık bütçe limiti, abonelik/ödeme hatırlatıcısı, doğum günü ve
+yıl dönümleri, Pazar akşamı haftalık rapor — §14.
 
 > Bu repo tek başına çalışır: klonlayın, `.env` oluşturun, `docker compose up -d` deyin.
 >
@@ -40,11 +44,12 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 11. [Opsiyonel: Yerel AI (Ollama)](#11-opsiyonel-yerel-ai-ollama)
 12. [Yerel AI sohbet ve link özetleyici](#12-yerel-ai-sohbet-ve-link-özetleyici)
 13. [Geliştirici paketi (workflow 17–21)](#13-geliştirici-paketi-workflow-1721)
-14. [iPhone, Mac ve Windows'tan kullanmak](#14-iphone-mac-ve-windowstan-kullanmak)
-15. [Verileriniz nerede? Yedekleme](#15-verileriniz-nerede-yedekleme)
-16. [Başka uygulamalar bağlamak](#16-başka-uygulamalar-bağlamak)
-17. [Sorun giderme](#17-sorun-giderme)
-18. [Güncelleme](#18-güncelleme)
+14. [Kişisel takip paketi (workflow 22–26)](#14-kişisel-takip-paketi-workflow-2226)
+15. [iPhone, Mac ve Windows'tan kullanmak](#15-iphone-mac-ve-windowstan-kullanmak)
+16. [Verileriniz nerede? Yedekleme](#16-verileriniz-nerede-yedekleme)
+17. [Başka uygulamalar bağlamak](#17-başka-uygulamalar-bağlamak)
+18. [Sorun giderme](#18-sorun-giderme)
+19. [Güncelleme](#19-güncelleme)
 
 ---
 
@@ -76,6 +81,12 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 │  │ 19 Kod parçacığı kasası              │                            │
 │  │ 20 Geliştirici araç kutusu           │                            │
 │  │ 21 Webhook yakalayıcı                │                            │
+│  │ ── kişisel takip paketi ───────────  │                            │
+│  │ 22 Alışkanlık takibi — 21:00         │                            │
+│  │ 23 Bütçe nöbetçisi — 20:00           │                            │
+│  │ 24 Abonelik ve ödemeler — 09:30      │                            │
+│  │ 25 Önemli tarihler — 08:30           │                            │
+│  │ 26 Haftalık rapor — Pazar 20:00      │                            │
 │  └──────┬──────────────────┬────────────┘                            │
 │         │                  │                                         │
 │   n8n_data volume    local-files/*.json (görev, fiyat, harcama, not) │
@@ -108,6 +119,11 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 | `19-kod-parcacik-kasasi` | Kod parçacıklarınızı kaydedip her cihazdan arayın (`/kod`, `curl`) | — (§13.3) |
 | `20-gelistirici-arac-kutusu` | uuid · base64 · JWT · epoch · JSON · SHA-256 · cron — internetsiz (`/arac`) | — (§13.4) |
 | `21-webhook-yakalayici` | Gelen HTTP isteğini olduğu gibi kaydeder ve gösterir; kendi request-bin'iniz (`/istekler`) | — (§13.5) |
+| `22-aliskanlik-takibi` | Her gün tekrarlanan işler için "yaptım" işareti ve 🔥 seri; akşam 21:00'de eksikleri hatırlatır (`/yaptim`) | — veya SMTP (§14.1) |
+| `23-butce-nobetcisi` | Aylık ve kategori bazlı harcama limiti; %80 ve %100'de ayda bir kez uyarır, günlük harcanabilir tutarı söyler (`/butce`) | — veya SMTP (§14.2) |
+| `24-abonelik-takibi` | Her ay/her yıl tekrarlanan ödemeleri (Netflix, kira, alan adı) günü gelmeden hatırlatır, aylık yükü gösterir (`/abonelik`) | — veya SMTP (§14.3) |
+| `25-onemli-tarihler` | Doğum günü ve yıl dönümlerini her yıl 7 gün önce, 1 gün önce ve gününde hatırlatır; yaşı/yılı söyler (`/tarihler`) | — veya SMTP (§14.4) |
+| `26-haftalik-rapor` | Pazar 20:00'de haftanın özeti: görevler, harcama (geçen haftaya göre), bütçe, alışkanlıklar, önümüzdeki 7 gün (`/hafta`) | — veya SMTP (§14.5) |
 
 Her workflow'un tuvalinde, kurulum adımlarını anlatan Türkçe **sarı not kutuları** vardır.
 
@@ -145,6 +161,11 @@ cp local-files/servisler.ornek.json local-files/servisler.json
 cp local-files/github-durum.ornek.json local-files/github-durum.json
 cp local-files/parcacikalar.ornek.json local-files/parcacikalar.json
 cp local-files/yakalanan-istekler.ornek.json local-files/yakalanan-istekler.json
+# Kişisel takip paketi (workflow 22–26):
+cp local-files/aliskanliklar.ornek.json local-files/aliskanliklar.json
+cp local-files/butce.ornek.json local-files/butce.json
+cp local-files/abonelikler.ornek.json local-files/abonelikler.json
+cp local-files/tarihler.ornek.json local-files/tarihler.json
 
 # 3) n8n'i başlatın
 docker compose up -d
@@ -265,7 +286,7 @@ programla açıp okuyabilirsiniz.
 
 > 💡 Ağı hiç açmadan telefondan kullanmanın yolu **Telegram botudur** (§7.1):
 > bot dışarıya kapı açmaz, Telegram'ı kendisi yoklar. Hangi özelliğin hangi
-> cihazdan nasıl kullanıldığı §14'te tablo hâlinde.
+> cihazdan nasıl kullanıldığı §15'te tablo hâlinde.
 
 ## 7. Telegram botu, fiyat takibi ve harcama kaydı
 
@@ -497,7 +518,7 @@ anahtarı `.env` dosyasına `N8N_API_KEY=...` olarak yazın; artık her gece
 atlanır.
 
 > ⚠️ **Bu bir dış yedek değildir** — aynı diskte durur. `local-files/`
-> klasörünü ayrıca harici bir diske veya bulut yedeğinize dâhil edin (§15).
+> klasörünü ayrıca harici bir diske veya bulut yedeğinize dâhil edin (§16).
 
 Yedekler birikir; ayda bir temizlemek için:
 
@@ -622,7 +643,7 @@ vermeye devam eder.
 
 > Bu çağrılar **cevabı beklemeden** yapılır. Sebebi: `docker-compose.yml`
 > içinde çalıştırmalar sıraya alınmıştır (`N8N_CONCURRENCY_PRODUCTION_LIMIT=1`,
-> §15). Bot cevabı bekleseydi, beklediği workflow sıraya girip hiç
+> §16). Bot cevabı bekleseydi, beklediği workflow sıraya girip hiç
 > başlayamazdı. Bu yüzden bot önce *"🤔 Düşünüyorum…"* der, cevabı 12 numaralı
 > workflow ayrıca gönderir.
 
@@ -798,13 +819,219 @@ Seçmediğiniz düğümün komutu çalışmaz; bot geri kalan her şeye cevap ve
 devam eder. Yalnızca kullanacağınız workflow'lar için yapmanız yeterli —
 hedef workflow'ların da **Active** olması gerekir.
 
-## 14. iPhone, Mac ve Windows'tan kullanmak
+## 14. Kişisel takip paketi (workflow 22–26)
+
+Tekrarlanan, zamana yayılan işler için beş workflow. Hepsi yereldir,
+credential gerektirmez; Telegram kuruluysa bildirim oraya, değilse mail
+olarak gider. Tasarım ayrıntıları: [`YENI-OZELLIKLER.md`](YENI-OZELLIKLER.md).
+
+| # | Workflow | Ne verir | Telegram |
+|---|---|---|---|
+| 22 | Alışkanlık takibi | 🔥 Seri, son 7 gün, akşam hatırlatması | `/aliskanlik` · `/yaptim 2` |
+| 23 | Bütçe nöbetçisi | Limit, kalan, günlük harcanabilir, %80/%100 uyarısı | `/butce` · `/butce limit 20000` |
+| 24 | Abonelik ve düzenli ödemeler | Ödemeden 3 gün önce hatırlatma, aylık yük | `/abonelik` · `/abonelik ekle …` |
+| 25 | Önemli tarihler | Doğum günü/yıl dönümü, 7 ve 1 gün önceden | `/tarihler` · `/tarih ekle …` |
+| 26 | Haftalık rapor | Son 7 gün + önümüzdeki 7 gün, tek mesaj | `/hafta` |
+
+Telegram komutları için workflow 05'teki ilgili **… Workflow'una İlet**
+düğümünde hedefi bir kez seçin (§13.6'daki ayarın aynısı): *Alışkanlık* → 22,
+*Bütçe* → 23, *Abonelik* → 24, *Tarih* → 25, *Rapor* → 26.
+
+### 14.1 Alışkanlık takibi (workflow 22)
+
+Görev listesinden farkı: alışkanlık tamamlanınca kaybolmaz, **her gün** için
+ayrı işaret tutulur ve kaç gündür aralıksız yaptığınız sayılır.
+
+```
+/aliskanlik ekle Su iç (2 L)
+/aliskanlik ekle 10 dk kitap
+/yaptim 1            → bugün işaretle
+/yaptim kitap        → adın bir parçası da olur
+/yaptim 2 dün        → dün unuttuysanız
+/aliskanlik          → liste
+/aliskanlik geri 1 · /aliskanlik sil 1
+```
+
+`/aliskanlik` çıktısı:
+
+```
+🔥 Alışkanlıklar — bugün 1/2
+✅ #1 Su iç (2 L)  ●●●○●●●  🔥3
+⬜ #2 10 dk kitap  ●●●●●●○  🔥6
+```
+
+- **Seri kuralı:** bugün işaretliyse bugünden, değilse **dünden** geriye
+  kesintisiz gün sayısı — akşam henüz yapmadığınız alışkanlığın serisi gün
+  bitene kadar bozulmuş görünmez.
+- **Her akşam 21:00** yapılmayanları tek mesajda hatırlatır
+  (*"🔥 6 günlük seri bozulmasın"*). Hepsi tamamsa **sessiz** kalır; aynı gün
+  ikinci kez yazmaz.
+- Veriler `local-files/aliskanliklar.json` dosyasında; alışkanlık başına son
+  400 gün tutulur.
+
+```bash
+curl -X POST http://localhost:5678/webhook/aliskanlik \
+  -H 'Content-Type: application/json' -d '{"metin":"yaptim 1"}'
+curl -X POST http://localhost:5678/webhook/aliskanlik -H 'Content-Type: application/json' -d '{}'   # liste (JSON)
+```
+
+### 14.2 Bütçe nöbetçisi (workflow 23)
+
+Harcama kaydı (07, `/harcama`) zaten var; eksik olan **sınırdı**. Bu workflow
+`harcamalar.json`'u yalnızca okur ve bu ayı limitlerinizle karşılaştırır.
+
+```
+/butce limit 20000              → aylık genel limit
+/butce limit Market 6000        → kategori limiti (yoksa oluşturur)
+/butce anahtar Market migros,a101
+/butce sil Market
+/butce                          → durum
+```
+
+`/butce` çıktısı:
+
+```
+🎯 Bütçe — Eylül 2026 (23/30. gün, 41 kayıt)
+Genel ▓▓▓▓▓▓░░░░ %64
+  12.720 TL / 20.000 TL · kalan 7.280 TL · günde 910 TL
+
+Kategoriler:
+• Market ▓▓▓▓▓▓▓▓░░ %81 — 4.860 TL / 6.000 TL
+• Ulaşım: 320 TL (limitsiz)
+• Diğer: 7.540 TL
+
+Ay sonu tahmini: 16.591 TL
+```
+
+- **Kategori eşleşmesi:** harcamanın açıklamasında (`konu`) ya da
+  gönderende (`kimden`) kategorinin adı veya anahtar kelimelerinden biri
+  geçiyorsa o kategoriye sayılır; ilk eşleşen kazanır. Örnek dosyada Market,
+  Yeme-içme, Ulaşım ve Fatura için hazır kelimeler var.
+- **Her akşam 20:00** genel ve kategori limitleri için %80 ve %100
+  eşiklerini kontrol eder. Her eşik **ayda bir kez** bildirilir; ay değişince
+  sıfırlanır.
+- "Günde X TL" = kalan tutar ÷ bugün dahil ayın kalan günleri.
+- Yalnızca TL harcamalar sayılır.
+
+```bash
+curl http://localhost:5678/webhook/butce          # durum (JSON)
+curl -X POST http://localhost:5678/webhook/butce \
+  -H 'Content-Type: application/json' -d '{"metin":"limit 20000"}'
+```
+
+### 14.3 Abonelik ve düzenli ödemeler (workflow 24)
+
+Workflow 09'daki hatırlatma **tek seferliktir**; her ay tekrarlanan ödeme için
+her ay yeniden kurmak gerekir. Bu workflow'da ödemeyi bir kez tanımlarsınız.
+
+```
+/abonelik ekle Netflix 229,99 15          → her ayın 15'i
+/abonelik ekle Kira 15.000 1              → her ayın 1'i
+/abonelik ekle Alan adı 450 yillik 14.03  → her yıl 14 Mart
+/abonelik                                 → liste
+/abonelik sil 3
+```
+
+`/abonelik` çıktısı (sıradaki ödemeye göre sıralı):
+
+```
+💳 Düzenli ödemeler — aylık yük 15.267 TL (yıllık 183.210 TL)
+• #2 Kira — 15.000 TL · her ayın 1. günü → 8 gün sonra (1 Ekim)
+• #1 Netflix — 229,99 TL · her ayın 15. günü → 22 gün sonra (15 Ekim)
+• #3 Alan adı — 450 TL · her yıl 14 Mart → 172 gün sonra (14 Mart)
+```
+
+- **Her sabah 09:30**, sıradaki ödemesine 3 gün ya da daha az kalanları tek
+  mesajda hatırlatır; gününde "💳 **Bugün**" diye tekrar yazar. Her ödeme
+  tarihi için hatırlatma bir kez gider.
+- **Ayın son günü kuralı:** `31` girilen ödeme 30 çeken ayda 30'unda,
+  Şubat'ta 28/29'unda sayılır — hiçbir ay atlanmaz.
+- Kaç gün önceden hatırlatılacağı (`onceden`) ve ödemeyi silmeden durdurmak
+  (`"aktif": false`) `local-files/abonelikler.json` dosyasından ayarlanır.
+- **Bilerek yok:** ödeme günü harcamalara otomatik kayıt. Çekim tarihi ve
+  tutarı bankaya göre kayabiliyor; ödedikten sonra `/harcama` ile kaydedin —
+  böylece bütçe nöbetçisi (§14.2) de görür.
+
+```bash
+curl -X POST http://localhost:5678/webhook/abonelik \
+  -H 'Content-Type: application/json' -d '{"metin":"ekle Spotify 59,99 1"}'
+```
+
+### 14.4 Önemli tarihler (workflow 25)
+
+Asıl lazım olan "bugün doğum günü" değil, hediye alacak zaman bırakan "bir
+hafta sonra doğum günü" mesajıdır. Tarihi bir kez girersiniz; her yıl
+kendiliğinden gelir.
+
+```
+/tarih ekle 14.03.1964 Annemin doğum günü    → yıl varsa yaşı da yazılır
+/tarih ekle 02.06 Evlilik yıl dönümü         → yılsız da olur
+/tarihler                                    → yaklaşan 10 tarih
+/tarih sil 3
+```
+
+Sabah gelen mesaj:
+
+```
+🎂 Bugün: Kızımın doğum günü — 6 yaşına giriyor!
+💍 7 gün sonra (30 Eylül): Evlilik yıl dönümü — 5. yıl
+```
+
+- **Tür** addan anlaşılır: "doğum" → 🎂 (yaş), "yıl dönümü"/"evlilik" → 💍
+  (kaçıncı yıl), diğerleri 📅.
+- **Her sabah 08:30**: gününde ve 7 gün / 1 gün kala. Kişiye özel pencere
+  için `local-files/tarihler.json` içinde `"onceden": [14, 3, 1]` yazın.
+- 29 Şubat doğumlular artık olmayan yıllarda 28 Şubat'ta hatırlatılır.
+
+```bash
+curl -X POST http://localhost:5678/webhook/tarih \
+  -H 'Content-Type: application/json' -d '{"metin":"ekle 02.06 Evlilik yıl dönümü"}'
+```
+
+### 14.5 Haftalık rapor (workflow 26)
+
+Her workflow kendi bildirimini gönderiyor; bu workflow **geriye dönüp
+bakar**. Her Pazar 20:00'de tek mesaj:
+
+```
+📊 Haftalık rapor — 17 Eylül – 23 Eylül
+
+✅ Görevler
+1 tamamlandı · 2 eklendi · 1 açık
+✓ Vergi beyannamesi
+
+💸 Harcama
+2.260 TL, 2 kayıt (geçen hafta 1.500 TL, ▲ %51)
+• 1.840 TL — Migros
+• 420 TL — Opet akaryakıt
+
+🎯 Bütçe
+Bu ay %19 — 3.760 TL / 20.000 TL (ayın 23/30. günü)
+
+🔥 Alışkanlık
+🏆 Su iç: 7/7 · 🔥12
+• 10 dk kitap: 4/7 · 🔥2
+
+📅 Önümüzdeki 7 gün
+25 Eyl Cum · ⏰ Dişçi randevusu
+28 Eyl Pzt · 💍 Evlilik yıl dönümü (5. yıl)
+```
+
+- Diğer workflow'ların dosyalarını **yalnızca okur**; hiçbir şeye yazmaz,
+  kurulum gerektirmez.
+- Dosyası olmayan bölüm **atlanır** (örneğin alışkanlık kullanmıyorsanız o
+  bölüm hiç görünmez). Dosyası bozuk bölüm "okunamadı" diye yazılır, rapor
+  yine gider. Kapalı servis varsa 🩺 bölümü eklenir.
+- İstendiği an: Telegram'da `/hafta`, terminalde
+  `curl http://localhost:5678/webhook/hafta` (JSON).
+
+## 15. iPhone, Mac ve Windows'tan kullanmak
 
 Panel `127.0.0.1`'e bağlıdır, yani telefon paneli göremez. Buna rağmen her şeyi
 telefondan kullanabilirsiniz: **Telegram botu dışarıya hiçbir kapı açmadan
 çalışır** (bot, Telegram'ı yoklar; içeriye bağlantı gelmez).
 
-### 14.1 iPhone — Telegram (önerilen, ek ayar yok)
+### 15.1 iPhone — Telegram (önerilen, ek ayar yok)
 
 | Komut | Ne yapar |
 |---|---|
@@ -814,12 +1041,17 @@ telefondan kullanabilirsiniz: **Telegram botu dışarıya hiçbir kapı açmadan
 | `/kodkaydet Başlık` ⏎ kod | Kasaya ekleme |
 | `/arac uuid` · `/arac jwt …` | Araç kutusu |
 | `/istekler` · `/istek 3` | Yakalanan webhook istekleri |
+| `/aliskanlik` · `/yaptim 2` | Alışkanlık serileri · bugünü işaretleme |
+| `/butce` · `/butce limit 20000` | Bütçe durumu · limit koyma |
+| `/abonelik` · `/abonelik ekle Netflix 229,99 15` | Düzenli ödemeler · aylık yük |
+| `/tarihler` · `/tarih ekle 14.03 …` | Yaklaşan doğum günleri, yıl dönümleri |
+| `/hafta` | Haftalık rapor (istendiği an) |
 | `/yardim` | Tüm komutlar |
 
 Uyarılar (servis düştü, PR bekliyor) siz bir şey yapmadan gelir.
 Telegram'ı kurmadıysanız aynı uyarılar SMTP ile mail olarak gider.
 
-### 14.2 Mac ve Windows — terminal
+### 15.2 Mac ve Windows — terminal
 
 Bilgisayarınızın kendisinde panel açık olduğu için uçları doğrudan çağırın.
 Kullandığınız kabuğa birkaç kısayol tanımlamak işi iyice kısaltır:
@@ -842,7 +1074,7 @@ function arac { param($i,$v) (Invoke-RestMethod "http://localhost:5678/webhook/a
 Tarayıcı da yeter: `localhost:5678/webhook/arac?islem=zaman&veri=1735689600`
 adresini yer imi yapabilirsiniz.
 
-### 14.3 iPhone — Kısayollar (aynı Wi-Fi'da, isteğe bağlı)
+### 15.3 iPhone — Kısayollar (aynı Wi-Fi'da, isteğe bağlı)
 
 Telegram yerine doğrudan HTTP çağırmak isterseniz önce paneli ev ağınıza
 açmanız gerekir (§6'daki adımlar: compose'ta `"5678:5678"` +
@@ -859,16 +1091,16 @@ açmanız gerekir (§6'daki adımlar: compose'ta `"5678:5678"` +
 > kullanmayın; dilerseniz Webhook düğümlerine *Authentication → Header Auth*
 > ekleyip aynı başlığı kısayola da koyun.
 
-### 14.4 Hangisi nerede çalışır?
+### 15.4 Hangisi nerede çalışır?
 
 | | iPhone | Mac | Windows |
 |---|:---:|:---:|:---:|
 | Telegram komutları | ✅ | ✅ | ✅ |
 | Uyarı/bildirim almak | ✅ | ✅ | ✅ |
-| `curl` / PowerShell uçları | ⚠️ LAN gerekir (§14.3) | ✅ | ✅ |
+| `curl` / PowerShell uçları | ⚠️ LAN gerekir (§15.3) | ✅ | ✅ |
 | n8n paneli | ⚠️ LAN gerekir | ✅ | ✅ |
 
-## 15. Verileriniz nerede? Yedekleme
+## 16. Verileriniz nerede? Yedekleme
 
 | Veri | Yer |
 |---|---|
@@ -900,7 +1132,7 @@ silmek isterseniz: `docker compose down -v` (geri dönüşü yoktur).
 > **durur** (boş liste yazmaz), siz de dosyayı düzeltir veya yedekten
 > dönersiniz. Bu yüzden `local-files/` klasörünü yedeğe dâhil edin.
 
-## 16. Başka uygulamalar bağlamak
+## 17. Başka uygulamalar bağlamak
 
 n8n'de yüzlerce hazır node var — Telegram, Google Takvim, Notion, Todoist,
 Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
@@ -916,7 +1148,7 @@ Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
 Hangi servisi bağlarsanız bağlayın, kimlik bilgileri yine yalnızca sizin
 makinenizde (şifreli) durur.
 
-## 17. Sorun giderme
+## 18. Sorun giderme
 
 | Belirti | Çözüm |
 |---|---|
@@ -952,11 +1184,15 @@ makinenizde (şifreli) durur.
 | `/pr` "henüz tarama yapılmadı" diyor | Workflow 18 **Active** değil ya da `.env` içindeki `GITHUB_TOKEN` boş. Token yazdıktan sonra `docker compose up -d` gerekir. |
 | GitHub nöbetçisi "GITHUB_TOKEN geçersiz" diyor | Token'ın süresi dolmuş ya da yetkisi yetmiyor. Özel depoları izliyorsanız classic token'da `repo` yetkisi gerekir. |
 | GitHub ilk turda hiçbir şey göndermedi | İlk tarama bilerek sessizdir (mevcut kayıtlar işaretlenir). İkinci turdan sonra yalnızca yenileri gelir — §13.2. |
-| `/kod`, `/arac`, `/servis` komutuna bot sessiz | Workflow 05'teki *… Workflow'una İlet* düğümünde hedef seçilmemiş (§13.6) ya da hedef workflow **Active** değil. |
+| `/kod`, `/arac`, `/servis`, `/butce`, `/hafta` gibi komutlara bot sessiz | Workflow 05'teki *… Workflow'una İlet* düğümünde hedef seçilmemiş (§13.6, §14) ya da hedef workflow **Active** değil. |
 | `/webhook/yakala` 404 dönüyor | Workflow 21 **Active** değil. Test modunda `webhook-test/yakala` adresi kullanılır (§5). |
 | Yakalanan istekte `Authorization` görünmüyor | Bilerek: gizli başlıklar ilk 6 karakter dışında maskelenir (§13.5). Gerçek değeri görmek için `local-files/yakalanan-istekler.json` yerine isteği gönderen tarafa bakın. |
+| `/yaptim` "bulunamadı" diyor | Numara yerine adın bir parçasını da yazabilirsiniz (`/yaptim kitap`); numaraları `/aliskanlik` gösterir. Aynı kelime birden çok alışkanlıkta geçiyorsa ilk eşleşen seçilir — numara kullanın. |
+| Bütçede harcama "Diğer"e düşüyor | Kategorinin anahtar kelimesi harcamanın açıklamasında geçmiyor. `/butce anahtar Market <kelime>` ile ekleyin (§14.2). |
+| `/abonelik ekle` "Kullanım" diyor | Sıra önemli: **ad, tutar, gün** (`Netflix 229,99 15`). Yıllık için gün.ay: `Alan adı 450 yillik 14.03`. Tutarda nokta binlik, virgül kuruş ayırıcıdır. |
+| `/tarih ekle` "Kullanım" diyor | Tarih başta ve gün.ay(.yıl) biçiminde olmalı: `/tarih ekle 14.03.1964 Annem`. Gelecekteki yıl ve takvimde olmayan gün (31.02) reddedilir. |
 
-## 18. Güncelleme
+## 19. Güncelleme
 
 `docker-compose.yml` içinde n8n sürümü **sabittir** (`n8n:2.35.3`) — böylece
 büyük sürüm atlamaları kurulumunuzu bir sabah habersiz bozamaz. Güncellemek
@@ -973,5 +1209,5 @@ Yeni sürümler ve varsa geriye dönük uyumsuzluklar:
 <https://github.com/n8n-io/n8n/releases>
 
 Workflow'larınız ve credential'larınız volume'da olduğu için güncellemeden
-etkilenmez. Yine de büyük sürüm (ör. 2.x → 3.x) geçişinden önce §15'teki
+etkilenmez. Yine de büyük sürüm (ör. 2.x → 3.x) geçişinden önce §16'daki
 yedeklemeyi yapın.
