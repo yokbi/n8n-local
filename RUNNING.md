@@ -218,7 +218,7 @@ veri dosyaları zaten var olduğu için betik onlara dokunmaz, sadece
 | Windows'ta betik pencereyi hemen kapatıyor | Çift tıklamak yerine bir komut satırı (cmd) açıp içinden `run-windows.bat` yazarak çalıştırın; hata mesajını görürsünüz. |
 
 Daha fazla sorun giderme maddesi (IMAP/SMTP, Gmail OAuth, Telegram botu vb.)
-için `README.md` §17'e bakın.
+için `README.md` §18'e bakın.
 
 ## 8. Sırada ne var?
 
@@ -235,4 +235,4 @@ başlamak iyi bir fikir — hiçbiri credential istemez:
 | 18 — GitHub nöbetçisi | `.env` içine `GITHUB_TOKEN`, sonra **Elle Test Et** |
 
 Telefondan (iPhone) kullanmak için Telegram botunu kurun — panelin dışarı
-açılması gerekmez: `README.md` §14.
+açılması gerekmez: `README.md` §15.

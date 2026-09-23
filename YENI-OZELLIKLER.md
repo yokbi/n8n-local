@@ -9,7 +9,7 @@ Durum: 🟢 eklendi · ⬜ sırada
 
 | # | Workflow | Tek cümlede | Durum |
 |---|---|---|:---:|
-| 22 | Alışkanlık takibi | "Bugün yaptım" işaretle, seriyi kırma; akşam 21:00'de eksikleri hatırlatır | ⬜ |
+| 22 | Alışkanlık takibi | "Bugün yaptım" işaretle, seriyi kırma; akşam 21:00'de eksikleri hatırlatır | 🟢 |
 | 23 | Bütçe nöbetçisi | Aylık ve kategori bazlı limit; %80 ve %100'de bir kez uyarır | ⬜ |
 | 24 | Abonelik ve düzenli ödemeler | Netflix, kira, alan adı… ödeme gününden önce hatırlatır, aylık yükü gösterir | ⬜ |
 | 25 | Önemli tarihler | Doğum günü ve yıl dönümlerini birkaç gün önceden ve gününde hatırlatır | ⬜ |

@@ -8,7 +8,11 @@ not/hatırlatma ve isterseniz tamamen yerel AI (Ollama).
 Yazılım geliştiriyorsanız **geliştirici paketi** (workflow 17–21) da hazır:
 servis/uptime nöbetçisi, GitHub inceleme ve CI takibi, kod parçacığı kasası,
 internetsiz araç kutusu (uuid · base64 · JWT · cron · JSON) ve kendi webhook
-yakalayıcınız. Hepsi **iPhone, Mac ve Windows'tan** kullanılabilir — §13 ve §14.
+yakalayıcınız. Hepsi **iPhone, Mac ve Windows'tan** kullanılabilir — §13 ve §15.
+
+Günlük hayat için **kişisel takip paketi** (workflow 22–26): alışkanlık
+serileri, aylık bütçe limiti, abonelik/ödeme hatırlatıcısı, doğum günü ve
+yıl dönümleri, Pazar akşamı haftalık rapor — §14.
 
 > Bu repo tek başına çalışır: klonlayın, `.env` oluşturun, `docker compose up -d` deyin.
 >
@@ -40,11 +44,12 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 11. [Opsiyonel: Yerel AI (Ollama)](#11-opsiyonel-yerel-ai-ollama)
 12. [Yerel AI sohbet ve link özetleyici](#12-yerel-ai-sohbet-ve-link-özetleyici)
 13. [Geliştirici paketi (workflow 17–21)](#13-geliştirici-paketi-workflow-1721)
-14. [iPhone, Mac ve Windows'tan kullanmak](#14-iphone-mac-ve-windowstan-kullanmak)
-15. [Verileriniz nerede? Yedekleme](#15-verileriniz-nerede-yedekleme)
-16. [Başka uygulamalar bağlamak](#16-başka-uygulamalar-bağlamak)
-17. [Sorun giderme](#17-sorun-giderme)
-18. [Güncelleme](#18-güncelleme)
+14. [Kişisel takip paketi (workflow 22–26)](#14-kişisel-takip-paketi-workflow-2226)
+15. [iPhone, Mac ve Windows'tan kullanmak](#15-iphone-mac-ve-windowstan-kullanmak)
+16. [Verileriniz nerede? Yedekleme](#16-verileriniz-nerede-yedekleme)
+17. [Başka uygulamalar bağlamak](#17-başka-uygulamalar-bağlamak)
+18. [Sorun giderme](#18-sorun-giderme)
+19. [Güncelleme](#19-güncelleme)
 
 ---
 
@@ -76,6 +81,8 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 │  │ 19 Kod parçacığı kasası              │                            │
 │  │ 20 Geliştirici araç kutusu           │                            │
 │  │ 21 Webhook yakalayıcı                │                            │
+│  │ ── kişisel takip paketi ───────────  │                            │
+│  │ 22 Alışkanlık takibi — 21:00         │                            │
 │  └──────┬──────────────────┬────────────┘                            │
 │         │                  │                                         │
 │   n8n_data volume    local-files/*.json (görev, fiyat, harcama, not) │
@@ -108,6 +115,7 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 | `19-kod-parcacik-kasasi` | Kod parçacıklarınızı kaydedip her cihazdan arayın (`/kod`, `curl`) | — (§13.3) |
 | `20-gelistirici-arac-kutusu` | uuid · base64 · JWT · epoch · JSON · SHA-256 · cron — internetsiz (`/arac`) | — (§13.4) |
 | `21-webhook-yakalayici` | Gelen HTTP isteğini olduğu gibi kaydeder ve gösterir; kendi request-bin'iniz (`/istekler`) | — (§13.5) |
+| `22-aliskanlik-takibi` | Her gün tekrarlanan işler için "yaptım" işareti ve 🔥 seri; akşam 21:00'de eksikleri hatırlatır (`/yaptim`) | — veya SMTP (§14.1) |
 
 Her workflow'un tuvalinde, kurulum adımlarını anlatan Türkçe **sarı not kutuları** vardır.
 
@@ -145,6 +153,7 @@ cp local-files/servisler.ornek.json local-files/servisler.json
 cp local-files/github-durum.ornek.json local-files/github-durum.json
 cp local-files/parcacikalar.ornek.json local-files/parcacikalar.json
 cp local-files/yakalanan-istekler.ornek.json local-files/yakalanan-istekler.json
+# Kişisel takip paketi (workflow 22–26):
 
 # 3) n8n'i başlatın
 docker compose up -d
@@ -265,7 +274,7 @@ programla açıp okuyabilirsiniz.
 
 > 💡 Ağı hiç açmadan telefondan kullanmanın yolu **Telegram botudur** (§7.1):
 > bot dışarıya kapı açmaz, Telegram'ı kendisi yoklar. Hangi özelliğin hangi
-> cihazdan nasıl kullanıldığı §14'te tablo hâlinde.
+> cihazdan nasıl kullanıldığı §15'te tablo hâlinde.
 
 ## 7. Telegram botu, fiyat takibi ve harcama kaydı
 
@@ -497,7 +506,7 @@ anahtarı `.env` dosyasına `N8N_API_KEY=...` olarak yazın; artık her gece
 atlanır.
 
 > ⚠️ **Bu bir dış yedek değildir** — aynı diskte durur. `local-files/`
-> klasörünü ayrıca harici bir diske veya bulut yedeğinize dâhil edin (§15).
+> klasörünü ayrıca harici bir diske veya bulut yedeğinize dâhil edin (§16).
 
 Yedekler birikir; ayda bir temizlemek için:
 
@@ -510,6 +519,7 @@ kopyalayın:
 
 ```bash
 cp local-files/yedek/2026-09-12-gorevler.json local-files/gorevler.json
+cp local-files/aliskanliklar.ornek.json local-files/aliskanliklar.json
 ```
 
 ### 10.3 Sayfa değişiklik takibi (workflow 16)
@@ -622,7 +632,7 @@ vermeye devam eder.
 
 > Bu çağrılar **cevabı beklemeden** yapılır. Sebebi: `docker-compose.yml`
 > içinde çalıştırmalar sıraya alınmıştır (`N8N_CONCURRENCY_PRODUCTION_LIMIT=1`,
-> §15). Bot cevabı bekleseydi, beklediği workflow sıraya girip hiç
+> §16). Bot cevabı bekleseydi, beklediği workflow sıraya girip hiç
 > başlayamazdı. Bu yüzden bot önce *"🤔 Düşünüyorum…"* der, cevabı 12 numaralı
 > workflow ayrıca gönderir.
 
@@ -798,13 +808,67 @@ Seçmediğiniz düğümün komutu çalışmaz; bot geri kalan her şeye cevap ve
 devam eder. Yalnızca kullanacağınız workflow'lar için yapmanız yeterli —
 hedef workflow'ların da **Active** olması gerekir.
 
-## 14. iPhone, Mac ve Windows'tan kullanmak
+## 14. Kişisel takip paketi (workflow 22–26)
+
+Tekrarlanan, zamana yayılan işler için beş workflow. Hepsi yereldir,
+credential gerektirmez; Telegram kuruluysa bildirim oraya, değilse mail
+olarak gider. Tasarım ayrıntıları: [`YENI-OZELLIKLER.md`](YENI-OZELLIKLER.md).
+
+| # | Workflow | Ne verir | Telegram |
+|---|---|---|---|
+| 22 | Alışkanlık takibi | 🔥 Seri, son 7 gün, akşam hatırlatması | `/aliskanlik` · `/yaptim 2` |
+<!-- paket-tablosu -->
+
+Telegram komutları için workflow 05'teki ilgili **… Workflow'una İlet**
+düğümünde hedefi bir kez seçin (§13.6'daki ayarın aynısı).
+
+### 14.1 Alışkanlık takibi (workflow 22)
+
+Görev listesinden farkı: alışkanlık tamamlanınca kaybolmaz, **her gün** için
+ayrı işaret tutulur ve kaç gündür aralıksız yaptığınız sayılır.
+
+```
+/aliskanlik ekle Su iç (2 L)
+/aliskanlik ekle 10 dk kitap
+/yaptim 1            → bugün işaretle
+/yaptim kitap        → adın bir parçası da olur
+/yaptim 2 dün        → dün unuttuysanız
+/aliskanlik          → liste
+/aliskanlik geri 1 · /aliskanlik sil 1
+```
+
+`/aliskanlik` çıktısı:
+
+```
+🔥 Alışkanlıklar — bugün 1/2
+✅ #1 Su iç (2 L)  ●●●○●●●  🔥3
+⬜ #2 10 dk kitap  ●●●●●●○  🔥6
+```
+
+- **Seri kuralı:** bugün işaretliyse bugünden, değilse **dünden** geriye
+  kesintisiz gün sayısı — akşam henüz yapmadığınız alışkanlığın serisi gün
+  bitene kadar bozulmuş görünmez.
+- **Her akşam 21:00** yapılmayanları tek mesajda hatırlatır
+  (*"🔥 6 günlük seri bozulmasın"*). Hepsi tamamsa **sessiz** kalır; aynı gün
+  ikinci kez yazmaz.
+- Veriler `local-files/aliskanliklar.json` dosyasında; alışkanlık başına son
+  400 gün tutulur.
+
+```bash
+curl -X POST http://localhost:5678/webhook/aliskanlik \
+  -H 'Content-Type: application/json' -d '{"metin":"yaptim 1"}'
+curl -X POST http://localhost:5678/webhook/aliskanlik -H 'Content-Type: application/json' -d '{}'   # liste (JSON)
+```
+
+<!-- paket-bolumleri -->
+
+## 15. iPhone, Mac ve Windows'tan kullanmak
 
 Panel `127.0.0.1`'e bağlıdır, yani telefon paneli göremez. Buna rağmen her şeyi
 telefondan kullanabilirsiniz: **Telegram botu dışarıya hiçbir kapı açmadan
 çalışır** (bot, Telegram'ı yoklar; içeriye bağlantı gelmez).
 
-### 14.1 iPhone — Telegram (önerilen, ek ayar yok)
+### 15.1 iPhone — Telegram (önerilen, ek ayar yok)
 
 | Komut | Ne yapar |
 |---|---|
@@ -814,12 +878,13 @@ telefondan kullanabilirsiniz: **Telegram botu dışarıya hiçbir kapı açmadan
 | `/kodkaydet Başlık` ⏎ kod | Kasaya ekleme |
 | `/arac uuid` · `/arac jwt …` | Araç kutusu |
 | `/istekler` · `/istek 3` | Yakalanan webhook istekleri |
+| `/aliskanlik` · `/yaptim 2` | Alışkanlık serileri · bugünü işaretleme |
 | `/yardim` | Tüm komutlar |
 
 Uyarılar (servis düştü, PR bekliyor) siz bir şey yapmadan gelir.
 Telegram'ı kurmadıysanız aynı uyarılar SMTP ile mail olarak gider.
 
-### 14.2 Mac ve Windows — terminal
+### 15.2 Mac ve Windows — terminal
 
 Bilgisayarınızın kendisinde panel açık olduğu için uçları doğrudan çağırın.
 Kullandığınız kabuğa birkaç kısayol tanımlamak işi iyice kısaltır:
@@ -842,7 +907,7 @@ function arac { param($i,$v) (Invoke-RestMethod "http://localhost:5678/webhook/a
 Tarayıcı da yeter: `localhost:5678/webhook/arac?islem=zaman&veri=1735689600`
 adresini yer imi yapabilirsiniz.
 
-### 14.3 iPhone — Kısayollar (aynı Wi-Fi'da, isteğe bağlı)
+### 15.3 iPhone — Kısayollar (aynı Wi-Fi'da, isteğe bağlı)
 
 Telegram yerine doğrudan HTTP çağırmak isterseniz önce paneli ev ağınıza
 açmanız gerekir (§6'daki adımlar: compose'ta `"5678:5678"` +
@@ -859,16 +924,16 @@ açmanız gerekir (§6'daki adımlar: compose'ta `"5678:5678"` +
 > kullanmayın; dilerseniz Webhook düğümlerine *Authentication → Header Auth*
 > ekleyip aynı başlığı kısayola da koyun.
 
-### 14.4 Hangisi nerede çalışır?
+### 15.4 Hangisi nerede çalışır?
 
 | | iPhone | Mac | Windows |
 |---|:---:|:---:|:---:|
 | Telegram komutları | ✅ | ✅ | ✅ |
 | Uyarı/bildirim almak | ✅ | ✅ | ✅ |
-| `curl` / PowerShell uçları | ⚠️ LAN gerekir (§14.3) | ✅ | ✅ |
+| `curl` / PowerShell uçları | ⚠️ LAN gerekir (§15.3) | ✅ | ✅ |
 | n8n paneli | ⚠️ LAN gerekir | ✅ | ✅ |
 
-## 15. Verileriniz nerede? Yedekleme
+## 16. Verileriniz nerede? Yedekleme
 
 | Veri | Yer |
 |---|---|
@@ -900,7 +965,7 @@ silmek isterseniz: `docker compose down -v` (geri dönüşü yoktur).
 > **durur** (boş liste yazmaz), siz de dosyayı düzeltir veya yedekten
 > dönersiniz. Bu yüzden `local-files/` klasörünü yedeğe dâhil edin.
 
-## 16. Başka uygulamalar bağlamak
+## 17. Başka uygulamalar bağlamak
 
 n8n'de yüzlerce hazır node var — Telegram, Google Takvim, Notion, Todoist,
 Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
@@ -916,7 +981,7 @@ Slack, WhatsApp, RSS… Panelde **+** deyip aramanız yeterli. İki yol:
 Hangi servisi bağlarsanız bağlayın, kimlik bilgileri yine yalnızca sizin
 makinenizde (şifreli) durur.
 
-## 17. Sorun giderme
+## 18. Sorun giderme
 
 | Belirti | Çözüm |
 |---|---|
@@ -955,8 +1020,9 @@ makinenizde (şifreli) durur.
 | `/kod`, `/arac`, `/servis` komutuna bot sessiz | Workflow 05'teki *… Workflow'una İlet* düğümünde hedef seçilmemiş (§13.6) ya da hedef workflow **Active** değil. |
 | `/webhook/yakala` 404 dönüyor | Workflow 21 **Active** değil. Test modunda `webhook-test/yakala` adresi kullanılır (§5). |
 | Yakalanan istekte `Authorization` görünmüyor | Bilerek: gizli başlıklar ilk 6 karakter dışında maskelenir (§13.5). Gerçek değeri görmek için `local-files/yakalanan-istekler.json` yerine isteği gönderen tarafa bakın. |
+| `/yaptim` "bulunamadı" diyor | Numara yerine adın bir parçasını da yazabilirsiniz (`/yaptim kitap`); numaraları `/aliskanlik` gösterir. Aynı kelime birden çok alışkanlıkta geçiyorsa ilk eşleşen seçilir — numara kullanın. |
 
-## 18. Güncelleme
+## 19. Güncelleme
 
 `docker-compose.yml` içinde n8n sürümü **sabittir** (`n8n:2.35.3`) — böylece
 büyük sürüm atlamaları kurulumunuzu bir sabah habersiz bozamaz. Güncellemek
@@ -973,5 +1039,5 @@ Yeni sürümler ve varsa geriye dönük uyumsuzluklar:
 <https://github.com/n8n-io/n8n/releases>
 
 Workflow'larınız ve credential'larınız volume'da olduğu için güncellemeden
-etkilenmez. Yine de büyük sürüm (ör. 2.x → 3.x) geçişinden önce §15'teki
+etkilenmez. Yine de büyük sürüm (ör. 2.x → 3.x) geçişinden önce §16'daki
 yedeklemeyi yapın.
