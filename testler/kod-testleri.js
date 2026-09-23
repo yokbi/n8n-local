@@ -46,7 +46,9 @@ const esit = (a, b, m) => { if (a !== b) throw new Error((m||'') + ' beklenen ' 
 console.log('10 — Günaydın brifingi');
 {
   const kod = kodu(wf('10-gunaydin-brifingi.json'), 'Brifingi Hazırla');
-  const dun = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
+  // Dün öğlen: testin günün hangi saatinde çalıştığından bağımsız olarak "dün".
+  const dunD = new Date(); dunD.setDate(dunD.getDate() - 1); dunD.setHours(12, 0, 0, 0);
+  const dun = dunD.toISOString();
   const bugunSaat = new Date(); bugunSaat.setHours(23, 0, 0, 0);
   const temel = {
     'Görevleri Oku (Brifing)': [{}], 'Notları Oku (Brifing)': [{}], 'Harcamaları Oku (Brifing)': [{}],
@@ -924,6 +926,36 @@ console.log('11 — Hata nöbetçisi');
     const d = { 'Hata Yakalandı': [olay], 'Hataları Oku': [{}], 'Hataları Çıkar': [{ data: { hatalar: eski } }] };
     const r = calistir(kod, { dugumler: d, girdi: [{}] })[0].json;
     esit(r.hatalar.length, 200);
+  });
+}
+
+// ═══ Yapı — tüm workflow dosyaları ═══
+// Code düğümü dışındaki hataları yakalar: bozuk konum, dosya yolu yerine sayı
+// yazılmış okuma düğümü (ifade "=" ile başlarsa serbest), var olmayan düğüme giden bağlantı, tekrarlanan ad.
+console.log('Yapı — tüm workflow dosyaları');
+for (const dosya of fs.readdirSync('workflows').filter((f) => f.endsWith('.json')).sort()) {
+  dene(dosya, () => {
+    const d = wf(dosya);
+    const adlar = new Set();
+    for (const n of d.nodes) {
+      if (adlar.has(n.name)) throw new Error('aynı ad iki kez: ' + n.name);
+      adlar.add(n.name);
+      if (!Array.isArray(n.position) || n.position.length !== 2 || !n.position.every(Number.isFinite)) {
+        throw new Error(n.name + ': konum bozuk ' + JSON.stringify(n.position));
+      }
+      if (n.type === 'n8n-nodes-base.readWriteFile') {
+        const yol = n.parameters.operation === 'write' ? n.parameters.fileName : n.parameters.fileSelector;
+        if (typeof yol !== 'string' || !(yol.startsWith('/files/') || yol.startsWith('='))) {
+          throw new Error(n.name + ': dosya yolu /files/ ile başlamıyor → ' + JSON.stringify(yol));
+        }
+      }
+    }
+    for (const [kaynak, c] of Object.entries(d.connections || {})) {
+      if (!adlar.has(kaynak)) throw new Error('bağlantı kaynağı yok: ' + kaynak);
+      for (const cikis of c.main || []) for (const h of cikis || []) {
+        if (!adlar.has(h.node)) throw new Error('bağlantı hedefi yok: ' + kaynak + ' → ' + h.node);
+      }
+    }
   });
 }
 

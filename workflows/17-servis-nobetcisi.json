@@ -64,10 +64,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          160,
-          120
-        ],
+        "fileSelector": "/files/servisler.json",
         "options": {}
       },
       "id": "b86af6f5-5684-422f-a964-1b3fe29f34cd",
@@ -75,8 +72,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        160,
+        120
       ],
       "onError": "continueRegularOutput"
     },
@@ -311,10 +308,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          160,
-          520
-        ],
+        "fileSelector": "/files/servisler.json",
         "options": {}
       },
       "id": "9c1fc928-7c8b-4162-ad42-04bd8e096b9c",
@@ -322,8 +316,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        160,
+        520
       ],
       "onError": "continueRegularOutput"
     },
@@ -395,10 +389,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          160,
-          720
-        ],
+        "fileSelector": "/files/servisler.json",
         "options": {}
       },
       "id": "fd3dfe57-4b51-45b8-b904-be3c9c5f406f",
@@ -406,8 +397,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        160,
+        720
       ],
       "onError": "continueRegularOutput"
     },

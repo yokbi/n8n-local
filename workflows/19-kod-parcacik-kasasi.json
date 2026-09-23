@@ -76,10 +76,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          360,
-          100
-        ],
+        "fileSelector": "/files/parcacikalar.json",
         "options": {}
       },
       "id": "d2ae77b7-2df0-42e5-80c8-881f73758a37",
@@ -87,8 +84,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        360,
+        100
       ],
       "onError": "continueRegularOutput"
     },
@@ -248,10 +245,7 @@
     },
     {
       "parameters": {
-        "fileSelector": [
-          160,
-          460
-        ],
+        "fileSelector": "/files/parcacikalar.json",
         "options": {}
       },
       "id": "ddb04a08-9b65-4227-9a8a-a92ce2b40a0d",
@@ -259,8 +253,8 @@
       "type": "n8n-nodes-base.readWriteFile",
       "typeVersion": 1,
       "position": [
-        "/",
-        "f"
+        160,
+        460
       ],
       "onError": "continueRegularOutput"
     },
