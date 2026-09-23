@@ -1,6 +1,6 @@
 # Durum Raporu — n8n-local
 
-**Denetim tarihi:** 2026-09-07 · **Güncelleme:** 2026-09-18 · **Depo:** https://github.com/yokbi/n8n-local
+**Denetim tarihi:** 2026-09-07 · **Güncelleme:** 2026-09-23 · **Depo:** https://github.com/yokbi/n8n-local
 **Varsayılan dal:** `main`
 
 ---
@@ -12,15 +12,15 @@
 | Proje | Kendi bilgisayarınızda çalışan, veriyi dışarı göndermeyen kişisel otomasyon merkezi |
 | Teknoloji | **n8n** (Docker) + SQLite · isteğe bağlı **Ollama** (yerel AI) |
 | Kurulum | `docker compose up -d` → http://localhost:5678 |
-| Workflow | **21 adet** hazır, `workflows/` altında JSON olarak (17–21: geliştirici paketi) |
-| Doküman | `README.md` (18 bölüm) + `RUNNING.md` (adım adım) |
+| Workflow | **26 adet** hazır, `workflows/` altında JSON olarak (17–21: geliştirici paketi, 22–26: kişisel takip paketi) |
+| Doküman | `README.md` (19 bölüm) + `RUNNING.md` (adım adım) + `YENI-OZELLIKLER.md` (22–26 tasarımı) |
 | Çalıştırma betiği | Üç platform için **zaten mevcut** ✅ |
 | Olgunluk | **Yüksek.** Bu, denetlenen depolar arasında dokümantasyonu en iyi olanlardan biri. |
 
 **Depoda derlenen bir uygulama yok** — n8n workflow'ları JSON olarak ve Docker
 yapılandırması olarak duruyor. Ancak workflow'ların içindeki Code düğümlerinin
 JavaScript'i artık `node testler/kod-testleri.js` ile n8n başlatmadan
-denenebiliyor (113 test). Uçtan uca deneme için yine *çalıştırmak* gerekiyor.
+denenebiliyor (195 test). Uçtan uca deneme için yine *çalıştırmak* gerekiyor.
 
 ---
 
@@ -49,6 +49,11 @@ denenebiliyor (113 test). Uçtan uca deneme için yine *çalıştırmak* gerekiy
 | 19 | `19-kod-parcacik-kasasi.json` | Kod parçacığı kasası: kaydet/ara/getir (`/kod`) |
 | 20 | `20-gelistirici-arac-kutusu.json` | uuid · base64 · JWT · cron · JSON · SHA-256 (`/arac`) |
 | 21 | `21-webhook-yakalayici.json` | Gelen HTTP isteğini kaydeder ve gösterir (`/istekler`) |
+| 22 | `22-aliskanlik-takibi.json` | Alışkanlık serileri, akşam hatırlatması (`/aliskanlik`, `/yaptim`) |
+| 23 | `23-butce-nobetcisi.json` | Aylık/kategori limiti, %80–%100 uyarısı (`/butce`) |
+| 24 | `24-abonelik-takibi.json` | Düzenli ödemeleri önceden hatırlatır, aylık yük (`/abonelik`) |
+| 25 | `25-onemli-tarihler.json` | Doğum günü / yıl dönümü, 7 ve 1 gün önceden (`/tarihler`) |
+| 26 | `26-haftalik-rapor.json` | Pazar 20:00 haftalık özet (`/hafta`) |
 
 **2026-09-18 — geliştirici paketi eklendi (17–21).** Beşi de iPhone (Telegram),
 Mac ve Windows'tan (curl/PowerShell/tarayıcı) kullanılabilir; workflow 05'e
@@ -56,6 +61,13 @@ Mac ve Windows'tan (curl/PowerShell/tarayıcı) kullanılabilir; workflow 05'e
 *… Workflow'una İlet* düğümü eklendi (hedefleri panelden bir kez seçilmeli —
 README §13.6). Çalıştırma betikleri artık `local-files/*.ornek.json`
 dosyalarının **tamamını** kopyalıyor (liste elle güncellenmiyor).
+
+**2026-09-23 — kişisel takip paketi eklendi (22–26).** Alışkanlık, bütçe,
+abonelik, önemli tarihler ve haftalık rapor; tasarım belgesi
+[`YENI-OZELLIKLER.md`](YENI-OZELLIKLER.md), kullanım README §14. Aynı turda
+17, 18, 19 ve 21'deki on dosya-okuma düğümünün bozuk olduğu (yol yerine
+sayı dizisi) bulundu ve düzeltildi; testlere bunu yakalayan bir **yapı
+kontrolü** eklendi. Bu dört workflow'u **yeniden içe aktarın**.
 
 ---
 
@@ -92,7 +104,7 @@ yazıldı.
 | Üç platform için çalıştırma betiği | `run-mac-intel.sh`, `run-mac-apple-silicon.sh`, `run-windows.bat` — üçü de var | ✅ |
 | "Panel yalnızca `127.0.0.1`'e bağlı" | `ports: - "127.0.0.1:5678:5678"` | ✅ |
 | "Telemetri kapalı" | `N8N_DIAGNOSTICS_ENABLED=false` + 4 ayar daha | ✅ |
-| 21 workflow | `workflows/` altında 21 JSON | ✅ |
+| 26 workflow | `workflows/` altında 26 JSON | ✅ |
 | `docker-compose.yml` geçerli | YAML olarak ayrıştırıldı | ✅ |
 | Şifreleme anahtarı `.env`'den | `N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}` | ✅ |
 
@@ -118,10 +130,10 @@ yazıldı.
 
 ### ✅ Yapılanlar
 - `docker-compose.yml` YAML olarak ayrıştırıldı — **geçerli**
-- 21 workflow JSON dosyasının tamamı ayrıştırıldı; düğüm adları ve
-  bağlantı hedefleri tutarlı
+- 26 workflow JSON dosyasının tamamı ayrıştırıldı; düğüm adları tekil,
+  bağlantı hedefleri var, konumlar ve dosya yolları geçerli (otomatik yapı testi)
 - Tüm Code düğümlerinin JavaScript'i sözdizimi denetiminden geçti
-- 113 mantık testi çalıştırıldı ve geçti (`node testler/kod-testleri.js`)
+- 195 mantık testi çalıştırıldı ve geçti (`node testler/kod-testleri.js`)
 - Gizlilik ayarları (127.0.0.1 bağlama, telemetri kapalı) kaynakta doğrulandı
 - Dal envanteri `git` ile ölçüldü, birleştirilmemiş dalın diff'i okundu
 - Çalıştırma betiklerinin üçü de mevcut
@@ -133,6 +145,8 @@ Bu ortamda **Docker çalışmıyor**, bu yüzden:
 - E-posta, Telegram, fiyat takibi, takvim — hiçbiri denenmedi
 - Geliştirici paketi (17–21): gerçek HTTP yoklaması, GitHub API çağrısı ve
   webhook uçları çalıştırılmadı; yalnızca Code düğümlerinin mantığı test edildi
+- Kişisel takip paketi (22–26): zamanlayıcılar (özellikle 26'nın haftalık
+  Pazar tetikleyicisi) ve Telegram/SMTP gönderimi çalıştırılmadı
 - Ollama profili başlatılmadı
 
 **Kurulabilecek cümle:** *"Yapılandırma tutarlı ve dokümantasyon doğru; ama

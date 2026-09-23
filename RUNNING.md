@@ -234,5 +234,16 @@ başlamak iyi bir fikir — hiçbiri credential istemez:
 | 17 — Servis nöbetçisi | `local-files/servisler.json` içine kendi adresinizi yazıp **Elle Test Et** |
 | 18 — GitHub nöbetçisi | `.env` içine `GITHUB_TOKEN`, sonra **Elle Test Et** |
 
+Günlük hayat için 22–26 numaralı **kişisel takip paketi** de credential
+istemez (`README.md` §14):
+
+| Workflow | Hemen denemek için |
+|---|---|
+| 26 — Haftalık rapor | `curl http://localhost:5678/webhook/hafta` |
+| 22 — Alışkanlık | `curl -X POST localhost:5678/webhook/aliskanlik -H 'Content-Type: application/json' -d '{"metin":"ekle Su iç"}'` |
+| 23 — Bütçe | `curl http://localhost:5678/webhook/butce` |
+| 24 — Abonelik | `curl -X POST localhost:5678/webhook/abonelik -H 'Content-Type: application/json' -d '{"metin":"ekle Netflix 229,99 15"}'` |
+| 25 — Önemli tarihler | `curl -X POST localhost:5678/webhook/tarih -H 'Content-Type: application/json' -d '{"metin":"ekle 14.03 Annemin doğum günü"}'` |
+
 Telefondan (iPhone) kullanmak için Telegram botunu kurun — panelin dışarı
 açılması gerekmez: `README.md` §15.
