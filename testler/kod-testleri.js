@@ -332,6 +332,22 @@ console.log('05 — Telegram bot komutları');
     esit(r.yanitlar.length, 0); esit(r.gorevYazilsin, false);
     esit(bot('/tarihler').tarihIstekleri[0].metin, '');
   });
+  dene('/hafta workflow 26\'ya iletilir', () => {
+    const r = bot('/hafta');
+    esit(r.raporIstekleri.length, 1); esit(r.raporIstekleri[0].chat_id, 42);
+    esit(r.yanitlar.length, 0); esit(r.gorevYazilsin, false);
+  });
+  dene('kişisel takip komutları görev/not/harcama dosyalarına dokunmaz; /yardim hepsini listeler', () => {
+    for (const k of ['/aliskanlik', '/yaptim 1', '/butce', '/abonelik', '/tarihler', '/hafta']) {
+      const r = bot(k);
+      esit(r.gorevYazilsin, false, k); esit(r.notYazilsin, false, k); esit(r.harcamaYazilsin, false, k);
+    }
+    const t = bot('/yardim').yanitlar[0].text;
+    for (const k of ['/aliskanlik', '/yaptim', '/butce', '/abonelik', '/tarihler', '/hafta']) {
+      if (!t.includes(k)) throw new Error('yardımda eksik: ' + k);
+    }
+    if (t.length > 3900) throw new Error('yardım metni Telegram sınırını aşıyor: ' + t.length);
+  });
 }
 
 // ═══ 17 — Servis nöbetçisi ═══
@@ -1366,6 +1382,93 @@ console.log('25 — Önemli tarihler');
       esit(sabah([T(1, '--10-07', 'x', 'diger', { onceden: [14] })]).gonderilecek, true);
       esit(sabah([T(1, '--09-30', 'x', 'diger', { onceden: [14] })]).gonderilecek, false);
     });
+  });
+}
+
+// ═══ 26 — Haftalık rapor ═══
+console.log('26 — Haftalık rapor');
+{
+  const d26 = wf('26-haftalik-rapor.json');
+  const kaynakKod = kodu(d26, 'Kaynağı Belirle');
+  const raporKod = kodu(d26, 'Raporu Hazırla');
+  const ADLAR = { gorevler: 'Görevleri', harcamalar: 'Harcamaları', butce: 'Bütçeyi', aliskanliklar: 'Alışkanlıkları',
+                  notlar: 'Notları', abonelikler: 'Abonelikleri', tarihler: 'Tarihleri', servisler: 'Servisleri' };
+  // veriler: { gorevler: {...dosya içeriği} | 'yok' | 'bozuk' } — verilmeyen dosya "yok" sayılır.
+  const rapor = (veriler, kaynak = { kaynak: 'zaman', chat_id: '' }) => {
+    const d = { 'Kaynağı Belirle': [kaynak] };
+    for (const [dosya, ad] of Object.entries(ADLAR)) {
+      const v = dosya in veriler ? veriler[dosya] : 'yok';
+      d[ad + ' Oku (Rapor)'] = [v === 'yok' ? { error: { message: 'ENOENT: no such file' } } : {}];
+      d[ad + ' Çıkar (Rapor)'] = [v === 'bozuk' ? { error: { message: 'Unexpected token' } } : v === 'yok' ? {} : { data: v }];
+    }
+    return calistir(raporKod, { dugumler: d, girdi: [{}] })[0].json;
+  };
+  const once = (gun) => new Date(Date.now() - gun * 86400000).toISOString();
+
+  dene('kaynak: webhook, bot ve zamanlama ayırt edilir', () => {
+    esit(calistir(kaynakKod, { girdi: [{ query: {}, headers: {} }] })[0].json.kaynak, 'webhook');
+    const b = calistir(kaynakKod, { girdi: [{ chat_id: 42 }] })[0].json;
+    esit(b.kaynak, 'bot'); esit(b.chat_id, '42');
+    esit(calistir(kaynakKod, { girdi: [{}] })[0].json.kaynak, 'zaman');
+  });
+  dene('hiç dosya yok → "raporlanacak veri yok", hata yok', () => {
+    const r = rapor({});
+    if (!r.text.includes('Raporlanacak veri yok')) throw new Error(r.text);
+    esit(r.bolumler.length, 0);
+  });
+  dene('görevler: bu hafta biten/eklenen, eski bitenler sayılmaz', () => {
+    const r = rapor({ gorevler: { gorevler: [
+      { id: 1, baslik: 'Rapor yaz', durum: 'tamam', tamamlanma: once(2), olusturulma: once(3) },
+      { id: 2, baslik: 'Eski iş', durum: 'tamam', tamamlanma: once(20), olusturulma: once(30) },
+      { id: 3, baslik: 'Açık iş', durum: 'acik', olusturulma: once(1) }] } });
+    const g = r.bolumler.find((b) => b.baslik === '✅ Görevler');
+    esit(g.satirlar[0], '1 tamamlandı · 2 eklendi · 1 açık');
+    esit(g.satirlar[1], '✓ Rapor yaz');
+  });
+  dene('harcama: toplam, geçen haftaya göre değişim, en büyük 3', () => {
+    const H = (t, g, konu) => ({ tarih: once(g), tutar: t, konu, paraBirimi: 'TL' });
+    const r = rapor({ harcamalar: { harcamalar: [H(100, 1, 'a'), H(500, 2, 'b'), H(50, 3, 'c'), H(10, 4, 'd'), H(400, 10, 'eski')] } });
+    const h = r.bolumler.find((b) => b.baslik === '💸 Harcama').satirlar;
+    esit(h[0], '660 TL, 4 kayıt (geçen hafta 400 TL, ▲ %65)');
+    esit(h[1], '• 500 TL — b'); esit(h.length, 4);
+  });
+  dene('bütçe: bu ayın limit yüzdesi', () => {
+    const r = rapor({ harcamalar: { harcamalar: [{ tarih: new Date().toISOString(), tutar: 850 }] }, butce: { aylikLimit: 1000 } });
+    const b = r.bolumler.find((x) => x.baslik === '🎯 Bütçe');
+    if (!b.satirlar[0].startsWith('🟠 Bu ay %85 — 850 TL / 1.000 TL')) throw new Error(b.satirlar[0]);
+  });
+  dene('alışkanlık: 7 günde kaç gün ve seri', () => {
+    const iki = (n) => String(n).padStart(2, '0');
+    const gun = (f) => { const d = new Date(); d.setDate(d.getDate() - f); return d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate()); };
+    const r = rapor({ aliskanliklar: { aliskanliklar: [
+      { id: 1, ad: 'Su', gunler: [0, 1, 2, 3, 4, 5, 6].map(gun) },
+      { id: 2, ad: 'Kitap', gunler: [1, 2, 5].map(gun) }] } });
+    const a = r.bolumler.find((x) => x.baslik === '🔥 Alışkanlık').satirlar;
+    esit(a[0], '🏆 Su: 7/7 · 🔥7'); esit(a[1], '• Kitap: 3/7 · 🔥2');
+  });
+  dene('önümüzdeki 7 gün: hatırlatma, ödeme, doğum günü tarih sırasıyla', () => {
+    sabitZaman('2026-09-20T20:00:00', () => {
+      const r = rapor({
+        notlar: { notlar: [{ id: 1, metin: 'Dişçi', hatirlat: '2026-09-22T10:00:00', durum: 'acik' },
+                           { id: 2, metin: 'Gitti', hatirlat: '2026-09-21T10:00:00', durum: 'gonderildi' },
+                           { id: 3, metin: 'Uzak', hatirlat: '2026-10-20T10:00:00', durum: 'acik' }] },
+        abonelikler: { abonelikler: [{ id: 1, ad: 'Kira', tutar: 15000, periyot: 'aylik', gun: 1 },
+                                     { id: 2, ad: 'Netflix', tutar: 230, periyot: 'aylik', gun: 25 }] },
+        tarihler: { tarihler: [{ id: 1, ad: 'Annem', tarih: '1964-09-21', tur: 'dogumgunu' }] },
+      });
+      const y = r.bolumler.find((x) => x.baslik === '📅 Önümüzdeki 7 gün').satirlar;
+      esit(y.length, 3, JSON.stringify(y));
+      if (!y[0].includes('🎂 Annem (62 yaş)')) throw new Error(y[0]);
+      if (!y[1].includes('⏰ Dişçi')) throw new Error(y[1]);
+      if (!y[2].includes('💳 Netflix — 230 TL')) throw new Error(y[2]);
+    });
+  });
+  dene('bozuk dosya raporu durdurmaz, bölümde uyarı olur; kapalı servis listelenir', () => {
+    const r = rapor({ gorevler: 'bozuk', servisler: { servisler: [{ ad: 'API', sonDurum: 'kapali', sonHata: 'HTTP 500' }, { ad: 'Site', sonDurum: 'ayakta' }] } });
+    const g = r.bolumler.find((x) => x.baslik === '✅ Görevler');
+    if (!g.satirlar[0].includes('gorevler.json okunamadı')) throw new Error(g.satirlar[0]);
+    const s = r.bolumler.find((x) => x.baslik === '🩺 Servisler').satirlar;
+    esit(s.join(), '🔴 API — HTTP 500');
   });
 }
 

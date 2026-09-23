@@ -86,6 +86,7 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 │  │ 23 Bütçe nöbetçisi — 20:00           │                            │
 │  │ 24 Abonelik ve ödemeler — 09:30      │                            │
 │  │ 25 Önemli tarihler — 08:30           │                            │
+│  │ 26 Haftalık rapor — Pazar 20:00      │                            │
 │  └──────┬──────────────────┬────────────┘                            │
 │         │                  │                                         │
 │   n8n_data volume    local-files/*.json (görev, fiyat, harcama, not) │
@@ -122,6 +123,7 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 | `23-butce-nobetcisi` | Aylık ve kategori bazlı harcama limiti; %80 ve %100'de ayda bir kez uyarır, günlük harcanabilir tutarı söyler (`/butce`) | — veya SMTP (§14.2) |
 | `24-abonelik-takibi` | Her ay/her yıl tekrarlanan ödemeleri (Netflix, kira, alan adı) günü gelmeden hatırlatır, aylık yükü gösterir (`/abonelik`) | — veya SMTP (§14.3) |
 | `25-onemli-tarihler` | Doğum günü ve yıl dönümlerini her yıl 7 gün önce, 1 gün önce ve gününde hatırlatır; yaşı/yılı söyler (`/tarihler`) | — veya SMTP (§14.4) |
+| `26-haftalik-rapor` | Pazar 20:00'de haftanın özeti: görevler, harcama (geçen haftaya göre), bütçe, alışkanlıklar, önümüzdeki 7 gün (`/hafta`) | — veya SMTP (§14.5) |
 
 Her workflow'un tuvalinde, kurulum adımlarını anlatan Türkçe **sarı not kutuları** vardır.
 
@@ -829,10 +831,11 @@ olarak gider. Tasarım ayrıntıları: [`YENI-OZELLIKLER.md`](YENI-OZELLIKLER.md
 | 23 | Bütçe nöbetçisi | Limit, kalan, günlük harcanabilir, %80/%100 uyarısı | `/butce` · `/butce limit 20000` |
 | 24 | Abonelik ve düzenli ödemeler | Ödemeden 3 gün önce hatırlatma, aylık yük | `/abonelik` · `/abonelik ekle …` |
 | 25 | Önemli tarihler | Doğum günü/yıl dönümü, 7 ve 1 gün önceden | `/tarihler` · `/tarih ekle …` |
-<!-- paket-tablosu -->
+| 26 | Haftalık rapor | Son 7 gün + önümüzdeki 7 gün, tek mesaj | `/hafta` |
 
 Telegram komutları için workflow 05'teki ilgili **… Workflow'una İlet**
-düğümünde hedefi bir kez seçin (§13.6'daki ayarın aynısı).
+düğümünde hedefi bir kez seçin (§13.6'daki ayarın aynısı): *Alışkanlık* → 22,
+*Bütçe* → 23, *Abonelik* → 24, *Tarih* → 25, *Rapor* → 26.
 
 ### 14.1 Alışkanlık takibi (workflow 22)
 
@@ -985,7 +988,42 @@ curl -X POST http://localhost:5678/webhook/tarih \
   -H 'Content-Type: application/json' -d '{"metin":"ekle 02.06 Evlilik yıl dönümü"}'
 ```
 
-<!-- paket-bolumleri -->
+### 14.5 Haftalık rapor (workflow 26)
+
+Her workflow kendi bildirimini gönderiyor; bu workflow **geriye dönüp
+bakar**. Her Pazar 20:00'de tek mesaj:
+
+```
+📊 Haftalık rapor — 17 Eylül – 23 Eylül
+
+✅ Görevler
+1 tamamlandı · 2 eklendi · 1 açık
+✓ Vergi beyannamesi
+
+💸 Harcama
+2.260 TL, 2 kayıt (geçen hafta 1.500 TL, ▲ %51)
+• 1.840 TL — Migros
+• 420 TL — Opet akaryakıt
+
+🎯 Bütçe
+Bu ay %19 — 3.760 TL / 20.000 TL (ayın 23/30. günü)
+
+🔥 Alışkanlık
+🏆 Su iç: 7/7 · 🔥12
+• 10 dk kitap: 4/7 · 🔥2
+
+📅 Önümüzdeki 7 gün
+25 Eyl Cum · ⏰ Dişçi randevusu
+28 Eyl Pzt · 💍 Evlilik yıl dönümü (5. yıl)
+```
+
+- Diğer workflow'ların dosyalarını **yalnızca okur**; hiçbir şeye yazmaz,
+  kurulum gerektirmez.
+- Dosyası olmayan bölüm **atlanır** (örneğin alışkanlık kullanmıyorsanız o
+  bölüm hiç görünmez). Dosyası bozuk bölüm "okunamadı" diye yazılır, rapor
+  yine gider. Kapalı servis varsa 🩺 bölümü eklenir.
+- İstendiği an: Telegram'da `/hafta`, terminalde
+  `curl http://localhost:5678/webhook/hafta` (JSON).
 
 ## 15. iPhone, Mac ve Windows'tan kullanmak
 
@@ -1007,6 +1045,7 @@ telefondan kullanabilirsiniz: **Telegram botu dışarıya hiçbir kapı açmadan
 | `/butce` · `/butce limit 20000` | Bütçe durumu · limit koyma |
 | `/abonelik` · `/abonelik ekle Netflix 229,99 15` | Düzenli ödemeler · aylık yük |
 | `/tarihler` · `/tarih ekle 14.03 …` | Yaklaşan doğum günleri, yıl dönümleri |
+| `/hafta` | Haftalık rapor (istendiği an) |
 | `/yardim` | Tüm komutlar |
 
 Uyarılar (servis düştü, PR bekliyor) siz bir şey yapmadan gelir.
@@ -1145,7 +1184,7 @@ makinenizde (şifreli) durur.
 | `/pr` "henüz tarama yapılmadı" diyor | Workflow 18 **Active** değil ya da `.env` içindeki `GITHUB_TOKEN` boş. Token yazdıktan sonra `docker compose up -d` gerekir. |
 | GitHub nöbetçisi "GITHUB_TOKEN geçersiz" diyor | Token'ın süresi dolmuş ya da yetkisi yetmiyor. Özel depoları izliyorsanız classic token'da `repo` yetkisi gerekir. |
 | GitHub ilk turda hiçbir şey göndermedi | İlk tarama bilerek sessizdir (mevcut kayıtlar işaretlenir). İkinci turdan sonra yalnızca yenileri gelir — §13.2. |
-| `/kod`, `/arac`, `/servis` komutuna bot sessiz | Workflow 05'teki *… Workflow'una İlet* düğümünde hedef seçilmemiş (§13.6) ya da hedef workflow **Active** değil. |
+| `/kod`, `/arac`, `/servis`, `/butce`, `/hafta` gibi komutlara bot sessiz | Workflow 05'teki *… Workflow'una İlet* düğümünde hedef seçilmemiş (§13.6, §14) ya da hedef workflow **Active** değil. |
 | `/webhook/yakala` 404 dönüyor | Workflow 21 **Active** değil. Test modunda `webhook-test/yakala` adresi kullanılır (§5). |
 | Yakalanan istekte `Authorization` görünmüyor | Bilerek: gizli başlıklar ilk 6 karakter dışında maskelenir (§13.5). Gerçek değeri görmek için `local-files/yakalanan-istekler.json` yerine isteği gönderen tarafa bakın. |
 | `/yaptim` "bulunamadı" diyor | Numara yerine adın bir parçasını da yazabilirsiniz (`/yaptim kitap`); numaraları `/aliskanlik` gösterir. Aynı kelime birden çok alışkanlıkta geçiyorsa ilk eşleşen seçilir — numara kullanın. |

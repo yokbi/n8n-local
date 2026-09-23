@@ -5,7 +5,7 @@ eklendiklerini, nasıl kullanıldıklarını, hangi dosyaya ne yazdıklarını v
 bilerek neyi yapmadıklarını anlatır. Kurulum ve günlük kullanım için kısa
 sürüm README §14'tedir.
 
-Durum: 🟢 eklendi · ⬜ sırada
+Durum: 🟢 eklendi · ⬜ sırada — beşi de eklendi.
 
 | # | Workflow | Tek cümlede | Durum |
 |---|---|---|:---:|
@@ -13,7 +13,7 @@ Durum: 🟢 eklendi · ⬜ sırada
 | 23 | Bütçe nöbetçisi | Aylık ve kategori bazlı limit; %80 ve %100'de bir kez uyarır | 🟢 |
 | 24 | Abonelik ve düzenli ödemeler | Netflix, kira, alan adı… ödeme gününden önce hatırlatır, aylık yükü gösterir | 🟢 |
 | 25 | Önemli tarihler | Doğum günü ve yıl dönümlerini birkaç gün önceden ve gününde hatırlatır | 🟢 |
-| 26 | Haftalık rapor | Pazar 20:00'de haftanın özeti: görev, harcama, alışkanlık, yaklaşanlar | ⬜ |
+| 26 | Haftalık rapor | Pazar 20:00'de haftanın özeti: görev, harcama, alışkanlık, yaklaşanlar | 🟢 |
 
 ---
 
@@ -221,12 +221,12 @@ yine gider — bu workflow yazmadığı için durması gerekmez.
 
 Her workflow için `testler/kod-testleri.js` içinde en az şunlar denenir:
 
-- [ ] Bozuk dosyada durur, üzerine yazmaz (22, 23, 24, 25)
-- [ ] Dosya yokken boş listeyle çalışır
-- [ ] Zamanlanmış bildirim aynı gün ikinci kez gitmez
-- [ ] 22: seri hesabı (bugün işaretsizken dünden sayar), `dün` işaretleme
-- [ ] 23: eşik ayda bir kez, ay değişince sıfırlanır; kategori eşleşmesi
-- [ ] 24: ayın 31'i kuralı, yıllık ödeme, `onceden` penceresi
-- [ ] 25: yaş hesabı, yılsız tarih, 29 Şubat
-- [ ] 26: eksik dosyalı bölüm atlanır, bozuk dosya raporu durdurmaz
-- [ ] Workflow 05: yeni komutlar doğru workflow'a iletilir, eski komutlar bozulmaz
+- [x] Bozuk dosyada durur, üzerine yazmaz (22, 23, 24, 25)
+- [x] Dosya yokken boş listeyle çalışır
+- [x] Zamanlanmış bildirim aynı gün ikinci kez gitmez
+- [x] 22: seri hesabı (bugün işaretsizken dünden sayar), `dün` işaretleme
+- [x] 23: eşik ayda bir kez, ay değişince sıfırlanır; kategori eşleşmesi
+- [x] 24: ayın 31'i kuralı, yıllık ödeme, `onceden` penceresi
+- [x] 25: yaş hesabı, yılsız tarih, 29 Şubat
+- [x] 26: eksik dosyalı bölüm atlanır, bozuk dosya raporu durdurmaz
+- [x] Workflow 05: yeni komutlar doğru workflow'a iletilir, eski komutlar bozulmaz

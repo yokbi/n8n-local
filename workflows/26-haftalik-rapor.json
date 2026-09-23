@@ -1,0 +1,753 @@
+{
+  "name": "26 — Haftalık Rapor",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 📊 Haftalık rapor — Pazar akşamı tek mesaj\n\nHer workflow kendi bildirimini gönderiyor; bu workflow geriye dönüp\nbakar: bu hafta ne oldu, önümüzdeki hafta ne var.\n\n| Bölüm | Kaynak |\n|---|---|\n| ✅ Görevler | gorevler.json |\n| 💸 Harcama (geçen haftaya göre ▲▼) | harcamalar.json |\n| 🎯 Bütçe | butce.json |\n| 🔥 Alışkanlık (7 günde kaç gün) | aliskanliklar.json |\n| 📅 Önümüzdeki 7 gün | notlar, abonelikler, tarihler |\n| 🩺 Kapalı servisler | servisler.json |\n\n### Kurulum\n1. Workflow'u **Active** yapın. Credential ve veri dosyası gerekmez.\n2. Telegram kurulu değilse **Raporu Mail At** düğümünde SMTP\n   credential'ını seçip iki adres alanını değiştirin.\n3. `/hafta` komutu için workflow 05'teki **Rapor Workflow'una İlet**\n   düğümünde bu workflow'u seçin.\n\n### İstendiği an\n```\n/hafta                                       (Telegram)\ncurl http://localhost:5678/webhook/hafta     (terminal, JSON)\n```",
+        "width": 540,
+        "height": 860
+      },
+      "id": "05b89547-26e8-5ca2-8bc7-83966063ee5d",
+      "name": "Not a1f26",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- **Yalnızca okur**, hiçbir dosyaya yazmaz.\n- Dosyası olmayan bölüm **atlanır** — her özelliği kurmak zorunda\n  değilsiniz. Dosyası bozuk olan bölüm \"okunamadı\" diye yazılır,\n  rapor yine gider.\n- \"Bu hafta\" = son 7 gün (şu andan geriye); \"önümüzdeki 7 gün\" bugün\n  dahil. Tarihler `GENERIC_TIMEZONE`'a göre.\n- 🔒 Hiçbir şey dışarı gitmez (Telegram mesajının kendisi hariç).",
+        "width": 540,
+        "height": 280
+      },
+      "id": "cf793e16-bee5-500e-bce1-f8b78b5f06f9",
+      "name": "Not b2f26",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [
+                0
+              ],
+              "triggerAtHour": 20,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "61a17f4a-aaa5-5361-932a-4025d4d7b909",
+      "name": "Her Pazar 20:00 (Rapor)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "40526f2c-0c10-5969-99b8-da3ac1089d3c",
+      "name": "Elle Test Et (Rapor)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "fa53a931-5606-5a70-afbc-298f841c82e9",
+      "name": "Workflow 05'ten Çağrı (Rapor)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "hafta",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c531a22b-fce2-5ae2-aced-f2eb378c2f64",
+      "name": "Rapor (Webhook GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        480
+      ],
+      "webhookId": "9d3cf6eb-42ed-58dc-b098-f898ad3c2b67"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Raporun nereye gideceğini belirler; dört tetikleyici de buradan geçer:\n//  • GET /webhook/hafta     → yanıt olarak döner (JSON),\n//  • workflow 05'ten /hafta → isteyen sohbete gider,\n//  • Pazar 20:00 / Elle Test Et → Telegram kuruluysa oraya, değilse mail.\nconst j = $input.first().json || {};\nlet kaynak = 'zaman';\nif (Object.prototype.hasOwnProperty.call(j, 'query') || Object.prototype.hasOwnProperty.call(j, 'headers')) kaynak = 'webhook';\nelse if (j.chat_id) kaynak = 'bot';\nreturn [{ json: { kaynak, chat_id: j.chat_id ? String(j.chat_id) : '' } }];\n"
+      },
+      "id": "7b9002d5-2e21-526e-94fb-3ce599607fb2",
+      "name": "Kaynağı Belirle",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/gorevler.json",
+        "options": {}
+      },
+      "id": "b240bf7a-6a4f-5abf-805c-661517c31ee9",
+      "name": "Görevleri Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "23d236cf-1d9b-5bc2-883d-8b7788e79cce",
+      "name": "Görevleri Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        540,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/harcamalar.json",
+        "options": {}
+      },
+      "id": "e3f934d3-8c33-59bb-9c1e-3419666944ba",
+      "name": "Harcamaları Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        720,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "188ba97b-0579-5c24-8899-5eb8cbffe359",
+      "name": "Harcamaları Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        900,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/butce.json",
+        "options": {}
+      },
+      "id": "5616b6df-8d46-58a7-8374-c36d8a0c2efc",
+      "name": "Bütçeyi Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "f9f7c654-aa66-596d-93bd-93f8faa30c8a",
+      "name": "Bütçeyi Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/aliskanliklar.json",
+        "options": {}
+      },
+      "id": "a813740e-d19d-5faa-996f-633cbe2dfae5",
+      "name": "Alışkanlıkları Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "f24951d4-5c7c-53df-9197-bd55004b4f2e",
+      "name": "Alışkanlıkları Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1620,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/notlar.json",
+        "options": {}
+      },
+      "id": "107c0b09-4499-556f-9584-a7bd68056293",
+      "name": "Notları Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "89e29d43-bb9f-5e7f-92ce-f4bb01b11574",
+      "name": "Notları Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1980,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/abonelikler.json",
+        "options": {}
+      },
+      "id": "478abf34-3fdd-56fc-a9de-32dd5c33ff20",
+      "name": "Abonelikleri Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "02eaedb2-b60a-56fd-903b-62d57a96d7a6",
+      "name": "Abonelikleri Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        2340,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/tarihler.json",
+        "options": {}
+      },
+      "id": "ed8a9e9d-b064-5db9-8838-840582c0a9a8",
+      "name": "Tarihleri Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2520,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "b9d8b167-0c94-5059-a6e2-227d2cd150d3",
+      "name": "Tarihleri Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        2700,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/servisler.json",
+        "options": {}
+      },
+      "id": "bab7f370-2bb4-5f72-9ec2-d20f999addfb",
+      "name": "Servisleri Oku (Rapor)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2880,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "48d71932-d1a8-5184-bcc6-0a2c71a4dfe9",
+      "name": "Servisleri Çıkar (Rapor)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        3060,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Son 7 günün özeti + önümüzdeki 7 gün. Diğer workflow'ların dosyalarını\n// YALNIZCA okur, hiçbir şey yazmaz. Bu yüzden bozuk dosyada durmaz:\n// o bölüm \"okunamadı\" diye yazılır, rapor yine gider. Dosyası olmayan bölüm\n// (o özelliği kurmadıysanız) sessizce atlanır.\nconst kaynak = $('Kaynağı Belirle').first().json;\nconst oku = (ad, alan) => {\n  const okuHata = $(ad + ' Oku (Rapor)').first().json.error;\n  const okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\n  if (/ENOENT|no such file|not found/i.test(okuMesaj)) return { yok: true, liste: [], veri: {} };\n  const cik = $(ad + ' Çıkar (Rapor)').first().json || {};\n  if (okuHata || cik.error) {\n    return { bozuk: okuMesaj || String(cik.error.message || cik.error), liste: [], veri: {} };\n  }\n  const veri = cik.data || cik;\n  return { liste: Array.isArray(veri[alan]) ? veri[alan].filter(Boolean) : [], veri };\n};\nconst G = oku('Görevleri', 'gorevler');\nconst H = oku('Harcamaları', 'harcamalar');\nconst B = oku('Bütçeyi', 'kategoriler');\nconst A = oku('Alışkanlıkları', 'aliskanliklar');\nconst N = oku('Notları', 'notlar');\nconst S = oku('Abonelikleri', 'abonelikler');\nconst T = oku('Tarihleri', 'tarihler');\nconst V = oku('Servisleri', 'servisler');\n\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 0 }) + ' TL';\nconst iki = (n) => String(n).padStart(2, '0');\nconst anahtar = (d) => d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate());\nconst zaman = (s) => { const t = new Date(s).getTime(); return Number.isFinite(t) ? t : NaN; };\nconst GUN = 86400000;\nconst simdi = Date.now();\nconst bugun = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();\nconst haftaBas = simdi - 7 * GUN;\nconst oncekiBas = simdi - 14 * GUN;\nconst kisaTarih = (d) => d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });\nconst gunAdi = (d) => d.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', month: 'short' });\n\nconst bolumler = [];\nconst bolum = (baslik, satirlar) => bolumler.push({ baslik, satirlar });\nconst bozukBolum = (baslik, dosya, x) => { if (x.bozuk) { bolum(baslik, ['⚠️ ' + dosya + ' okunamadı: ' + x.bozuk]); return true; } return false; };\n\n// ── ✅ Görevler ──────────────────────────────────────────────────────────────\nif (!G.yok && !bozukBolum('✅ Görevler', 'gorevler.json', G)) {\n  const biten = G.liste.filter((g) => g.durum === 'tamam' && zaman(g.tamamlanma) >= haftaBas);\n  const eklenen = G.liste.filter((g) => zaman(g.olusturulma) >= haftaBas);\n  const acik = G.liste.filter((g) => g.durum !== 'tamam');\n  const s = [biten.length + ' tamamlandı · ' + eklenen.length + ' eklendi · ' + acik.length + ' açık'];\n  biten.slice(0, 5).forEach((g) => s.push('✓ ' + g.baslik));\n  if (biten.length > 5) s.push('… ve ' + (biten.length - 5) + ' tane daha');\n  bolum('✅ Görevler', s);\n}\n\n// ── 💸 Harcama + 🎯 Bütçe ────────────────────────────────────────────────────\nconst harcamalar = H.liste.filter((h) => typeof h.tutar === 'number' && (!h.paraBirimi || h.paraBirimi === 'TL'));\nif (!H.yok && !bozukBolum('💸 Harcama', 'harcamalar.json', H)) {\n  const bu = harcamalar.filter((h) => zaman(h.tarih) >= haftaBas && zaman(h.tarih) <= simdi);\n  const onceki = harcamalar.filter((h) => zaman(h.tarih) >= oncekiBas && zaman(h.tarih) < haftaBas);\n  const toplam = bu.reduce((t, h) => t + h.tutar, 0);\n  const oncekiToplam = onceki.reduce((t, h) => t + h.tutar, 0);\n  if (bu.length === 0) {\n    bolum('💸 Harcama', ['Bu hafta harcama kaydı yok.']);\n  } else {\n    let degisim = '';\n    if (oncekiToplam > 0) {\n      const y = Math.round(((toplam - oncekiToplam) / oncekiToplam) * 100);\n      degisim = ' (geçen hafta ' + tl(oncekiToplam) + ', ' + (y > 0 ? '▲ %' + y : y < 0 ? '▼ %' + -y : 'aynı') + ')';\n    }\n    const s = [tl(toplam) + ', ' + bu.length + ' kayıt' + degisim];\n    [...bu].sort((a, b) => b.tutar - a.tutar).slice(0, 3)\n      .forEach((h) => s.push('• ' + tl(h.tutar) + ' — ' + String(h.konu || h.kimden || 'açıklama yok').slice(0, 50)));\n    bolum('💸 Harcama', s);\n  }\n}\nif (!B.yok && !bozukBolum('🎯 Bütçe', 'butce.json', B) && !H.bozuk) {\n  const limit = typeof B.veri.aylikLimit === 'number' && B.veri.aylikLimit > 0 ? B.veri.aylikLimit : null;\n  if (limit) {\n    const ay = anahtar(bugun).slice(0, 7);\n    const ayToplam = harcamalar.filter((h) => { const t = new Date(h.tarih); return !isNaN(t) && anahtar(t).slice(0, 7) === ay; })\n      .reduce((t, h) => t + h.tutar, 0);\n    const oran = Math.round((ayToplam / limit) * 100);\n    const ayGun = new Date(bugun.getFullYear(), bugun.getMonth() + 1, 0).getDate();\n    bolum('🎯 Bütçe', [(oran >= 100 ? '🔴 ' : oran >= 80 ? '🟠 ' : '') + 'Bu ay %' + oran + ' — ' + tl(ayToplam) + ' / ' + tl(limit) +\n      ' (ayın ' + bugun.getDate() + '/' + ayGun + '. günü)']);\n  }\n}\n\n// ── 🔥 Alışkanlık ────────────────────────────────────────────────────────────\nif (!A.yok && !bozukBolum('🔥 Alışkanlık', 'aliskanliklar.json', A) && A.liste.length) {\n  const son7 = [];\n  for (let i = 6; i >= 0; i--) { const d = new Date(bugun); d.setDate(d.getDate() - i); son7.push(anahtar(d)); }\n  const s = A.liste.filter((a) => a.ad).map((a) => {\n    const set = new Set(Array.isArray(a.gunler) ? a.gunler : []);\n    const kac = son7.filter((g) => set.has(g)).length;\n    const d = new Date(bugun);\n    if (!set.has(anahtar(d))) d.setDate(d.getDate() - 1);\n    let seri = 0;\n    while (set.has(anahtar(d))) { seri++; d.setDate(d.getDate() - 1); }\n    return (kac === 7 ? '🏆 ' : '• ') + a.ad + ': ' + kac + '/7' + (seri > 0 ? ' · 🔥' + seri : '');\n  });\n  bolum('🔥 Alışkanlık', s);\n}\n\n// ── 📅 Önümüzdeki 7 gün ──────────────────────────────────────────────────────\nconst yaklasan = []; // { t: zaman, metin }\nconst pencereSonu = bugun.getTime() + 8 * GUN; // bugün + 7 gün (gün sonuna kadar)\nN.liste.forEach((n) => {\n  const t = zaman(n.hatirlat);\n  if (n.durum !== 'gonderildi' && t > simdi && t < pencereSonu) yaklasan.push({ t, metin: '⏰ ' + n.metin });\n});\nconst yillikGun = (yil, ay, gun) => new Date(yil, ay - 1, Math.min(gun, new Date(yil, ay, 0).getDate()));\nS.liste.filter((a) => a.ad && a.aktif !== false).forEach((a) => {\n  const gun = Math.min(31, Math.max(1, Number(a.gun) || 1));\n  let d;\n  if (a.periyot === 'yillik') {\n    d = yillikGun(bugun.getFullYear(), Number(a.ay) || 1, gun);\n    if (d < bugun) d = yillikGun(bugun.getFullYear() + 1, Number(a.ay) || 1, gun);\n  } else {\n    d = yillikGun(bugun.getFullYear(), bugun.getMonth() + 1, gun);\n    if (d < bugun) d = yillikGun(bugun.getFullYear(), bugun.getMonth() + 2, gun);\n  }\n  if (d.getTime() < pencereSonu) {\n    yaklasan.push({ t: d.getTime(), metin: '💳 ' + a.ad + (typeof a.tutar === 'number' ? ' — ' + tl(a.tutar) : '') });\n  }\n});\nT.liste.filter((x) => x.ad).forEach((x) => {\n  const m = String(x.tarih || '').match(/^(\\d{4}|-)-(\\d{2})-(\\d{2})$/);\n  if (!m) return;\n  let d = yillikGun(bugun.getFullYear(), Number(m[2]), Number(m[3]));\n  if (d < bugun) d = yillikGun(bugun.getFullYear() + 1, Number(m[2]), Number(m[3]));\n  if (d.getTime() >= pencereSonu) return;\n  const emoji = x.tur === 'dogumgunu' ? '🎂 ' : x.tur === 'yildonumu' ? '💍 ' : '📅 ';\n  const k = m[1] !== '-' ? d.getFullYear() - Number(m[1]) : 0;\n  yaklasan.push({ t: d.getTime(), metin: emoji + x.ad + (k > 0 ? (x.tur === 'dogumgunu' ? ' (' + k + ' yaş)' : ' (' + k + '. yıl)') : '') });\n});\nconst uyari7 = [[N, 'notlar.json'], [S, 'abonelikler.json'], [T, 'tarihler.json']]\n  .filter(([x]) => x.bozuk).map(([x, d]) => '⚠️ ' + d + ' okunamadı: ' + x.bozuk);\nif (yaklasan.length || uyari7.length) {\n  bolum('📅 Önümüzdeki 7 gün', [\n    ...yaklasan.sort((a, b) => a.t - b.t).slice(0, 12).map((y) => gunAdi(new Date(y.t)) + ' · ' + y.metin),\n    ...uyari7,\n  ]);\n}\n\n// ── 🩺 Servisler (yalnızca kapalı olan varsa) ────────────────────────────────\nif (!V.yok && !bozukBolum('🩺 Servisler', 'servisler.json', V)) {\n  const kapali = V.liste.filter((s) => s.sonDurum === 'kapali');\n  if (kapali.length) bolum('🩺 Servisler', kapali.map((s) => '🔴 ' + (s.ad || s.url) + ' — ' + (s.sonHata || 'kapalı')));\n}\n\nconst bas = new Date(simdi - 6 * GUN);\nconst baslik = '📊 Haftalık rapor — ' + kisaTarih(bas) + ' – ' + kisaTarih(new Date(simdi));\nconst text = bolumler.length\n  ? baslik + '\\n\\n' + bolumler.map((b) => b.baslik + '\\n' + b.satirlar.join('\\n')).join('\\n\\n')\n  : baslik + '\\n\\nRaporlanacak veri yok. Görev, harcama ya da alışkanlık ekledikçe burası dolacak.';\nconst html = '<h2>' + esc(baslik) + '</h2>' + bolumler.map((b) =>\n  '<h3>' + esc(b.baslik) + '</h3><ul>' + b.satirlar.map((s) => '<li>' + esc(s) + '</li>').join('') + '</ul>').join('');\n\nreturn [{ json: { ...kaynak, text, konu: baslik, html, bolumler } }];\n"
+      },
+      "id": "00b81942-c48e-5c5f-bcdf-cb44a56a1ac4",
+      "name": "Raporu Hazırla",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3240,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// GET /webhook/hafta ile istendiyse rapor yanıt olarak döner.\nconst j = $input.first().json;\nreturn j.kaynak === 'webhook' ? [{ json: j }] : [];"
+      },
+      "id": "cdd6f4fe-222f-5e23-a9f0-e928d8b033b2",
+      "name": "Webhook'a mı Yanıtlanacak? (Rapor)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3460,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ baslik: $json.konu, metin: $json.text, bolumler: $json.bolumler }) }}",
+        "options": {}
+      },
+      "id": "e5cc2485-9b9e-5d8c-b138-99abe7e03b40",
+      "name": "Raporu Yanıtla",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3680,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// /hafta ile istendiyse isteyen sohbete; zamanlanmış çalışmada Telegram\n// kuruluysa TELEGRAM_CHAT_ID'ye gider. Hiçbiri yoksa bu dal boş döner.\nconst j = $input.first().json;\nif (j.kaynak === 'webhook') return [];\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = j.kaynak === 'bot' ? j.chat_id : String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "a76236ae-d854-5748-aa1d-c7180a1ab580",
+      "name": "Hedef Sohbet (Rapor)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3460,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4ca97f6e-b291-5a19-b46d-76239e0a187f",
+      "name": "Raporu Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3680,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Zamanlanmış rapor, Telegram kurulu DEĞİLSE mail olarak gider.\nconst j = $input.first().json;\nif (j.kaynak !== 'zaman') return [];\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "5b18db80-6c1b-5a2f-9a6e-ec1d4996006c",
+      "name": "Telegram Yoksa Mail (Rapor)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3460,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "53b2e72d-1112-584b-a964-f6cb1cf97610",
+      "name": "Raporu Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3680,
+        360
+      ]
+    }
+  ],
+  "connections": {
+    "Her Pazar 20:00 (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Kaynağı Belirle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Kaynağı Belirle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Kaynağı Belirle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rapor (Webhook GET)": {
+      "main": [
+        [
+          {
+            "node": "Kaynağı Belirle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kaynağı Belirle": {
+      "main": [
+        [
+          {
+            "node": "Görevleri Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görevleri Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Görevleri Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Görevleri Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçeyi Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçeyi Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlıkları Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Alışkanlıkları Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alışkanlıkları Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Notları Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Notları Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notları Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelikleri Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Abonelikleri Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abonelikleri Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarihleri Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarihleri Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Oku (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Oku (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Servisleri Çıkar (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Servisleri Çıkar (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Raporu Hazırla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Raporu Hazırla": {
+      "main": [
+        [
+          {
+            "node": "Webhook'a mı Yanıtlanacak? (Rapor)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Hedef Sohbet (Rapor)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Rapor)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook'a mı Yanıtlanacak? (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Raporu Yanıtla",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hedef Sohbet (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Raporu Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Rapor)": {
+      "main": [
+        [
+          {
+            "node": "Raporu Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
