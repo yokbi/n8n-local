@@ -326,6 +326,12 @@ console.log('05 — Telegram bot komutları');
     esit(r.yanitlar.length, 0); esit(r.gorevYazilsin, false);
     esit(bot('/odemeler').abonelikIstekleri.length, 1);
   });
+  dene('/tarih ve /tarihler workflow 25\'e iletilir', () => {
+    const r = bot('/tarih ekle 14.03.1964 Annemin doğum günü');
+    esit(r.tarihIstekleri.length, 1); esit(r.tarihIstekleri[0].metin, 'ekle 14.03.1964 Annemin doğum günü');
+    esit(r.yanitlar.length, 0); esit(r.gorevYazilsin, false);
+    esit(bot('/tarihler').tarihIstekleri[0].metin, '');
+  });
 }
 
 // ═══ 17 — Servis nöbetçisi ═══
@@ -1273,6 +1279,93 @@ console.log('24 — Abonelik ve düzenli ödemeler');
   dene('sabah: gelecek ayın ödemesi için yeniden hatırlatılır', () => {
     const r = sabitZaman('2026-10-13T09:30:00', () => sabah([A(1, 15, { sonHatirlatilan: '2026-09-15' })]));
     esit(r.gonderilecek, true); esit(r.govde.abonelikler[0].sonHatirlatilan, '2026-10-15');
+  });
+}
+
+// ═══ 25 — Önemli tarihler ═══
+console.log('25 — Önemli tarihler');
+{
+  const d25 = wf('25-onemli-tarihler.json');
+  const istekKod = kodu(d25, 'İsteği Al (Tarih)');
+  const islemKod = kodu(d25, 'İşlemi Uygula (Tarih)');
+  const sabahKod = kodu(d25, 'Yaklaşan Tarihleri Bul');
+  const islem = (metin, tarihler, ek = {}) => {
+    const d = {
+      'İsteği Al (Tarih)': [calistir(istekKod, { girdi: [{ chat_id: 42, metin }] })[0].json],
+      'Tarihleri Oku': [ek.yok ? { error: { message: 'ENOENT: no such file' } } : {}],
+      'Tarihleri Çıkar': [ek.bozuk ? { error: { message: 'Unexpected token' } } : {}],
+    };
+    return calistir(islemKod, { dugumler: d, girdi: [{ data: { tarihler } }] })[0].json;
+  };
+  const sabah = (tarihler, elle) => {
+    const d = { 'Tarihleri Oku (Sabah)': [{}], 'Tarihleri Çıkar (Sabah)': [{}] };
+    if (elle) d['Elle Test Et (Tarih)'] = [{}];
+    return calistir(sabahKod, { dugumler: d, girdi: [{ data: { tarihler } }] })[0].json;
+  };
+  const T = (id, tarih, ad, tur = 'dogumgunu', ek = {}) => ({ id, ad, tarih, tur, ...ek });
+
+  dene('ekle: yıllı doğum günü → tür ve yaş; yılsız yıl dönümü', () => {
+    sabitZaman('2026-09-23T10:00:00', () => {
+      const r = islem('ekle 14.03.1964 Annemin doğum günü', [], { yok: true });
+      const t = r.tarihler[0];
+      esit(t.tarih, '1964-03-14'); esit(t.tur, 'dogumgunu'); esit(t.id, 1); esit(r.yazilsin, true);
+      if (!r.mesaj.includes('63 yaşına giriyor')) throw new Error(r.mesaj);
+      const y = islem('ekle 02.06 Evlilik yıl dönümü', []).tarihler[0];
+      esit(y.tarih, '--06-02'); esit(y.tur, 'yildonumu');
+      esit(islem('ekle 1.1 Sınav', []).tarihler[0].tur, 'diger');
+    });
+  });
+  dene('ekle: geçersiz tarih ve gelecek yıl reddedilir', () => {
+    for (const m of ['ekle 31.02 x', 'ekle 29.02.1990 x', 'ekle 10.13 x', 'ekle 14.03', 'ekle 01.01.2999 x']) {
+      const r = islem(m, []);
+      esit(r.hata, true, m); esit(r.yazilsin, false, m);
+    }
+    esit(islem('ekle 29.02 Artık gün', []).hata, false, 'yılsız 29 Şubat geçerli olmalı');
+  });
+  dene('tarihler.json BOZUK → durur', () => {
+    let attı = false;
+    try { islem('ekle 1.1 x', [], { bozuk: true }); } catch (e) { attı = /tarihler\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk dosyada durmadı');
+  });
+  dene('liste: yakından uzağa sıralı, geçen tarih gelecek yıla kayar', () => {
+    sabitZaman('2026-09-23T10:00:00', () => {
+      const r = islem('', [T(1, '1964-03-14', 'Annem'), T(2, '--09-30', 'Yıl dönümü', 'yildonumu'), T(3, '2020-09-23', 'Kızım')]);
+      const s = r.mesaj.split('\n');
+      if (!s[1].includes('#3 Kızım') || !s[1].includes('bugün, 6 yaşına giriyor')) throw new Error(r.mesaj);
+      if (!s[2].includes('#2 Yıl dönümü — 30 Eylül (7 gün)')) throw new Error(r.mesaj);
+      if (!s[3].includes('14 Mart (172 gün, 63 yaşına giriyor)')) throw new Error(r.mesaj);
+      esit(r.sonuc[0].siradaki, '2027-03-14');
+    });
+  });
+  dene('29 Şubat: artık olmayan yılda 28 Şubat', () => {
+    sabitZaman('2027-02-20T10:00:00', () => esit(islem('', [T(1, '2000-02-29', 'Artık')]).sonuc[0].siradaki, '2027-02-28'));
+    sabitZaman('2028-02-20T10:00:00', () => esit(islem('', [T(1, '2000-02-29', 'Artık')]).sonuc[0].siradaki, '2028-02-29'));
+  });
+  dene('sil', () => {
+    const r = islem('sil 1', [T(1, '--01-01', 'a'), T(2, '--01-02', 'b')]);
+    esit(r.tarihler.length, 1); esit(r.yazilsin, true);
+    esit(islem('sil 7', [T(1, '--01-01', 'a')]).hata, true);
+  });
+  dene('sabah: gününde, 7 ve 1 gün önce; arada sessiz', () => {
+    sabitZaman('2026-09-23T08:30:00', () => {
+      const r = sabah([T(1, '1964-09-23', 'Annemin doğum günü'), T(2, '--09-30', 'Evlilik yıl dönümü', 'yildonumu'),
+                       T(3, '--09-24', 'Sınav', 'diger'), T(4, '--09-26', 'Arada')]);
+      esit(r.gonderilecek, true);
+      const s = r.text.split('\n');
+      esit(s[0], '🎂 Bugün: Annemin doğum günü — 62 yaşına giriyor!');
+      esit(s[1], '📅 Yarın: Sınav');
+      esit(s[2], '💍 7 gün sonra (30 Eylül): Evlilik yıl dönümü');
+      if (r.text.includes('Arada')) throw new Error('3 gün kala bildirilmemeli');
+      esit(r.govde.tarihler[0].sonBildirim, '2026-09-23|0');
+      esit(sabah(r.govde.tarihler).gonderilecek, false, 'aynı gün ikinci kez');
+      esit(sabah(r.govde.tarihler, true).gonderilecek, true, 'elle test');
+    });
+  });
+  dene('sabah: kişiye özel "onceden" listesi', () => {
+    sabitZaman('2026-09-23T08:30:00', () => {
+      esit(sabah([T(1, '--10-07', 'x', 'diger', { onceden: [14] })]).gonderilecek, true);
+      esit(sabah([T(1, '--09-30', 'x', 'diger', { onceden: [14] })]).gonderilecek, false);
+    });
   });
 }
 

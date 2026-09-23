@@ -12,7 +12,7 @@ Durum: 🟢 eklendi · ⬜ sırada
 | 22 | Alışkanlık takibi | "Bugün yaptım" işaretle, seriyi kırma; akşam 21:00'de eksikleri hatırlatır | 🟢 |
 | 23 | Bütçe nöbetçisi | Aylık ve kategori bazlı limit; %80 ve %100'de bir kez uyarır | 🟢 |
 | 24 | Abonelik ve düzenli ödemeler | Netflix, kira, alan adı… ödeme gününden önce hatırlatır, aylık yükü gösterir | 🟢 |
-| 25 | Önemli tarihler | Doğum günü ve yıl dönümlerini birkaç gün önceden ve gününde hatırlatır | ⬜ |
+| 25 | Önemli tarihler | Doğum günü ve yıl dönümlerini birkaç gün önceden ve gününde hatırlatır | 🟢 |
 | 26 | Haftalık rapor | Pazar 20:00'de haftanın özeti: görev, harcama, alışkanlık, yaklaşanlar | ⬜ |
 
 ---
@@ -170,7 +170,7 @@ hatırlatılır. Yıl biliniyorsa yaş/yıl sayısı da yazılır.
 | Telegram | Ne yapar |
 |---|---|
 | `/tarihler` | Yaklaşan 10 tarih (kaç gün kaldı, kaçıncı yaş/yıl) |
-| `/tarih ekle 14.03.1964 Annemin doğum günü` | Yıllı — "62 yaşına giriyor" |
+| `/tarih ekle 14.03.1964 Annemin doğum günü` | Yıl varsa yaşı da yazılır ("63 yaşına giriyor") |
 | `/tarih ekle 02.06 Evlilik yıl dönümü` | Yılsız da olur |
 | `/tarih sil 3` | Sil |
 

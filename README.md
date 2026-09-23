@@ -85,6 +85,7 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 │  │ 22 Alışkanlık takibi — 21:00         │                            │
 │  │ 23 Bütçe nöbetçisi — 20:00           │                            │
 │  │ 24 Abonelik ve ödemeler — 09:30      │                            │
+│  │ 25 Önemli tarihler — 08:30           │                            │
 │  └──────┬──────────────────┬────────────┘                            │
 │         │                  │                                         │
 │   n8n_data volume    local-files/*.json (görev, fiyat, harcama, not) │
@@ -120,6 +121,7 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 | `22-aliskanlik-takibi` | Her gün tekrarlanan işler için "yaptım" işareti ve 🔥 seri; akşam 21:00'de eksikleri hatırlatır (`/yaptim`) | — veya SMTP (§14.1) |
 | `23-butce-nobetcisi` | Aylık ve kategori bazlı harcama limiti; %80 ve %100'de ayda bir kez uyarır, günlük harcanabilir tutarı söyler (`/butce`) | — veya SMTP (§14.2) |
 | `24-abonelik-takibi` | Her ay/her yıl tekrarlanan ödemeleri (Netflix, kira, alan adı) günü gelmeden hatırlatır, aylık yükü gösterir (`/abonelik`) | — veya SMTP (§14.3) |
+| `25-onemli-tarihler` | Doğum günü ve yıl dönümlerini her yıl 7 gün önce, 1 gün önce ve gününde hatırlatır; yaşı/yılı söyler (`/tarihler`) | — veya SMTP (§14.4) |
 
 Her workflow'un tuvalinde, kurulum adımlarını anlatan Türkçe **sarı not kutuları** vardır.
 
@@ -161,6 +163,7 @@ cp local-files/yakalanan-istekler.ornek.json local-files/yakalanan-istekler.json
 cp local-files/aliskanliklar.ornek.json local-files/aliskanliklar.json
 cp local-files/butce.ornek.json local-files/butce.json
 cp local-files/abonelikler.ornek.json local-files/abonelikler.json
+cp local-files/tarihler.ornek.json local-files/tarihler.json
 
 # 3) n8n'i başlatın
 docker compose up -d
@@ -825,6 +828,7 @@ olarak gider. Tasarım ayrıntıları: [`YENI-OZELLIKLER.md`](YENI-OZELLIKLER.md
 | 22 | Alışkanlık takibi | 🔥 Seri, son 7 gün, akşam hatırlatması | `/aliskanlik` · `/yaptim 2` |
 | 23 | Bütçe nöbetçisi | Limit, kalan, günlük harcanabilir, %80/%100 uyarısı | `/butce` · `/butce limit 20000` |
 | 24 | Abonelik ve düzenli ödemeler | Ödemeden 3 gün önce hatırlatma, aylık yük | `/abonelik` · `/abonelik ekle …` |
+| 25 | Önemli tarihler | Doğum günü/yıl dönümü, 7 ve 1 gün önceden | `/tarihler` · `/tarih ekle …` |
 <!-- paket-tablosu -->
 
 Telegram komutları için workflow 05'teki ilgili **… Workflow'una İlet**
@@ -950,6 +954,37 @@ curl -X POST http://localhost:5678/webhook/abonelik \
   -H 'Content-Type: application/json' -d '{"metin":"ekle Spotify 59,99 1"}'
 ```
 
+### 14.4 Önemli tarihler (workflow 25)
+
+Asıl lazım olan "bugün doğum günü" değil, hediye alacak zaman bırakan "bir
+hafta sonra doğum günü" mesajıdır. Tarihi bir kez girersiniz; her yıl
+kendiliğinden gelir.
+
+```
+/tarih ekle 14.03.1964 Annemin doğum günü    → yıl varsa yaşı da yazılır
+/tarih ekle 02.06 Evlilik yıl dönümü         → yılsız da olur
+/tarihler                                    → yaklaşan 10 tarih
+/tarih sil 3
+```
+
+Sabah gelen mesaj:
+
+```
+🎂 Bugün: Kızımın doğum günü — 6 yaşına giriyor!
+💍 7 gün sonra (30 Eylül): Evlilik yıl dönümü — 5. yıl
+```
+
+- **Tür** addan anlaşılır: "doğum" → 🎂 (yaş), "yıl dönümü"/"evlilik" → 💍
+  (kaçıncı yıl), diğerleri 📅.
+- **Her sabah 08:30**: gününde ve 7 gün / 1 gün kala. Kişiye özel pencere
+  için `local-files/tarihler.json` içinde `"onceden": [14, 3, 1]` yazın.
+- 29 Şubat doğumlular artık olmayan yıllarda 28 Şubat'ta hatırlatılır.
+
+```bash
+curl -X POST http://localhost:5678/webhook/tarih \
+  -H 'Content-Type: application/json' -d '{"metin":"ekle 02.06 Evlilik yıl dönümü"}'
+```
+
 <!-- paket-bolumleri -->
 
 ## 15. iPhone, Mac ve Windows'tan kullanmak
@@ -971,6 +1006,7 @@ telefondan kullanabilirsiniz: **Telegram botu dışarıya hiçbir kapı açmadan
 | `/aliskanlik` · `/yaptim 2` | Alışkanlık serileri · bugünü işaretleme |
 | `/butce` · `/butce limit 20000` | Bütçe durumu · limit koyma |
 | `/abonelik` · `/abonelik ekle Netflix 229,99 15` | Düzenli ödemeler · aylık yük |
+| `/tarihler` · `/tarih ekle 14.03 …` | Yaklaşan doğum günleri, yıl dönümleri |
 | `/yardim` | Tüm komutlar |
 
 Uyarılar (servis düştü, PR bekliyor) siz bir şey yapmadan gelir.
@@ -1115,6 +1151,7 @@ makinenizde (şifreli) durur.
 | `/yaptim` "bulunamadı" diyor | Numara yerine adın bir parçasını da yazabilirsiniz (`/yaptim kitap`); numaraları `/aliskanlik` gösterir. Aynı kelime birden çok alışkanlıkta geçiyorsa ilk eşleşen seçilir — numara kullanın. |
 | Bütçede harcama "Diğer"e düşüyor | Kategorinin anahtar kelimesi harcamanın açıklamasında geçmiyor. `/butce anahtar Market <kelime>` ile ekleyin (§14.2). |
 | `/abonelik ekle` "Kullanım" diyor | Sıra önemli: **ad, tutar, gün** (`Netflix 229,99 15`). Yıllık için gün.ay: `Alan adı 450 yillik 14.03`. Tutarda nokta binlik, virgül kuruş ayırıcıdır. |
+| `/tarih ekle` "Kullanım" diyor | Tarih başta ve gün.ay(.yıl) biçiminde olmalı: `/tarih ekle 14.03.1964 Annem`. Gelecekteki yıl ve takvimde olmayan gün (31.02) reddedilir. |
 
 ## 19. Güncelleme
 

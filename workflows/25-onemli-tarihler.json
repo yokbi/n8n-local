@@ -1,0 +1,654 @@
+{
+  "name": "25 — Önemli Tarihler",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🎂 Önemli tarihler — doğum günü, yıl dönümü\n\nTarihi bir kez girin; her yıl kendiliğinden, **bir hafta önce**,\n**bir gün önce** ve **gününde** hatırlatılır. Yıl biliniyorsa yaş ya\nda kaçıncı yıl olduğu da yazılır.\n\n### Kurulum\n1. `cp local-files/tarihler.ornek.json local-files/tarihler.json`\n   (isterseniz atlayın — ilk eklemede dosya kendiliğinden oluşur)\n2. Workflow'u **Active** yapın. Credential gerekmez.\n3. Telegram kurulu değilse **Tarih Hatırlatmasını Mail At** düğümünde\n   SMTP credential'ını seçip iki adres alanını değiştirin.\n4. Telegram komutları için workflow 05'teki\n   **Tarih Workflow'una İlet** düğümünde bu workflow'u seçin.\n\n### Kullanım\n```\n/tarihler                                    → yaklaşan 10 tarih\n/tarih ekle 14.03.1964 Annemin doğum günü    → 🎂 yaşını da söyler\n/tarih ekle 02.06 Evlilik yıl dönümü         → 💍 yılsız da olur\n/tarih sil 3\n```\n```bash\ncurl -X POST http://localhost:5678/webhook/tarih \\\n  -H 'Content-Type: application/json' -d '{\"metin\":\"ekle 02.06 Evlilik yıl dönümü\"}'\n```",
+        "width": 540,
+        "height": 840
+      },
+      "id": "d773b387-e430-57d3-8e21-8630d06c5dac",
+      "name": "Not a1f25",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- **Tür metinden anlaşılır:** \"doğum\" → 🎂, \"yıl dönümü\"/\"evlilik\" →\n  💍, diğerleri 📅. Dosyada `\"tur\"` alanıyla değiştirilebilir.\n- **08:30 kontrolü:** gününde ve `onceden` listesindeki günlerde\n  (varsayılan `[7, 1]`) bildirir; aynı gün ikinci kez yazmaz.\n  Örneğin `\"onceden\": [14, 3, 1]` yapabilirsiniz.\n- 29 Şubat, artık olmayan yıllarda 28 Şubat'ta sayılır.\n- Dosya bozuksa workflow **durur**, boş liste yazmaz.\n- 🔒 Hiçbir şey dışarı gitmez (Telegram mesajının kendisi hariç).",
+        "width": 540,
+        "height": 320
+      },
+      "id": "f10dba9d-8759-5682-b3b8-c55ea4ccd7ab",
+      "name": "Not b2f25",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tarih",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e3ac2a68-9940-50ce-9df8-b2dcbbafe5e8",
+      "name": "Tarih İsteği (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        0
+      ],
+      "webhookId": "78cde81a-69c5-5904-9333-9c78ed2d015f"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "9b16ccdf-1b7d-54a6-9ba1-daf4c9d5c066",
+      "name": "Workflow 05'ten Çağrı (Tarih)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İki giriş de buradan geçer:\n//  • Webhook ile gelen istekte alanlar \"body\" içindedir,\n//  • Workflow 05'in /tarih ve /tarihler komutlarında alanlar doğrudan gelir.\n// Sözdizimi Telegram ile aynı: {\"metin\": \"ekle 14.03.1964 Annemin doğum günü\"}\nconst j = $input.first().json || {};\nconst webhooktan = Object.prototype.hasOwnProperty.call(j, 'body');\nconst govde = webhooktan ? (j.body && typeof j.body === 'object' ? j.body : {}) : j;\n\nconst chat_id = govde.chat_id ? String(govde.chat_id) : '';\nconst ISLEMLER = { liste: 'liste', ekle: 'ekle', sil: 'sil' };\nconst metin = String(govde.metin || '').trim();\nconst ilk = metin.split(/\\s+/)[0].toLowerCase();\nlet islem = 'liste';\nlet arg = '';\nif (metin) {\n  islem = ISLEMLER[ilk] || 'bilinmeyen';\n  arg = ISLEMLER[ilk] ? metin.slice(ilk.length).trim() : metin;\n}\n\nreturn [{ json: { islem, arg, chat_id, webhooktan } }];\n"
+      },
+      "id": "4424005f-1d81-58a0-a2e7-5b0847d4aa35",
+      "name": "İsteği Al (Tarih)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/tarihler.json",
+        "options": {}
+      },
+      "id": "e86b1b4d-8984-521b-8c88-327d6801f3bf",
+      "name": "Tarihleri Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "efbfa756-4b9c-516a-b1fc-eba5c1ca98ac",
+      "name": "Tarihleri Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        560,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Ortak: yıllık tekrar eden tarihin sıradaki günü ─────────────────────────\n// \"1964-03-14\" yıllı, \"--03-14\" yılsız tarih. 29 Şubat, artık olmayan\n// yıllarda 28 Şubat'ta sayılır. Tarihler yerel saatle (GENERIC_TIMEZONE).\nconst iki = (n) => String(n).padStart(2, '0');\nconst anahtar = (d) => d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate());\nconst bugun = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();\nconst EMOJI = { dogumgunu: '🎂', yildonumu: '💍', diger: '📅' };\n\nconst tarihCoz = (t) => {\n  const m = String(t || '').match(/^(\\d{4}|-)-(\\d{2})-(\\d{2})$/);\n  if (!m) return null;\n  const yil = m[1] === '-' ? null : Number(m[1]);\n  const ay = Number(m[2]);\n  const gun = Number(m[3]);\n  if (ay < 1 || ay > 12 || gun < 1 || gun > 31) return null;\n  return { yil, ay, gun };\n};\nconst tarihiDuzenle = (t) => ({\n  ...t,\n  id: Number(t.id) || 0,\n  ad: String(t.ad || '').trim(),\n  tur: EMOJI[t.tur] ? t.tur : 'diger',\n  onceden: (Array.isArray(t.onceden) ? t.onceden : [7, 1]).map(Number).filter((n) => Number.isInteger(n) && n > 0),\n  sonBildirim: t.sonBildirim || null,\n});\nconst siradaki = (t) => {\n  const c = tarihCoz(t.tarih);\n  if (!c) return null;\n  const yilIcin = (y) => new Date(y, c.ay - 1, Math.min(c.gun, new Date(y, c.ay, 0).getDate()));\n  let d = yilIcin(bugun.getFullYear());\n  if (d < bugun) d = yilIcin(bugun.getFullYear() + 1);\n  const n = Math.round((d.getTime() - bugun.getTime()) / 86400000);\n  const kacinci = c.yil ? d.getFullYear() - c.yil : null;\n  return { d, n, kacinci };\n};\nconst neZaman = (n) => (n === 0 ? 'Bugün' : n === 1 ? 'Yarın' : n + ' gün sonra');\nconst tarihMetni = (d) => d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });\nconst kacinciMetni = (t, k) => {\n  if (!k || k < 1) return '';\n  return t.tur === 'dogumgunu' ? k + ' yaşına giriyor' : k + '. yıl';\n};\n// ─────────────────────────────────────────────────────────────────────────────\n// Liste / ekle / sil. Dosya bozuksa durur — aksi hâlde liste boş sanılıp\n// üzerine yazılır ve tüm tarihler kaybolur.\nconst okuHata = $('Tarihleri Oku').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Tarihleri Çıkar').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('tarihler.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\n\nconst istek = $('İsteği Al (Tarih)').first().json;\nconst okunan = dosyaYok ? {} : ($input.first().json || {});\nconst veri = okunan.data || okunan;\nconst tarihler = (Array.isArray(veri.tarihler) ? veri.tarihler : [])\n  .filter((t) => t && t.ad)\n  .map(tarihiDuzenle);\n\nconst turBul = (ad) => {\n  const k = String(ad).toLocaleLowerCase('tr-TR');\n  if (/doğum|dogum/.test(k)) return 'dogumgunu';\n  if (/y[ıi]l\\s*d[öo]n[üu]m|evlilik|nişan|nisan/.test(k)) return 'yildonumu';\n  return 'diger';\n};\n\nconst liste = () => {\n  const sirali = tarihler\n    .map((t) => ({ t, s: siradaki(t) }))\n    .filter((x) => x.s)\n    .sort((a, b) => a.s.n - b.s.n);\n  if (sirali.length === 0) return 'Kayıtlı tarih yok.\\nEklemek için: /tarih ekle 14.03.1964 Annemin doğum günü';\n  const ilk = sirali.slice(0, 10);\n  return '📅 Yaklaşan tarihler\\n' + ilk.map(({ t, s }) => {\n    const k = kacinciMetni(t, s.kacinci);\n    return EMOJI[t.tur] + ' #' + t.id + ' ' + t.ad + ' — ' + tarihMetni(s.d) + ' (' +\n      (s.n === 0 ? 'bugün' : s.n + ' gün') + (k ? ', ' + k : '') + ')';\n  }).join('\\n') + (sirali.length > ilk.length ? '\\n… ve ' + (sirali.length - ilk.length) + ' tane daha' : '');\n};\n\nlet mesaj = '';\nlet yazilsin = false;\nlet hata = false;\n\nif (istek.islem === 'liste') {\n  mesaj = liste();\n} else if (istek.islem === 'ekle') {\n  // \"14.03.1964 Annemin doğum günü\" · \"02.06 Evlilik yıl dönümü\" · \"14/03 ...\"\n  const m = istek.arg.match(/^(\\d{1,2})[./](\\d{1,2})(?:[./](\\d{4}))?\\s+(.+)$/);\n  const gun = m ? Number(m[1]) : 0;\n  const ay = m ? Number(m[2]) : 0;\n  const yil = m && m[3] ? Number(m[3]) : null;\n  const gecerli = m && ay >= 1 && ay <= 12 && gun >= 1 &&\n    gun <= new Date(yil || 2000, ay, 0).getDate() && (!yil || yil <= bugun.getFullYear());\n  if (!gecerli) {\n    hata = true;\n    mesaj = [\n      'Kullanım:',\n      '• /tarih ekle 14.03.1964 Annemin doğum günü → yıl varsa yaşını da söylerim',\n      '• /tarih ekle 02.06 Evlilik yıl dönümü',\n    ].join('\\n');\n  } else {\n    const ad = m[4].trim().slice(0, 80);\n    const id = tarihler.reduce((mx, t) => Math.max(mx, t.id), 0) + 1;\n    const tarih = (yil ? String(yil) : '-') + '-' + iki(ay) + '-' + iki(gun);\n    const yeni = tarihiDuzenle({ id, ad, tarih, tur: turBul(ad), onceden: [7, 1], olusturulma: new Date().toISOString() });\n    tarihler.push(yeni);\n    yazilsin = true;\n    const s = siradaki(yeni);\n    const k = kacinciMetni(yeni, s.kacinci);\n    mesaj = '➕ ' + EMOJI[yeni.tur] + ' Eklendi: #' + id + ' ' + ad + '\\nSıradaki: ' + tarihMetni(s.d) +\n      ' (' + (s.n === 0 ? 'bugün' : s.n + ' gün sonra') + (k ? ', ' + k : '') + ')' +\n      '\\n7 gün ve 1 gün önce, bir de gününde hatırlatırım.';\n  }\n} else if (istek.islem === 'sil') {\n  const id = Number((istek.arg.match(/#?(\\d+)/) || [])[1]) || 0;\n  const t = tarihler.find((x) => x.id === id);\n  if (!t) {\n    hata = true;\n    mesaj = (id ? '#' + id + ' bulunamadı.' : 'Kullanım: /tarih sil 3') + '\\n\\n' + liste();\n  } else {\n    tarihler.splice(tarihler.indexOf(t), 1);\n    yazilsin = true;\n    mesaj = '🗑 Silindi: #' + t.id + ' ' + t.ad;\n  }\n} else {\n  hata = true;\n  mesaj = [\n    'Önemli tarih komutları:',\n    '• /tarihler → yaklaşan 10 tarih',\n    '• /tarih ekle 14.03.1964 Annemin doğum günü',\n    '• /tarih ekle 02.06 Evlilik yıl dönümü',\n    '• /tarih sil 3',\n  ].join('\\n');\n}\n\nconst sonuc = tarihler.map((t) => {\n  const s = siradaki(t);\n  return { id: t.id, ad: t.ad, tarih: t.tarih, tur: t.tur,\n           siradaki: s ? anahtar(s.d) : null, kalanGun: s ? s.n : null, kacinci: s ? s.kacinci : null };\n});\n\nreturn [{\n  json: {\n    islem: istek.islem, chat_id: istek.chat_id, webhooktan: istek.webhooktan,\n    mesaj, hata, sonuc, yazilsin, tarihler,\n  },\n}];\n"
+      },
+      "id": "82965d86-004b-5743-8557-0b29fad08f8d",
+      "name": "İşlemi Uygula (Tarih)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yanıt düğümü yalnızca webhook ile gelen isteklerde çalışmalı;\n// workflow 05'ten gelen çağrıda yanıtlanacak bir HTTP isteği yoktur.\nconst j = $input.first().json;\nreturn j.webhooktan ? [{ json: j }] : [];"
+      },
+      "id": "25a27759-aea7-5a77-8986-8c397c6e65cb",
+      "name": "Webhook'a mı Yanıtlanacak? (Tarih)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: !$json.hata, islem: $json.islem, mesaj: $json.mesaj, tarihler: $json.sonuc }) }}",
+        "options": {}
+      },
+      "id": "590cac09-888e-5fd7-83d4-0f3646317a9a",
+      "name": "Yanıt Ver (Tarih)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İstek Telegram'dan geldiyse sonuç oraya gider.\nconst j = $input.first().json;\nif (!j.chat_id) return [];\nreturn [{ json: { chat_id: j.chat_id, text: String(j.mesaj).slice(0, 3900) } }];"
+      },
+      "id": "ba18abd8-d3c2-5d76-bde3-e1d928564e92",
+      "name": "Telegram'a Bildir (Tarih)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "7fb755ce-bf3a-502f-85a4-850f945a648b",
+      "name": "Tarih Yanıtını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dosyaya yalnızca tarih listesi yazılır.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: { tarihler: j.tarihler } }];"
+      },
+      "id": "f63380a9-4ed8-59f8-ba0d-f2c71b1fc8d4",
+      "name": "Tarih Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "tarihler.json"
+        }
+      },
+      "id": "dda50706-c37e-5faa-8fe1-9cf727c1aa4e",
+      "name": "Tarihleri Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1180,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/tarihler.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "29263d04-ebcb-5cff-822e-fa69c29a5722",
+      "name": "Tarihleri Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 8,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "6fa3bb6f-9628-5b7a-b727-8ce0ab9501d8",
+      "name": "Her Sabah 08:30 (Tarih)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "cfc42d4b-2066-5039-927c-5c4a3479d2a4",
+      "name": "Elle Test Et (Tarih)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/tarihler.json",
+        "options": {}
+      },
+      "id": "3b459325-2b3c-58f7-8463-70902828cf6e",
+      "name": "Tarihleri Oku (Sabah)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        160,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "12ff14c8-b3ad-5b6f-bfde-a16b3e60e2ac",
+      "name": "Tarihleri Çıkar (Sabah)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Ortak: yıllık tekrar eden tarihin sıradaki günü ─────────────────────────\n// \"1964-03-14\" yıllı, \"--03-14\" yılsız tarih. 29 Şubat, artık olmayan\n// yıllarda 28 Şubat'ta sayılır. Tarihler yerel saatle (GENERIC_TIMEZONE).\nconst iki = (n) => String(n).padStart(2, '0');\nconst anahtar = (d) => d.getFullYear() + '-' + iki(d.getMonth() + 1) + '-' + iki(d.getDate());\nconst bugun = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();\nconst EMOJI = { dogumgunu: '🎂', yildonumu: '💍', diger: '📅' };\n\nconst tarihCoz = (t) => {\n  const m = String(t || '').match(/^(\\d{4}|-)-(\\d{2})-(\\d{2})$/);\n  if (!m) return null;\n  const yil = m[1] === '-' ? null : Number(m[1]);\n  const ay = Number(m[2]);\n  const gun = Number(m[3]);\n  if (ay < 1 || ay > 12 || gun < 1 || gun > 31) return null;\n  return { yil, ay, gun };\n};\nconst tarihiDuzenle = (t) => ({\n  ...t,\n  id: Number(t.id) || 0,\n  ad: String(t.ad || '').trim(),\n  tur: EMOJI[t.tur] ? t.tur : 'diger',\n  onceden: (Array.isArray(t.onceden) ? t.onceden : [7, 1]).map(Number).filter((n) => Number.isInteger(n) && n > 0),\n  sonBildirim: t.sonBildirim || null,\n});\nconst siradaki = (t) => {\n  const c = tarihCoz(t.tarih);\n  if (!c) return null;\n  const yilIcin = (y) => new Date(y, c.ay - 1, Math.min(c.gun, new Date(y, c.ay, 0).getDate()));\n  let d = yilIcin(bugun.getFullYear());\n  if (d < bugun) d = yilIcin(bugun.getFullYear() + 1);\n  const n = Math.round((d.getTime() - bugun.getTime()) / 86400000);\n  const kacinci = c.yil ? d.getFullYear() - c.yil : null;\n  return { d, n, kacinci };\n};\nconst neZaman = (n) => (n === 0 ? 'Bugün' : n === 1 ? 'Yarın' : n + ' gün sonra');\nconst tarihMetni = (d) => d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });\nconst kacinciMetni = (t, k) => {\n  if (!k || k < 1) return '';\n  return t.tur === 'dogumgunu' ? k + ' yaşına giriyor' : k + '. yıl';\n};\n// ─────────────────────────────────────────────────────────────────────────────\n// Sabah kontrolü: gününde ve \"onceden\" listesindeki günlerde (varsayılan 7 ve 1\n// gün kala) bildirir. Aynı gün ikinci kez yazmaz (sonBildirim) — \"Elle Test\n// Et\" ile çalıştırıldığında hariç.\nconst okuHata = $('Tarihleri Oku (Sabah)').first().json.error;\nconst okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\nconst dosyaYok = /ENOENT|no such file|not found/i.test(okuMesaj);\nconst cikarHata = $('Tarihleri Çıkar (Sabah)').first().json.error;\nif (!dosyaYok && (okuHata || cikarHata)) {\n  const m = okuMesaj || String((cikarHata && cikarHata.message) || cikarHata);\n  throw new Error('tarihler.json okunamadı; veri kaybını önlemek için durduruldu → ' + m);\n}\nif (dosyaYok) return [{ json: { gonderilecek: false, yazilsin: false } }];\n\nlet elle = false;\ntry { elle = $('Elle Test Et (Tarih)').all().length > 0; } catch (e) { elle = false; }\n\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst okunan = $input.first().json || {};\nconst veri = okunan.data || okunan;\nconst tarihler = (Array.isArray(veri.tarihler) ? veri.tarihler : [])\n  .filter((t) => t && t.ad)\n  .map(tarihiDuzenle);\n\nconst bildirilecek = [];\nfor (const t of tarihler) {\n  const s = siradaki(t);\n  if (!s || (s.n !== 0 && !t.onceden.includes(s.n))) continue;\n  const isaret = anahtar(s.d) + '|' + s.n;\n  if (!elle && t.sonBildirim === isaret) continue;\n  t.sonBildirim = isaret;\n  bildirilecek.push({ t, s });\n}\nif (bildirilecek.length === 0) return [{ json: { gonderilecek: false, yazilsin: false } }];\n\nbildirilecek.sort((a, b) => a.s.n - b.s.n);\nconst satirlar = bildirilecek.map(({ t, s }) => {\n  const k = kacinciMetni(t, s.kacinci);\n  return EMOJI[t.tur] + ' ' + neZaman(s.n) + (s.n > 1 ? ' (' + tarihMetni(s.d) + ')' : '') + ': ' +\n    t.ad + (k ? ' — ' + k : '') + (s.n === 0 ? '!' : '');\n});\nconst text = satirlar.join('\\n');\n\nreturn [{\n  json: {\n    gonderilecek: true,\n    yazilsin: true,\n    text,\n    konu: satirlar[0] + (satirlar.length > 1 ? ' (+' + (satirlar.length - 1) + ')' : ''),\n    html: '<ul>' + satirlar.map((s) => '<li>' + esc(s) + '</li>').join('') + '</ul>',\n    govde: { tarihler },\n  },\n}];\n"
+      },
+      "id": "062b5a27-1789-58aa-b806-8d6622b25990",
+      "name": "Yaklaşan Tarihleri Bul",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa hatırlatma oraya gider; değilse bu dal boş döner.\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "0421f30a-7a92-53e6-9525-48e92babb600",
+      "name": "Telegram Kurulu mu? (Tarih)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "2cb6d14c-fbd8-540e-b611-ee60a7051cb2",
+      "name": "Tarih Hatırlatmasını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        520
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE hatırlatma mail olarak gider (çift bildirim olmasın).\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "2b48de3e-97cd-527f-aece-ac4cbfac0e79",
+      "name": "Telegram Yoksa Mail (Tarih)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "03859450-1366-5d3d-ad10-d9f5dad5fdd4",
+      "name": "Tarih Hatırlatmasını Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1000,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bildirilen tarihler işaretlenir: aynı gün ikinci kez yazılmaz.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: j.govde }];"
+      },
+      "id": "e1d4b1f4-a054-5bab-98d3-b5cb6b982897",
+      "name": "Tarih Gövdesi (Sabah)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "tarihler.json"
+        }
+      },
+      "id": "af1c4a61-dc40-5599-85eb-e54d0059d0e8",
+      "name": "Tarihleri Dosyaya Çevir (Sabah)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/tarihler.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "056228af-05b0-556c-80b6-8a53c87eb070",
+      "name": "Tarihleri Yaz (Sabah)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        840
+      ]
+    }
+  ],
+  "connections": {
+    "Tarih İsteği (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Tarih)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (Tarih)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Tarih)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İsteği Al (Tarih)": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarihleri Oku": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarihleri Çıkar": {
+      "main": [
+        [
+          {
+            "node": "İşlemi Uygula (Tarih)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İşlemi Uygula (Tarih)": {
+      "main": [
+        [
+          {
+            "node": "Webhook'a mı Yanıtlanacak? (Tarih)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram'a Bildir (Tarih)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tarih Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook'a mı Yanıtlanacak? (Tarih)": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Ver (Tarih)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram'a Bildir (Tarih)": {
+      "main": [
+        [
+          {
+            "node": "Tarih Yanıtını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarih Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarihleri Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her Sabah 08:30 (Tarih)": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Oku (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (Tarih)": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Oku (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarihleri Oku (Sabah)": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Çıkar (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarihleri Çıkar (Sabah)": {
+      "main": [
+        [
+          {
+            "node": "Yaklaşan Tarihleri Bul",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yaklaşan Tarihleri Bul": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (Tarih)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Tarih)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tarih Gövdesi (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Kurulu mu? (Tarih)": {
+      "main": [
+        [
+          {
+            "node": "Tarih Hatırlatmasını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Tarih)": {
+      "main": [
+        [
+          {
+            "node": "Tarih Hatırlatmasını Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarih Gövdesi (Sabah)": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Dosyaya Çevir (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarihleri Dosyaya Çevir (Sabah)": {
+      "main": [
+        [
+          {
+            "node": "Tarihleri Yaz (Sabah)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
