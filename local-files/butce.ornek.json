@@ -1,0 +1,56 @@
+{
+  "aylikLimit": null,
+  "kategoriler": [
+    {
+      "ad": "Market",
+      "limit": null,
+      "anahtarlar": [
+        "market",
+        "migros",
+        "a101",
+        "bim",
+        "şok",
+        "carrefour"
+      ]
+    },
+    {
+      "ad": "Yeme-içme",
+      "limit": null,
+      "anahtarlar": [
+        "yemeksepeti",
+        "restoran",
+        "kafe",
+        "cafe",
+        "kahve"
+      ]
+    },
+    {
+      "ad": "Ulaşım",
+      "limit": null,
+      "anahtarlar": [
+        "akaryakıt",
+        "benzin",
+        "opet",
+        "shell",
+        "taksi",
+        "istanbulkart"
+      ]
+    },
+    {
+      "ad": "Fatura",
+      "limit": null,
+      "anahtarlar": [
+        "elektrik",
+        "doğalgaz",
+        "internet",
+        "turkcell",
+        "vodafone",
+        "türk telekom"
+      ]
+    }
+  ],
+  "uyarilar": {
+    "ay": null,
+    "gonderilen": []
+  }
+}

@@ -83,6 +83,7 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 │  │ 21 Webhook yakalayıcı                │                            │
 │  │ ── kişisel takip paketi ───────────  │                            │
 │  │ 22 Alışkanlık takibi — 21:00         │                            │
+│  │ 23 Bütçe nöbetçisi — 20:00           │                            │
 │  └──────┬──────────────────┬────────────┘                            │
 │         │                  │                                         │
 │   n8n_data volume    local-files/*.json (görev, fiyat, harcama, not) │
@@ -116,6 +117,7 @@ Panel yalnızca `127.0.0.1`'e bağlıdır: ağdaki başka cihazlar siz istemedik
 | `20-gelistirici-arac-kutusu` | uuid · base64 · JWT · epoch · JSON · SHA-256 · cron — internetsiz (`/arac`) | — (§13.4) |
 | `21-webhook-yakalayici` | Gelen HTTP isteğini olduğu gibi kaydeder ve gösterir; kendi request-bin'iniz (`/istekler`) | — (§13.5) |
 | `22-aliskanlik-takibi` | Her gün tekrarlanan işler için "yaptım" işareti ve 🔥 seri; akşam 21:00'de eksikleri hatırlatır (`/yaptim`) | — veya SMTP (§14.1) |
+| `23-butce-nobetcisi` | Aylık ve kategori bazlı harcama limiti; %80 ve %100'de ayda bir kez uyarır, günlük harcanabilir tutarı söyler (`/butce`) | — veya SMTP (§14.2) |
 
 Her workflow'un tuvalinde, kurulum adımlarını anlatan Türkçe **sarı not kutuları** vardır.
 
@@ -154,6 +156,8 @@ cp local-files/github-durum.ornek.json local-files/github-durum.json
 cp local-files/parcacikalar.ornek.json local-files/parcacikalar.json
 cp local-files/yakalanan-istekler.ornek.json local-files/yakalanan-istekler.json
 # Kişisel takip paketi (workflow 22–26):
+cp local-files/aliskanliklar.ornek.json local-files/aliskanliklar.json
+cp local-files/butce.ornek.json local-files/butce.json
 
 # 3) n8n'i başlatın
 docker compose up -d
@@ -519,7 +523,6 @@ kopyalayın:
 
 ```bash
 cp local-files/yedek/2026-09-12-gorevler.json local-files/gorevler.json
-cp local-files/aliskanliklar.ornek.json local-files/aliskanliklar.json
 ```
 
 ### 10.3 Sayfa değişiklik takibi (workflow 16)
@@ -817,6 +820,7 @@ olarak gider. Tasarım ayrıntıları: [`YENI-OZELLIKLER.md`](YENI-OZELLIKLER.md
 | # | Workflow | Ne verir | Telegram |
 |---|---|---|---|
 | 22 | Alışkanlık takibi | 🔥 Seri, son 7 gün, akşam hatırlatması | `/aliskanlik` · `/yaptim 2` |
+| 23 | Bütçe nöbetçisi | Limit, kalan, günlük harcanabilir, %80/%100 uyarısı | `/butce` · `/butce limit 20000` |
 <!-- paket-tablosu -->
 
 Telegram komutları için workflow 05'teki ilgili **… Workflow'una İlet**
@@ -860,6 +864,50 @@ curl -X POST http://localhost:5678/webhook/aliskanlik \
 curl -X POST http://localhost:5678/webhook/aliskanlik -H 'Content-Type: application/json' -d '{}'   # liste (JSON)
 ```
 
+### 14.2 Bütçe nöbetçisi (workflow 23)
+
+Harcama kaydı (07, `/harcama`) zaten var; eksik olan **sınırdı**. Bu workflow
+`harcamalar.json`'u yalnızca okur ve bu ayı limitlerinizle karşılaştırır.
+
+```
+/butce limit 20000              → aylık genel limit
+/butce limit Market 6000        → kategori limiti (yoksa oluşturur)
+/butce anahtar Market migros,a101
+/butce sil Market
+/butce                          → durum
+```
+
+`/butce` çıktısı:
+
+```
+🎯 Bütçe — Eylül 2026 (23/30. gün, 41 kayıt)
+Genel ▓▓▓▓▓▓░░░░ %64
+  12.720 TL / 20.000 TL · kalan 7.280 TL · günde 910 TL
+
+Kategoriler:
+• Market ▓▓▓▓▓▓▓▓░░ %81 — 4.860 TL / 6.000 TL
+• Ulaşım: 320 TL (limitsiz)
+• Diğer: 7.540 TL
+
+Ay sonu tahmini: 16.591 TL
+```
+
+- **Kategori eşleşmesi:** harcamanın açıklamasında (`konu`) ya da
+  gönderende (`kimden`) kategorinin adı veya anahtar kelimelerinden biri
+  geçiyorsa o kategoriye sayılır; ilk eşleşen kazanır. Örnek dosyada Market,
+  Yeme-içme, Ulaşım ve Fatura için hazır kelimeler var.
+- **Her akşam 20:00** genel ve kategori limitleri için %80 ve %100
+  eşiklerini kontrol eder. Her eşik **ayda bir kez** bildirilir; ay değişince
+  sıfırlanır.
+- "Günde X TL" = kalan tutar ÷ bugün dahil ayın kalan günleri.
+- Yalnızca TL harcamalar sayılır.
+
+```bash
+curl http://localhost:5678/webhook/butce          # durum (JSON)
+curl -X POST http://localhost:5678/webhook/butce \
+  -H 'Content-Type: application/json' -d '{"metin":"limit 20000"}'
+```
+
 <!-- paket-bolumleri -->
 
 ## 15. iPhone, Mac ve Windows'tan kullanmak
@@ -879,6 +927,7 @@ telefondan kullanabilirsiniz: **Telegram botu dışarıya hiçbir kapı açmadan
 | `/arac uuid` · `/arac jwt …` | Araç kutusu |
 | `/istekler` · `/istek 3` | Yakalanan webhook istekleri |
 | `/aliskanlik` · `/yaptim 2` | Alışkanlık serileri · bugünü işaretleme |
+| `/butce` · `/butce limit 20000` | Bütçe durumu · limit koyma |
 | `/yardim` | Tüm komutlar |
 
 Uyarılar (servis düştü, PR bekliyor) siz bir şey yapmadan gelir.
@@ -1021,6 +1070,7 @@ makinenizde (şifreli) durur.
 | `/webhook/yakala` 404 dönüyor | Workflow 21 **Active** değil. Test modunda `webhook-test/yakala` adresi kullanılır (§5). |
 | Yakalanan istekte `Authorization` görünmüyor | Bilerek: gizli başlıklar ilk 6 karakter dışında maskelenir (§13.5). Gerçek değeri görmek için `local-files/yakalanan-istekler.json` yerine isteği gönderen tarafa bakın. |
 | `/yaptim` "bulunamadı" diyor | Numara yerine adın bir parçasını da yazabilirsiniz (`/yaptim kitap`); numaraları `/aliskanlik` gösterir. Aynı kelime birden çok alışkanlıkta geçiyorsa ilk eşleşen seçilir — numara kullanın. |
+| Bütçede harcama "Diğer"e düşüyor | Kategorinin anahtar kelimesi harcamanın açıklamasında geçmiyor. `/butce anahtar Market <kelime>` ile ekleyin (§14.2). |
 
 ## 19. Güncelleme
 

@@ -1,0 +1,786 @@
+{
+  "name": "23 — Bütçe Nöbetçisi",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🎯 Bütçe nöbetçisi — ay sonunda şaşırmayın\n\nAylık genel limit ve isteğe bağlı kategori limitleri. Harcamalar\n`harcamalar.json`'dan (workflow 07 ve `/harcama`) **yalnızca okunur**;\nbu workflow o dosyaya hiç yazmaz.\n\n### Kurulum\n1. `cp local-files/butce.ornek.json local-files/butce.json`\n2. Limit koyun — Telegram'dan `/butce limit 20000` ya da dosyada\n   `\"aylikLimit\": 20000`. Kategori limiti: `/butce limit Market 6000`.\n3. Workflow'u **Active** yapın. Credential gerekmez.\n4. Telegram kurulu değilse **Bütçe Uyarısını Mail At** düğümünde SMTP\n   credential'ını seçip iki adres alanını değiştirin.\n5. Telegram komutları için workflow 05'teki\n   **Bütçe Workflow'una İlet** düğümünde bu workflow'u seçin.\n\n### Kullanım\n```\n/butce                          → durum, kalan, günlük harcanabilir\n/butce limit 20000              → aylık genel limit\n/butce limit Market 6000        → kategori limiti\n/butce anahtar Market migros,a101\n/butce sil Market\n```\n```bash\ncurl http://localhost:5678/webhook/butce          # durum (JSON)\ncurl -X POST http://localhost:5678/webhook/butce \\\n  -H 'Content-Type: application/json' -d '{\"metin\":\"limit 20000\"}'\n```",
+        "width": 540,
+        "height": 880
+      },
+      "id": "14305f11-7dde-5d0a-8e6d-13a9055ad76b",
+      "name": "Not a1f23",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚙️ Teknik notlar\n\n- **Kategori eşleşmesi:** harcamanın `konu` + `kimden` metninde\n  kategorinin adı ya da anahtar kelimelerinden biri geçiyorsa o\n  kategoriye sayılır (ilk eşleşen kazanır). Uymayanlar **Diğer**.\n- **20:00 kontrolü** genel ve kategori limitleri için %80 ve %100\n  eşiklerini bildirir; her eşik **ayda bir kez**. Ay değişince sıfırlanır.\n  *Elle Test Et* yeni eşik olmasa da tam durumu gönderir.\n- Yalnızca TL harcamalar sayılır; ay, `GENERIC_TIMEZONE`'a göre.\n- `butce.json` bozuksa workflow **durur**, varsayılanları yazıp\n  kategorilerinizi silmez. Dosya hiç yoksa akşam kontrolü sessizdir.\n- 🔒 Hiçbir şey dışarı gitmez (Telegram mesajının kendisi hariç).",
+        "width": 540,
+        "height": 360
+      },
+      "id": "4d1c2cd7-cdc4-50b8-aad1-755e62d61a42",
+      "name": "Not b2f23",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "butce",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c9f46c51-c063-5f02-9d97-47abcb5f14f1",
+      "name": "Bütçe Komutu (Webhook POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -60
+      ],
+      "webhookId": "08ff53f4-a1c0-5827-a7aa-0993e07c72aa"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "butce",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "79584e15-22e1-5925-9e9e-13cd3fa60aed",
+      "name": "Bütçe Durumu (Webhook GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        100
+      ],
+      "webhookId": "04ebc74d-a68d-5d38-96ba-b67f61b58b22"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "a87c07ef-6ee0-5f54-87a6-c8a5c7baba74",
+      "name": "Workflow 05'ten Çağrı (Bütçe)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Üç giriş de buradan geçer:\n//  • POST /webhook/butce → alanlar \"body\" içinde ({\"metin\": \"limit 20000\"}),\n//  • GET  /webhook/butce → gövde yok, durum JSON olarak döner,\n//  • Workflow 05'in /butce komutu → alanlar doğrudan gelir.\nconst j = $input.first().json || {};\nconst webhooktan = Object.prototype.hasOwnProperty.call(j, 'body') || Object.prototype.hasOwnProperty.call(j, 'query');\nconst govde = webhooktan ? (j.body && typeof j.body === 'object' ? j.body : {}) : j;\n\nconst chat_id = govde.chat_id ? String(govde.chat_id) : '';\nconst ISLEMLER = { durum: 'durum', limit: 'limit', anahtar: 'anahtar', kelime: 'anahtar', sil: 'sil' };\nconst metin = String(govde.metin || '').trim();\nconst ilk = metin.split(/\\s+/)[0].toLowerCase();\nlet islem = 'durum';\nlet arg = '';\nif (metin) {\n  islem = ISLEMLER[ilk] || 'bilinmeyen';\n  arg = ISLEMLER[ilk] ? metin.slice(ilk.length).trim() : metin;\n}\n\nreturn [{ json: { islem, arg, chat_id, webhooktan } }];\n"
+      },
+      "id": "f421ca2e-cb2a-59e2-81b7-c17091d60556",
+      "name": "İsteği Al (Bütçe)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/butce.json",
+        "options": {}
+      },
+      "id": "3437b8f6-8739-5eb7-9a9d-5c902e911fea",
+      "name": "Bütçeyi Oku",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "aa41e0fa-07ce-5a76-b8c7-689ef49c9dbe",
+      "name": "Bütçeyi Çıkar",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        560,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/harcamalar.json",
+        "options": {}
+      },
+      "id": "ab8f7054-4ea2-5ccf-b04e-24078550c6cc",
+      "name": "Harcamaları Oku (Bütçe)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        760,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "8f51419a-8613-506b-8f3a-7764f2ea0770",
+      "name": "Harcamaları Çıkar (Bütçe)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        960,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Ortak: bütçe dosyası + bu ayın harcamaları → durum ───────────────────────\n// harcamalar.json YALNIZCA okunur (07 ve 05 yazar); bu workflow ona dokunmaz.\nconst _okuDurumu = (okuNode, cikarNode) => {\n  const okuHata = $(okuNode).first().json.error;\n  const okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\n  const cikarHata = $(cikarNode).first().json.error;\n  const yok = /ENOENT|no such file|not found/i.test(okuMesaj);\n  const bozuk = !yok && Boolean(okuHata || cikarHata);\n  const mesaj = okuMesaj || String((cikarHata && (cikarHata.message || cikarHata)) || '');\n  const j = $(cikarNode).first().json || {};\n  return { yok, bozuk, mesaj, veri: (yok || bozuk) ? {} : (j.data || j) };\n};\nconst kucuk = (s) => String(s || '').toLocaleLowerCase('tr-TR');\nconst tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 0 }) + ' TL';\nconst iki = (n) => String(n).padStart(2, '0');\nconst ayAnahtari = (d) => d.getFullYear() + '-' + iki(d.getMonth() + 1);\n\n// \"149,90\" · \"1.250\" · \"20000\" · \"20.000,00\" → sayı\nconst sayiyaCevir = (ham) => {\n  let t = String(ham).trim();\n  const sonNokta = t.lastIndexOf('.');\n  const sonVirgul = t.lastIndexOf(',');\n  if (sonVirgul > sonNokta) t = t.replace(/\\./g, '').replace(',', '.');\n  else if (sonVirgul === -1 && /^\\d{1,3}(\\.\\d{3})+$/.test(t)) t = t.replace(/\\./g, '');\n  else t = t.replace(/,/g, '');\n  const n = Number(t);\n  return Number.isFinite(n) ? n : null;\n};\n\nconst butceyiDuzenle = (v) => ({\n  aylikLimit: typeof v.aylikLimit === 'number' && v.aylikLimit > 0 ? v.aylikLimit : null,\n  kategoriler: (Array.isArray(v.kategoriler) ? v.kategoriler : [])\n    .filter((k) => k && String(k.ad || '').trim())\n    .map((k) => ({\n      ad: String(k.ad).trim(),\n      limit: typeof k.limit === 'number' && k.limit > 0 ? k.limit : null,\n      anahtarlar: (Array.isArray(k.anahtarlar) ? k.anahtarlar : []).map(kucuk).filter(Boolean),\n    })),\n  uyarilar: {\n    ay: (v.uyarilar && v.uyarilar.ay) || null,\n    gonderilen: (v.uyarilar && Array.isArray(v.uyarilar.gonderilen)) ? [...v.uyarilar.gonderilen] : [],\n  },\n});\n\n// Harcamanın konusu + göndereni içinde anahtar kelime (ya da kategori adı)\n// geçen ilk kategori kazanır. Hiçbiri tutmazsa \"Diğer\".\nconst kategoriBul = (h, kategoriler) => {\n  const metin = kucuk((h.konu || '') + ' ' + (h.kimden || ''));\n  const k = kategoriler.find((x) => [kucuk(x.ad), ...x.anahtarlar].some((a) => a && metin.includes(a)));\n  return k ? k.ad : 'Diğer';\n};\n\nconst durumHesapla = (butce, harcamalar, simdi) => {\n  const ay = ayAnahtari(simdi);\n  const ayGun = new Date(simdi.getFullYear(), simdi.getMonth() + 1, 0).getDate();\n  const gun = simdi.getDate();\n  const buAy = harcamalar.filter((h) => {\n    if (!h || typeof h.tutar !== 'number' || (h.paraBirimi && h.paraBirimi !== 'TL')) return false;\n    const t = new Date(h.tarih);\n    return !isNaN(t.getTime()) && ayAnahtari(t) === ay;\n  });\n  const toplamlar = new Map();\n  for (const h of buAy) {\n    const k = kategoriBul(h, butce.kategoriler);\n    toplamlar.set(k, (toplamlar.get(k) || 0) + h.tutar);\n  }\n  const toplam = buAy.reduce((t, h) => t + h.tutar, 0);\n  const oran = (x, limit) => (limit ? Math.round((x / limit) * 100) : null);\n  const kalanGun = ayGun - gun + 1;\n  const genel = {\n    ad: 'Genel', limit: butce.aylikLimit, harcanan: toplam, oran: oran(toplam, butce.aylikLimit),\n    kalan: butce.aylikLimit ? butce.aylikLimit - toplam : null,\n    gunlukKalan: butce.aylikLimit ? Math.max(0, (butce.aylikLimit - toplam) / kalanGun) : null,\n  };\n  const kategoriler = butce.kategoriler.map((k) => {\n    const harcanan = toplamlar.get(k.ad) || 0;\n    return { ad: k.ad, limit: k.limit, harcanan, oran: oran(harcanan, k.limit) };\n  });\n  const diger = toplamlar.get('Diğer') || 0;\n  return {\n    ay, ayGun, gun, kayit: buAy.length, genel, kategoriler, diger,\n    tahmin: gun > 0 ? Math.round((toplam / gun) * ayGun) : toplam,\n  };\n};\n\nconst cubuk = (oran) => {\n  const dolu = Math.max(0, Math.min(10, Math.round((oran || 0) / 10)));\n  return '▓'.repeat(dolu) + '░'.repeat(10 - dolu);\n};\nconst ayAdi = (d) => d.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });\n\nconst durumMetni = (d, simdi) => {\n  const s = ['🎯 Bütçe — ' + ayAdi(simdi) + ' (' + d.gun + '/' + d.ayGun + '. gün, ' + d.kayit + ' kayıt)'];\n  if (d.genel.limit) {\n    s.push('Genel ' + cubuk(d.genel.oran) + ' %' + d.genel.oran);\n    s.push('  ' + tl(d.genel.harcanan) + ' / ' + tl(d.genel.limit) + ' · ' +\n      (d.genel.kalan >= 0 ? 'kalan ' + tl(d.genel.kalan) + ' · günde ' + tl(d.genel.gunlukKalan)\n                          : '⚠️ ' + tl(-d.genel.kalan) + ' aşıldı'));\n  } else {\n    s.push('Bu ay: ' + tl(d.genel.harcanan) + ' (genel limit yok → /butce limit 20000)');\n  }\n  const satirlar = d.kategoriler\n    .filter((k) => k.limit || k.harcanan > 0)\n    .map((k) => k.limit\n      ? '• ' + k.ad + ' ' + cubuk(k.oran) + ' %' + k.oran + ' — ' + tl(k.harcanan) + ' / ' + tl(k.limit)\n      : '• ' + k.ad + ': ' + tl(k.harcanan) + ' (limitsiz)');\n  if (d.diger > 0) satirlar.push('• Diğer: ' + tl(d.diger));\n  if (satirlar.length) s.push('', 'Kategoriler:', ...satirlar);\n  const asim = d.genel.limit && d.tahmin > d.genel.limit ? ' ⚠️ limitin üstünde' : '';\n  s.push('', 'Ay sonu tahmini: ' + tl(d.tahmin) + asim);\n  return s.join('\\n');\n};\n// ─────────────────────────────────────────────────────────────────────────────\n// Komut: durum / limit / anahtar / sil. Bütçe dosyası bozuksa durur — aksi\n// hâlde varsayılanlarla üzerine yazılır ve kategoriler kaybolur. Harcama\n// dosyası bozuksa yalnızca uyarılır (bu workflow ona yazmaz).\nconst b = _okuDurumu('Bütçeyi Oku', 'Bütçeyi Çıkar');\nif (b.bozuk) throw new Error('butce.json okunamadı; veri kaybını önlemek için durduruldu → ' + b.mesaj);\nconst h = _okuDurumu('Harcamaları Oku (Bütçe)', 'Harcamaları Çıkar (Bütçe)');\n\nconst istek = $('İsteği Al (Bütçe)').first().json;\nconst butce = butceyiDuzenle(b.veri);\nconst harcamalar = Array.isArray(h.veri.harcamalar) ? h.veri.harcamalar : [];\nconst simdi = new Date();\n\nlet mesaj = '';\nlet yazilsin = false;\nlet hata = false;\nconst kategori = (ad) => butce.kategoriler.find((k) => kucuk(k.ad) === kucuk(ad));\n\nconst a = istek.arg;\nif (istek.islem === 'durum') {\n  mesaj = '';\n} else if (istek.islem === 'limit') {\n  // \"limit 20000\" · \"limit Market 6000\" · \"limit Market 0\" (limiti kaldırır)\n  const m = a.match(/^(.*?)\\s*([0-9][0-9.,]*)\\s*(?:tl|₺)?$/i);\n  const tutar = m ? sayiyaCevir(m[2]) : null;\n  if (!m || tutar === null || tutar < 0) {\n    hata = true;\n    mesaj = 'Kullanım: /butce limit 20000  ·  /butce limit Market 6000';\n  } else if (!m[1].trim()) {\n    butce.aylikLimit = tutar > 0 ? tutar : null;\n    yazilsin = true;\n    mesaj = tutar > 0 ? '✅ Aylık genel limit: ' + tl(tutar) : '✅ Genel limit kaldırıldı.';\n  } else {\n    const ad = m[1].trim();\n    let k = kategori(ad);\n    if (!k) {\n      k = { ad, limit: null, anahtarlar: [kucuk(ad)] };\n      butce.kategoriler.push(k);\n    }\n    k.limit = tutar > 0 ? tutar : null;\n    yazilsin = true;\n    mesaj = '✅ ' + k.ad + ' limiti: ' + (k.limit ? tl(k.limit) : 'yok') +\n      (k.anahtarlar.length ? '\\nEşleşen kelimeler: ' + k.anahtarlar.join(', ') : '') +\n      '\\nKelime eklemek için: /butce anahtar ' + k.ad + ' migros';\n  }\n} else if (istek.islem === 'anahtar') {\n  // Kategori adı birden çok kelime olabilir (\"Yeme içme\"): en uzun eşleşen ad seçilir.\n  const k = butce.kategoriler\n    .filter((x) => kucuk(a).startsWith(kucuk(x.ad) + ' '))\n    .sort((x, y) => y.ad.length - x.ad.length)[0] || null;\n  const yeni = k ? a.slice(k.ad.length).split(/\\s*,\\s*|\\s+/).map(kucuk).filter(Boolean) : [];\n  if (!k || yeni.length === 0) {\n    hata = true;\n    mesaj = 'Kullanım: /butce anahtar Market migros,a101\\n' +\n      (butce.kategoriler.length ? 'Kategoriler: ' + butce.kategoriler.map((x) => x.ad).join(', ') : 'Önce: /butce limit Market 6000');\n  } else {\n    k.anahtarlar = [...new Set([...k.anahtarlar, ...yeni])];\n    yazilsin = true;\n    mesaj = '✅ ' + k.ad + ' kelimeleri: ' + k.anahtarlar.join(', ');\n  }\n} else if (istek.islem === 'sil') {\n  const k = kategori(a);\n  if (!k) {\n    hata = true;\n    mesaj = '\"' + a + '\" diye bir kategori yok.';\n  } else {\n    butce.kategoriler.splice(butce.kategoriler.indexOf(k), 1);\n    yazilsin = true;\n    mesaj = '🗑 Kategori silindi: ' + k.ad + ' (harcamaları artık \"Diğer\"de)';\n  }\n} else {\n  hata = true;\n  mesaj = [\n    'Bütçe komutları:',\n    '• /butce → bu ayın durumu',\n    '• /butce limit 20000 → aylık genel limit',\n    '• /butce limit Market 6000 → kategori limiti',\n    '• /butce anahtar Market migros,a101',\n    '• /butce sil Market',\n  ].join('\\n');\n}\n\nconst durum = durumHesapla(butce, harcamalar, simdi);\nif (!hata) {\n  mesaj = (mesaj ? mesaj + '\\n\\n' : '') + durumMetni(durum, simdi);\n  if (h.bozuk) mesaj += '\\n\\n⚠️ harcamalar.json okunamadı: ' + h.mesaj;\n}\n\nreturn [{\n  json: {\n    islem: istek.islem, chat_id: istek.chat_id, webhooktan: istek.webhooktan,\n    mesaj, hata, durum, yazilsin, butce,\n  },\n}];\n"
+      },
+      "id": "a2e4e045-2bdb-5555-9b66-fcb3ce7f8b8c",
+      "name": "İşlemi Uygula (Bütçe)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yanıt düğümü yalnızca webhook ile gelen isteklerde çalışmalı;\n// workflow 05'ten gelen çağrıda yanıtlanacak bir HTTP isteği yoktur.\nconst j = $input.first().json;\nreturn j.webhooktan ? [{ json: j }] : [];"
+      },
+      "id": "7103283a-bdf4-5852-96ea-0b8c8813b8d5",
+      "name": "Webhook'a mı Yanıtlanacak? (Bütçe)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: !$json.hata, islem: $json.islem, mesaj: $json.mesaj, durum: $json.durum }) }}",
+        "options": {}
+      },
+      "id": "94160e04-f5d3-5200-9fff-065fbd159e6c",
+      "name": "Yanıt Ver (Bütçe)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1600,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// İstek Telegram'dan geldiyse sonuç oraya gider.\nconst j = $input.first().json;\nif (!j.chat_id) return [];\nreturn [{ json: { chat_id: j.chat_id, text: String(j.mesaj).slice(0, 3900) } }];"
+      },
+      "id": "5e52e5df-9653-54ba-a6ec-7c3bcd261965",
+      "name": "Telegram'a Bildir (Bütçe)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "e6cd5e0e-d90a-5c01-8f0d-776b067cc6bb",
+      "name": "Bütçe Yanıtını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        100
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Yalnızca bütçe ayarı değiştiyse yazılır (limit, kelime, kategori).\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: j.butce }];"
+      },
+      "id": "51c5d098-a996-59e4-988f-acadf9d955b3",
+      "name": "Bütçe Gövdesi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "butce.json"
+        }
+      },
+      "id": "c8e73742-e787-5c20-93e4-c60fde0394c7",
+      "name": "Bütçeyi Dosyaya Çevir",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1600,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/butce.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "b1ee7c57-4598-51fc-b36d-efd312ed4696",
+      "name": "Bütçeyi Yaz",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1820,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 20,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "b63a5408-23af-551c-ac83-a7f7fe9f67bf",
+      "name": "Her Akşam 20:00 (Bütçe)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -80,
+        560
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "833b5864-42e7-5eaa-9de3-5ab8ccdcff39",
+      "name": "Elle Test Et (Bütçe)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        740
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/butce.json",
+        "options": {}
+      },
+      "id": "7f5c5e66-3664-5814-ad8d-6c354904a7cf",
+      "name": "Bütçeyi Oku (Akşam)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        160,
+        640
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "bedc1e86-7483-5d8d-a16f-d84bc6960e4d",
+      "name": "Bütçeyi Çıkar (Akşam)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        360,
+        640
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/files/harcamalar.json",
+        "options": {}
+      },
+      "id": "b9564fca-9cb9-5be4-a9ab-06e5f6fbb80e",
+      "name": "Harcamaları Oku (Akşam)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        560,
+        640
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "fromJson",
+        "options": {}
+      },
+      "id": "ed98a700-aa1d-546e-9022-96363643b87f",
+      "name": "Harcamaları Çıkar (Akşam)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        760,
+        640
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Ortak: bütçe dosyası + bu ayın harcamaları → durum ───────────────────────\n// harcamalar.json YALNIZCA okunur (07 ve 05 yazar); bu workflow ona dokunmaz.\nconst _okuDurumu = (okuNode, cikarNode) => {\n  const okuHata = $(okuNode).first().json.error;\n  const okuMesaj = okuHata ? String(okuHata.message || okuHata) : '';\n  const cikarHata = $(cikarNode).first().json.error;\n  const yok = /ENOENT|no such file|not found/i.test(okuMesaj);\n  const bozuk = !yok && Boolean(okuHata || cikarHata);\n  const mesaj = okuMesaj || String((cikarHata && (cikarHata.message || cikarHata)) || '');\n  const j = $(cikarNode).first().json || {};\n  return { yok, bozuk, mesaj, veri: (yok || bozuk) ? {} : (j.data || j) };\n};\nconst kucuk = (s) => String(s || '').toLocaleLowerCase('tr-TR');\nconst tl = (n) => Number(n).toLocaleString('tr-TR', { maximumFractionDigits: 0 }) + ' TL';\nconst iki = (n) => String(n).padStart(2, '0');\nconst ayAnahtari = (d) => d.getFullYear() + '-' + iki(d.getMonth() + 1);\n\n// \"149,90\" · \"1.250\" · \"20000\" · \"20.000,00\" → sayı\nconst sayiyaCevir = (ham) => {\n  let t = String(ham).trim();\n  const sonNokta = t.lastIndexOf('.');\n  const sonVirgul = t.lastIndexOf(',');\n  if (sonVirgul > sonNokta) t = t.replace(/\\./g, '').replace(',', '.');\n  else if (sonVirgul === -1 && /^\\d{1,3}(\\.\\d{3})+$/.test(t)) t = t.replace(/\\./g, '');\n  else t = t.replace(/,/g, '');\n  const n = Number(t);\n  return Number.isFinite(n) ? n : null;\n};\n\nconst butceyiDuzenle = (v) => ({\n  aylikLimit: typeof v.aylikLimit === 'number' && v.aylikLimit > 0 ? v.aylikLimit : null,\n  kategoriler: (Array.isArray(v.kategoriler) ? v.kategoriler : [])\n    .filter((k) => k && String(k.ad || '').trim())\n    .map((k) => ({\n      ad: String(k.ad).trim(),\n      limit: typeof k.limit === 'number' && k.limit > 0 ? k.limit : null,\n      anahtarlar: (Array.isArray(k.anahtarlar) ? k.anahtarlar : []).map(kucuk).filter(Boolean),\n    })),\n  uyarilar: {\n    ay: (v.uyarilar && v.uyarilar.ay) || null,\n    gonderilen: (v.uyarilar && Array.isArray(v.uyarilar.gonderilen)) ? [...v.uyarilar.gonderilen] : [],\n  },\n});\n\n// Harcamanın konusu + göndereni içinde anahtar kelime (ya da kategori adı)\n// geçen ilk kategori kazanır. Hiçbiri tutmazsa \"Diğer\".\nconst kategoriBul = (h, kategoriler) => {\n  const metin = kucuk((h.konu || '') + ' ' + (h.kimden || ''));\n  const k = kategoriler.find((x) => [kucuk(x.ad), ...x.anahtarlar].some((a) => a && metin.includes(a)));\n  return k ? k.ad : 'Diğer';\n};\n\nconst durumHesapla = (butce, harcamalar, simdi) => {\n  const ay = ayAnahtari(simdi);\n  const ayGun = new Date(simdi.getFullYear(), simdi.getMonth() + 1, 0).getDate();\n  const gun = simdi.getDate();\n  const buAy = harcamalar.filter((h) => {\n    if (!h || typeof h.tutar !== 'number' || (h.paraBirimi && h.paraBirimi !== 'TL')) return false;\n    const t = new Date(h.tarih);\n    return !isNaN(t.getTime()) && ayAnahtari(t) === ay;\n  });\n  const toplamlar = new Map();\n  for (const h of buAy) {\n    const k = kategoriBul(h, butce.kategoriler);\n    toplamlar.set(k, (toplamlar.get(k) || 0) + h.tutar);\n  }\n  const toplam = buAy.reduce((t, h) => t + h.tutar, 0);\n  const oran = (x, limit) => (limit ? Math.round((x / limit) * 100) : null);\n  const kalanGun = ayGun - gun + 1;\n  const genel = {\n    ad: 'Genel', limit: butce.aylikLimit, harcanan: toplam, oran: oran(toplam, butce.aylikLimit),\n    kalan: butce.aylikLimit ? butce.aylikLimit - toplam : null,\n    gunlukKalan: butce.aylikLimit ? Math.max(0, (butce.aylikLimit - toplam) / kalanGun) : null,\n  };\n  const kategoriler = butce.kategoriler.map((k) => {\n    const harcanan = toplamlar.get(k.ad) || 0;\n    return { ad: k.ad, limit: k.limit, harcanan, oran: oran(harcanan, k.limit) };\n  });\n  const diger = toplamlar.get('Diğer') || 0;\n  return {\n    ay, ayGun, gun, kayit: buAy.length, genel, kategoriler, diger,\n    tahmin: gun > 0 ? Math.round((toplam / gun) * ayGun) : toplam,\n  };\n};\n\nconst cubuk = (oran) => {\n  const dolu = Math.max(0, Math.min(10, Math.round((oran || 0) / 10)));\n  return '▓'.repeat(dolu) + '░'.repeat(10 - dolu);\n};\nconst ayAdi = (d) => d.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });\n\nconst durumMetni = (d, simdi) => {\n  const s = ['🎯 Bütçe — ' + ayAdi(simdi) + ' (' + d.gun + '/' + d.ayGun + '. gün, ' + d.kayit + ' kayıt)'];\n  if (d.genel.limit) {\n    s.push('Genel ' + cubuk(d.genel.oran) + ' %' + d.genel.oran);\n    s.push('  ' + tl(d.genel.harcanan) + ' / ' + tl(d.genel.limit) + ' · ' +\n      (d.genel.kalan >= 0 ? 'kalan ' + tl(d.genel.kalan) + ' · günde ' + tl(d.genel.gunlukKalan)\n                          : '⚠️ ' + tl(-d.genel.kalan) + ' aşıldı'));\n  } else {\n    s.push('Bu ay: ' + tl(d.genel.harcanan) + ' (genel limit yok → /butce limit 20000)');\n  }\n  const satirlar = d.kategoriler\n    .filter((k) => k.limit || k.harcanan > 0)\n    .map((k) => k.limit\n      ? '• ' + k.ad + ' ' + cubuk(k.oran) + ' %' + k.oran + ' — ' + tl(k.harcanan) + ' / ' + tl(k.limit)\n      : '• ' + k.ad + ': ' + tl(k.harcanan) + ' (limitsiz)');\n  if (d.diger > 0) satirlar.push('• Diğer: ' + tl(d.diger));\n  if (satirlar.length) s.push('', 'Kategoriler:', ...satirlar);\n  const asim = d.genel.limit && d.tahmin > d.genel.limit ? ' ⚠️ limitin üstünde' : '';\n  s.push('', 'Ay sonu tahmini: ' + tl(d.tahmin) + asim);\n  return s.join('\\n');\n};\n// ─────────────────────────────────────────────────────────────────────────────\n// Akşam kontrolü: genel limit ve her kategori için %80 ve %100 eşikleri.\n// Her eşik AYDA BİR KEZ bildirilir; ay değişince işaretler sıfırlanır.\n// \"Elle Test Et\" ile çalıştırılınca yeni eşik olmasa da tam durum gönderilir.\nconst b = _okuDurumu('Bütçeyi Oku (Akşam)', 'Bütçeyi Çıkar (Akşam)');\nif (b.bozuk) throw new Error('butce.json okunamadı; veri kaybını önlemek için durduruldu → ' + b.mesaj);\nconst h = _okuDurumu('Harcamaları Oku (Akşam)', 'Harcamaları Çıkar (Akşam)');\nif (h.bozuk) throw new Error('harcamalar.json okunamadı → ' + h.mesaj);\n\n// Bütçe hiç kurulmadıysa (dosya yok) sessiz kalınır, dosya da oluşturulmaz.\nif (b.yok) return [{ json: { gonderilecek: false, yazilsin: false } }];\n\nlet elle = false;\ntry { elle = $('Elle Test Et (Bütçe)').all().length > 0; } catch (e) { elle = false; }\n\nconst esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));\nconst butce = butceyiDuzenle(b.veri);\nconst harcamalar = Array.isArray(h.veri.harcamalar) ? h.veri.harcamalar : [];\nconst simdi = new Date();\nconst d = durumHesapla(butce, harcamalar, simdi);\n\nconst oncekiAy = butce.uyarilar.ay;\nconst gonderilen = oncekiAy === d.ay ? [...butce.uyarilar.gonderilen] : [];\nconst uyarilar = [];\nconst kontrol = (ad, harcanan, limit, oran, anahtar) => {\n  if (!limit) return;\n  const yeni = [80, 100].filter((e) => oran >= e && !gonderilen.includes(anahtar + '-' + e));\n  if (yeni.length === 0) return;\n  yeni.forEach((e) => gonderilen.push(anahtar + '-' + e));\n  const asti = oran >= 100;\n  uyarilar.push((asti ? '🔴 ' : '🟠 ') + ad + ': ' + (asti ? 'limit aşıldı' : '%' + oran + ' doldu') +\n    ' — ' + tl(harcanan) + ' / ' + tl(limit) + (asti ? '' : ', kalan ' + tl(limit - harcanan)));\n};\nkontrol('Genel', d.genel.harcanan, d.genel.limit, d.genel.oran, 'genel');\nd.kategoriler.forEach((k) => kontrol(k.ad, k.harcanan, k.limit, k.oran, 'kat:' + kucuk(k.ad)));\n\nconst ayDegisti = oncekiAy !== d.ay;\nif (uyarilar.length === 0 && !elle) {\n  // Ay değiştiyse eski işaretleri sıfırlamak için yine de yazılır.\n  return [{ json: { gonderilecek: false, yazilsin: ayDegisti,\n    govde: { ...butce, uyarilar: { ay: d.ay, gonderilen } } } }];\n}\n\nconst durum = durumMetni(d, simdi);\nconst text = uyarilar.length\n  ? '🎯 Bütçe uyarısı\\n' + uyarilar.join('\\n') + (d.genel.gunlukKalan !== null && d.genel.kalan > 0\n      ? '\\nAy sonuna kadar günde ' + tl(d.genel.gunlukKalan) + ' harcayabilirsiniz.' : '') + '\\n\\n' + durum\n  : durum;\nreturn [{\n  json: {\n    gonderilecek: true,\n    yazilsin: uyarilar.length > 0 || ayDegisti,\n    text,\n    konu: uyarilar.length ? '🎯 Bütçe uyarısı: ' + uyarilar.length + ' eşik' : '🎯 Bütçe durumu',\n    html: '<pre style=\"font-family:inherit\">' + esc(text) + '</pre>',\n    govde: { ...butce, uyarilar: { ay: d.ay, gonderilen } },\n  },\n}];\n"
+      },
+      "id": "4d2053bf-6069-5b93-845b-214df02b6378",
+      "name": "Eşikleri Kontrol Et",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kuruluysa uyarı oraya gider; değilse bu dal boş döner.\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst token = String($env.TELEGRAM_BOT_TOKEN || '').trim();\nconst chat = String($env.TELEGRAM_CHAT_ID || '').trim();\nif (!token || !chat) return [];\nreturn [{ json: { chat_id: chat, text: j.text.slice(0, 3900) } }];"
+      },
+      "id": "7871c5ae-0e4d-5e5f-8440-bfd27f43af7c",
+      "name": "Telegram Kurulu mu? (Bütçe)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chat_id, text: $json.text }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "87c30ecb-5087-58e8-a25c-ca6b5226e951",
+      "name": "Bütçe Uyarısını Telegrama Gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        560
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram kurulu DEĞİLSE uyarı mail olarak gider (çift bildirim olmasın).\nconst j = $input.first().json;\nif (!j.gonderilecek) return [];\nconst kurulu = String($env.TELEGRAM_BOT_TOKEN || '').trim() && String($env.TELEGRAM_CHAT_ID || '').trim();\nif (kurulu) return [];\nreturn [{ json: { konu: j.konu, html: j.html } }];"
+      },
+      "id": "ca56e169-a06a-51d4-9135-59465e103f59",
+      "name": "Telegram Yoksa Mail (Bütçe)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "sizin-adresiniz@gmail.com",
+        "toEmail": "sizin-adresiniz@gmail.com",
+        "subject": "={{ $json.konu }}",
+        "emailFormat": "html",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "16dc0e65-5be8-58d8-92ca-b64a5e1b046d",
+      "name": "Bütçe Uyarısını Mail At (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1400,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gönderilen eşikler işaretlenir: aynı eşik bu ay tekrar bildirilmez.\nconst j = $input.first().json;\nif (!j.yazilsin) return [];\nreturn [{ json: j.govde }];"
+      },
+      "id": "0411546e-b522-509f-9498-cc248c407411",
+      "name": "Bütçe Gövdesi (Akşam)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "mode": "each",
+        "options": {
+          "format": true,
+          "fileName": "butce.json"
+        }
+      },
+      "id": "af8cecc9-86e9-5510-ba09-f553248cb82d",
+      "name": "Bütçeyi Dosyaya Çevir (Akşam)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1400,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "/files/butce.json",
+        "dataPropertyName": "data",
+        "options": {}
+      },
+      "id": "01cb87b7-2b70-5cac-9df0-f291b1ba9484",
+      "name": "Bütçeyi Yaz (Akşam)",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1620,
+        880
+      ]
+    }
+  ],
+  "connections": {
+    "Bütçe Komutu (Webhook POST)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Bütçe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçe Durumu (Webhook GET)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Bütçe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow 05'ten Çağrı (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "İsteği Al (Bütçe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İsteği Al (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Oku",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçeyi Oku": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Çıkar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçeyi Çıkar": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Oku (Bütçe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Oku (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Çıkar (Bütçe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Çıkar (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "İşlemi Uygula (Bütçe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "İşlemi Uygula (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "Webhook'a mı Yanıtlanacak? (Bütçe)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram'a Bildir (Bütçe)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Bütçe Gövdesi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook'a mı Yanıtlanacak? (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "Yanıt Ver (Bütçe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram'a Bildir (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "Bütçe Yanıtını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçe Gövdesi": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Dosyaya Çevir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçeyi Dosyaya Çevir": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Yaz",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Her Akşam 20:00 (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Oku (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elle Test Et (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Oku (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçeyi Oku (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Çıkar (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçeyi Çıkar (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Oku (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Oku (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Harcamaları Çıkar (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Harcamaları Çıkar (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Eşikleri Kontrol Et",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eşikleri Kontrol Et": {
+      "main": [
+        [
+          {
+            "node": "Telegram Kurulu mu? (Bütçe)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Telegram Yoksa Mail (Bütçe)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Bütçe Gövdesi (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Kurulu mu? (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "Bütçe Uyarısını Telegrama Gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Yoksa Mail (Bütçe)": {
+      "main": [
+        [
+          {
+            "node": "Bütçe Uyarısını Mail At (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçe Gövdesi (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Dosyaya Çevir (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bütçeyi Dosyaya Çevir (Akşam)": {
+      "main": [
+        [
+          {
+            "node": "Bütçeyi Yaz (Akşam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

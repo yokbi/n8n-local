@@ -302,6 +302,12 @@ console.log('05 — Telegram bot komutları');
     esit(y.aliskanlikIstekleri.length, 0);
     if (!y.yanitlar[0].text.includes('Kullanım: /yaptim')) throw new Error('kullanım yok');
   });
+  dene('/butce workflow 23\'e iletilir', () => {
+    const r = bot('/butce limit Market 6000');
+    esit(r.butceIstekleri.length, 1); esit(r.butceIstekleri[0].metin, 'limit Market 6000');
+    esit(r.yanitlar.length, 0); esit(r.harcamaYazilsin, false);
+    esit(bot('/bütçe').butceIstekleri[0].metin, '');
+  });
 }
 
 // ═══ 17 — Servis nöbetçisi ═══
@@ -1042,6 +1048,121 @@ console.log('22 — Alışkanlık takibi');
     const l = [{ id: 1, ad: 'Kitap', gunler: [] }];
     esit(aksam(l, gun(0)).gonderilecek, false);
     esit(aksam(l, gun(0), true).gonderilecek, true);
+  });
+}
+
+// ═══ 23 — Bütçe nöbetçisi ═══
+console.log('23 — Bütçe nöbetçisi');
+{
+  const d23 = wf('23-butce-nobetcisi.json');
+  const istekKod = kodu(d23, 'İsteği Al (Bütçe)');
+  const islemKod = kodu(d23, 'İşlemi Uygula (Bütçe)');
+  const esikKod = kodu(d23, 'Eşikleri Kontrol Et');
+  // Bu ayın ortasından bir an: ay başı/sonu kaymalarından etkilenmesin.
+  const buAy = (gun = 1) => { const d = new Date(); d.setDate(gun); d.setHours(12, 0, 0, 0); return d.toISOString(); };
+  const gecenAy = () => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); d.setHours(12); return d.toISOString(); };
+  const iki = (n) => String(n).padStart(2, '0');
+  const ay = (() => { const d = new Date(); return d.getFullYear() + '-' + iki(d.getMonth() + 1); })();
+  const H = (tutar, konu, kimden = 'Elle (Telegram)', tarih = buAy()) => ({ tarih, tutar, konu, kimden, paraBirimi: 'TL' });
+  const kat = [{ ad: 'Market', limit: 1000, anahtarlar: ['migros', 'a101'] }, { ad: 'Yeme içme', limit: null, anahtarlar: ['kafe'] }];
+
+  const istek = (govde) => calistir(istekKod, { girdi: [govde] })[0].json;
+  const islem = (metin, butce, harcamalar, ek = {}) => {
+    const d = {
+      'İsteği Al (Bütçe)': [istek({ chat_id: 42, metin })],
+      'Bütçeyi Oku': [ek.butceYok ? { error: { message: 'ENOENT' } } : {}],
+      'Bütçeyi Çıkar': [ek.butceBozuk ? { error: { message: 'Unexpected token' } } : { data: butce }],
+      'Harcamaları Oku (Bütçe)': [{}],
+      'Harcamaları Çıkar (Bütçe)': [ek.harcamaBozuk ? { error: { message: 'Unexpected end' } } : { data: { harcamalar } }],
+    };
+    return calistir(islemKod, { dugumler: d, girdi: [{}] })[0].json;
+  };
+  const esik = (butce, harcamalar, elle) => {
+    const d = {
+      'Bütçeyi Oku (Akşam)': [{}], 'Bütçeyi Çıkar (Akşam)': [{ data: butce }],
+      'Harcamaları Oku (Akşam)': [{}], 'Harcamaları Çıkar (Akşam)': [{ data: { harcamalar } }],
+    };
+    if (elle) d['Elle Test Et (Bütçe)'] = [{}];
+    return calistir(esikKod, { dugumler: d, girdi: [{}] })[0].json;
+  };
+
+  dene('istek: GET (gövdesiz) → durum; POST metin → alt komut', () => {
+    const g = istek({ query: {}, body: {} });
+    esit(g.islem, 'durum'); esit(g.webhooktan, true);
+    const p = istek({ body: { metin: 'limit Market 6000' } });
+    esit(p.islem, 'limit'); esit(p.arg, 'Market 6000');
+  });
+  dene('durum: kategoriye göre toplar, eşleşmeyen "Diğer"e düşer, geçen ay sayılmaz', () => {
+    const r = islem('', { aylikLimit: 5000, kategoriler: kat },
+      [H(300, 'Migros alışveriş'), H(200, 'x', 'A101 Mağazacılık'), H(150, 'kafe'), H(400, 'kitap'), H(999, 'Migros', 'x', gecenAy()),
+       { tarih: buAy(), tutar: null, konu: 'tutarsız' }]);
+    const m = r.durum.kategoriler.find((k) => k.ad === 'Market');
+    esit(m.harcanan, 500); esit(m.oran, 50);
+    esit(r.durum.kategoriler.find((k) => k.ad === 'Yeme içme').harcanan, 150);
+    esit(r.durum.diger, 400); esit(r.durum.genel.harcanan, 1050); esit(r.durum.genel.kalan, 3950);
+    esit(r.yazilsin, false);
+    if (!r.mesaj.includes('Market ▓▓▓▓▓░░░░░ %50')) throw new Error(r.mesaj);
+  });
+  dene('limit: genel ve yeni kategori; 0 limiti kaldırır', () => {
+    const g = islem('limit 20.000', { kategoriler: [] }, []);
+    esit(g.butce.aylikLimit, 20000); esit(g.yazilsin, true);
+    const k = islem('limit Kira 15000', { kategoriler: [] }, []);
+    esit(k.butce.kategoriler[0].ad, 'Kira'); esit(k.butce.kategoriler[0].limit, 15000);
+    esit(k.butce.kategoriler[0].anahtarlar.join(), 'kira');
+    esit(islem('limit 0', { aylikLimit: 5 }, []).butce.aylikLimit, null);
+  });
+  dene('anahtar: çok kelimeli kategori adı ve virgüllü liste', () => {
+    const r = islem('anahtar Yeme içme yemeksepeti, restoran', { kategoriler: kat }, []);
+    esit(r.butce.kategoriler[1].anahtarlar.join(), 'kafe,yemeksepeti,restoran'); esit(r.yazilsin, true);
+    esit(islem('anahtar Yok x', { kategoriler: kat }, []).hata, true);
+  });
+  dene('sil kategori; bilinmeyen komut yazmaz', () => {
+    const r = islem('sil market', { kategoriler: kat }, []);
+    esit(r.butce.kategoriler.length, 1); esit(r.yazilsin, true);
+    const b = islem('zzz', { kategoriler: kat }, []);
+    esit(b.hata, true); esit(b.yazilsin, false);
+  });
+  dene('butce.json BOZUK → durur; harcamalar bozuksa yalnızca uyarır', () => {
+    let attı = false;
+    try { islem('limit 5', {}, [], { butceBozuk: true }); } catch (e) { attı = /butce\.json okunamadı/.test(e.message); }
+    if (!attı) throw new Error('bozuk bütçede durmadı');
+    const r = islem('', { aylikLimit: 100 }, [], { harcamaBozuk: true });
+    if (!r.mesaj.includes('harcamalar.json okunamadı')) throw new Error('uyarı yok');
+  });
+  dene('eşik: %80 ve %100 bir kez; aynı ay tekrar gönderilmez', () => {
+    const b = { aylikLimit: 1000, kategoriler: [], uyarilar: { ay: null, gonderilen: [] } };
+    const r = esik(b, [H(850, 'x')]);
+    esit(r.gonderilecek, true); esit(r.govde.uyarilar.ay, ay);
+    esit(r.govde.uyarilar.gonderilen.join(), 'genel-80');
+    if (!r.text.includes('🟠 Genel: %85 doldu')) throw new Error(r.text);
+    const r2 = esik({ ...b, uyarilar: r.govde.uyarilar }, [H(850, 'x')]);
+    esit(r2.gonderilecek, false); esit(r2.yazilsin, false);
+    const r3 = esik({ ...b, uyarilar: r.govde.uyarilar }, [H(1200, 'x')]);
+    esit(r3.gonderilecek, true);
+    if (!r3.text.includes('🔴 Genel: limit aşıldı')) throw new Error(r3.text);
+    esit(r3.govde.uyarilar.gonderilen.join(), 'genel-80,genel-100');
+  });
+  dene('eşik: ay değişince işaretler sıfırlanır', () => {
+    const b = { aylikLimit: 1000, uyarilar: { ay: '2000-01', gonderilen: ['genel-80', 'genel-100'] } };
+    const r = esik(b, [H(900, 'x')]);
+    esit(r.gonderilecek, true); esit(r.govde.uyarilar.gonderilen.join(), 'genel-80');
+    const sessiz = esik(b, [H(10, 'x')]);
+    esit(sessiz.gonderilecek, false); esit(sessiz.yazilsin, true, 'eski ayın işaretleri silinmeli');
+    esit(sessiz.govde.uyarilar.gonderilen.length, 0);
+  });
+  dene('eşik: kategori limiti ayrı izlenir; birden %100\'e çıkınca tek satır', () => {
+    const r = esik({ kategoriler: kat }, [H(1500, 'migros')]);
+    const satirlar = r.text.split('\n').filter((s) => s.includes('Market:'));
+    esit(satirlar.length, 1); esit(r.govde.uyarilar.gonderilen.join(), 'kat:market-80,kat:market-100');
+  });
+  dene('eşik: dosya yoksa sessiz, dosya oluşturmaz; elle testte tam durum', () => {
+    const d = { 'Bütçeyi Oku (Akşam)': [{ error: { message: 'ENOENT' } }], 'Bütçeyi Çıkar (Akşam)': [{}],
+                'Harcamaları Oku (Akşam)': [{}], 'Harcamaları Çıkar (Akşam)': [{ data: { harcamalar: [] } }] };
+    const r = calistir(esikKod, { dugumler: d, girdi: [{}] })[0].json;
+    esit(r.gonderilecek, false); esit(r.yazilsin, false);
+    const e = esik({ aylikLimit: 1000, uyarilar: { ay, gonderilen: [] } }, [H(10, 'x')], true);
+    esit(e.gonderilecek, true);
+    if (!e.text.startsWith('🎯 Bütçe —')) throw new Error(e.text);
   });
 }
 
